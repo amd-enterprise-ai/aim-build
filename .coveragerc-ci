@@ -1,0 +1,30 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Coverage configuration for CI tests
+# This config ensures we only measure coverage for CI-related code
+[run]
+source = ci/
+
+[report]
+# Only include CI modules in the coverage report
+include = ci/*
+# Exclude everything else
+omit =
+    tests/*
+    test_*
+    src/*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+
+show_missing = True
+precision = 2
+
+[html]
+directory = htmlcov-ci
+title = CI Scripts Coverage Report
+
+[xml]
+output = coverage-ci.xml

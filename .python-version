@@ -1,0 +1,15 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Python version configuration for AIM project
+# This file serves as the single source of truth for Python version requirements
+
+# Minimum Python version required
+PYTHON_MIN_VERSION = "3.12"
+
+# Python version used in CI
+PYTHON_CI_VERSION = "3.12"
+
+# Supported Python versions
+PYTHON_SUPPORTED_VERSIONS = ["3.12"]

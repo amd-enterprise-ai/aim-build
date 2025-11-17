@@ -1,0 +1,51 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ARGs before FROM are used in the FROM instruction
+# these must be overridden via --build-arg
+ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
+ARG BASE_REPOSITORY=dummy_base_image
+ARG BASE_VERSION_NUMBER=dummy_base_version_number
+FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER}
+
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG BASE_REGISTRY_NAMESPACE
+ARG BASE_REPOSITORY
+ARG BASE_VERSION_NUMBER
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONPATH="/workspace/aim-runtime/src"
+ENV HF_HOME="/workspace/model-cache"
+ENV HF_DATASETS_CACHE="/workspace/model-cache"
+ENV HF_HUB_DISABLE_TELEMETRY="1"
+ENV AIM_BASE_VERSION=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER}
+ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
+
+RUN echo "AIM Base Version: ${AIM_BASE_VERSION}"
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Copy AIM Runtime source code
+COPY src/ /workspace/aim-runtime/src/
+COPY pyproject.toml /workspace/aim-runtime/
+COPY requirements/requirements.txt /workspace/aim-runtime/
+COPY src/entrypoint.py /workspace/entrypoint.py
+RUN chmod +x /workspace/entrypoint.py
+
+# Copy general profiles and schemas
+COPY profiles/general /workspace/aim-runtime/profiles/general
+COPY schemas /workspace/aim-runtime/schemas
+
+# Install AIM Runtime in production mode
+RUN cd /workspace/aim-runtime && \
+    pip3 install -r requirements.txt && \
+    pip3 install --no-deps .
+
+# Create cache directories
+RUN mkdir -p /workspace/model-cache
+
+ENTRYPOINT ["./entrypoint.py"]

@@ -1,0 +1,516 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "disable-log-stats": {
+      "type": ["boolean", "null"]
+    },
+    "model": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string",
+      "enum": ["auto", "draft", "generate", "pooling"]
+    },
+    "convert": {
+      "type": "string",
+      "enum": ["auto", "classify", "embed", "none", "reward"]
+    },
+    "task": {
+      "type": ["string", "null"],
+      "enum": ["auto", "classify", "draft", "embed", "embedding", "generate", "reward", "score", "transcription", null]
+    },
+    "tokenizer": {
+      "type": ["string", "null"]
+    },
+    "tokenizer-mode": {
+      "type": "string",
+      "enum": ["auto", "custom", "mistral", "slow"]
+    },
+    "tokenizer-revision": {
+      "type": ["string", "null"]
+    },
+    "trust-remote-code": {
+      "type": ["boolean", "null"]
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["auto", "bfloat16", "float", "float16", "float32", "half"]
+    },
+    "seed": {
+      "type": ["integer", "null"]
+    },
+    "hf-config-path": {
+      "type": ["string", "null"]
+    },
+    "allowed-local-media-path": {
+      "type": "string"
+    },
+    "revision": {
+      "type": ["string", "null"]
+    },
+    "code-revision": {
+      "type": ["string", "null"]
+    },
+    "rope-scaling": {
+      "type": "object"
+    },
+    "rope-theta": {
+      "type": ["number", "null"]
+    },
+    "max-model-len": {
+      "type": ["integer", "null"]
+    },
+    "quantization": {
+      "type": ["string", "null"]
+    },
+    "enforce-eager": {
+      "type": ["boolean", "null"]
+    },
+    "max-seq-len-to-capture": {
+      "type": "integer"
+    },
+    "max-logprobs": {
+      "type": "integer"
+    },
+    "logprobs-mode": {
+      "type": "string",
+      "enum": ["raw_logits", "raw_logprobs", "processed_logits", "processed_logprobs"]
+    },
+    "disable-sliding-window": {
+      "type": ["boolean", "null"]
+    },
+    "disable-cascade-attn": {
+      "type": ["boolean", "null"]
+    },
+    "skip-tokenizer-init": {
+      "type": ["boolean", "null"]
+    },
+    "enable-prompt-embeds": {
+      "type": ["boolean", "null"]
+    },
+    "served-model-name": {
+      "anyOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}},
+        {"type": "null"}
+      ]
+    },
+    "disable-async-output-proc": {
+      "type": ["boolean", "null"]
+    },
+    "config-format": {
+      "type": "string",
+      "enum": ["auto", "hf", "mistral"]
+    },
+    "hf-token": {
+      "type": ["string", "null"]
+    },
+    "hf-overrides": {
+      "type": "object"
+    },
+    "override-neuron-config": {
+      "type": "object"
+    },
+    "override-pooler-config": {
+      "type": ["object", "null"]
+    },
+    "logits-processor-pattern": {
+      "type": ["string", "null"]
+    },
+    "generation-config": {
+      "type": "string"
+    },
+    "override-generation-config": {
+      "type": "object"
+    },
+    "enable-sleep-mode": {
+      "type": ["boolean", "null"]
+    },
+    "model-impl": {
+      "type": "string",
+      "enum": ["auto", "vllm", "transformers"]
+    },
+    "override-attention-dtype": {
+      "type": ["string", "null"]
+    },
+    "logits-processors": {
+      "type": ["string", "null"]
+    },
+    "load-format": {
+      "type": "string",
+      "enum": ["auto", "pt", "safetensors", "npcache", "dummy", "tensorizer", "runai_streamer", "bitsandbytes", "sharded_state", "gguf", "mistral"]
+    },
+    "download-dir": {
+      "type": ["string", "null"]
+    },
+    "model-loader-extra-config": {
+      "type": "object"
+    },
+    "ignore-patterns": {
+      "type": ["string", "null"]
+    },
+    "use-tqdm-on-load": {
+      "type": ["boolean", "null"]
+    },
+    "pt-load-map-location": {
+      "type": "string"
+    },
+    "guided-decoding-backend": {
+      "type": "string",
+      "enum": ["auto", "guidance", "outlines", "xgrammar"]
+    },
+    "guided-decoding-disable-fallback": {
+      "type": ["boolean", "null"]
+    },
+    "guided-decoding-disable-any-whitespace":  {
+      "type": ["boolean", "null"]
+    },
+    "guided-decoding-disable-additional-properties": {
+      "type": ["boolean", "null"]
+    },
+    "reasoning-parser": {
+      "type": ["string", "null"]
+    },
+    "distributed-executor-backend": {
+      "type": "string"
+    },
+    "block-size": {
+      "type": ["integer", "null"],
+      "enum": [1, 8, 16, 32, 64, 128, null]
+    },
+    "gpu-memory-utilization": {
+      "type": "number"
+    },
+    "kv-cache-dtype": {
+      "type": "string",
+      "enum": ["auto", "fp8", "fp8_e4m3", "fp8_e5m2", "fp8_inc"]
+    },
+    "prefix-caching-hash-algo": {
+      "type": "string",
+      "enum": ["builtin", "sha256", "sha256_cbor_64bit"]
+    },
+    "mm-encoder-tp-mode": {
+      "type": "string",
+      "enum": ["data", "weights"]
+    },
+    "lora-dtype": {
+      "type": "string",
+      "enum": ["auto", "bfloat16", "float16"]
+    },
+    "collect-detailed-traces": {
+      "type": ["string", "null"],
+      "enum": ["all", "model", "worker", null, "model,worker", "model,all", "worker,model", "worker,all", "all,model", "all,worker"]
+    },
+    "preemption-mode": {
+      "type": ["string", "null"],
+      "enum": ["recompute", "swap", null]
+    },
+    "scheduling-policy": {
+      "type": "string",
+      "enum": ["fcfs", "priority"]
+    },
+    "data-parallel-backend": {
+      "type": "string",
+      "enum": ["mp", "ray"]
+    },
+    "compilation-config": {
+      "type": "object"
+    },
+    "additional-config": {
+      "type": "object"
+    },
+    "pipeline-parallel-size": {
+      "type": "integer"
+    },
+    "tensor-parallel-size": {
+      "type": "integer"
+    },
+    "data-parallel-size": {
+      "type": "integer"
+    },
+    "data-parallel-rank": {
+      "type": ["integer", "null"]
+    },
+    "data-parallel-start-rank": {
+      "type": ["integer", "null"]
+    },
+    "data-parallel-size-local": {
+      "type": ["integer", "null"]
+    },
+    "data-parallel-address": {
+      "type": ["string", "null"]
+    },
+    "data-parallel-rpc-port": {
+      "type": ["integer", "null"]
+    },
+    "data-parallel-hybrid-lb": {
+      "type": ["boolean", "null"]
+    },
+    "enable-expert-parallel": {
+      "type": ["boolean", "null"]
+    },
+    "enable-eplb": {
+      "type": ["boolean", "null"]
+    },
+    "eplb-config": {
+      "type": "object"
+    },
+    "num-redundant-experts": {
+      "type": ["integer", "null"]
+    },
+    "eplb-window-size": {
+      "type": ["integer", "null"]
+    },
+    "eplb-step-interval": {
+      "type": ["integer", "null"]
+    },
+    "eplb-log-balancedness": {
+      "type": ["boolean", "null"]
+    },
+    "max-parallel-loading-workers": {
+      "type": ["integer", "null"]
+    },
+    "ray-workers-use-nsight": {
+      "type": ["boolean", "null"]
+    },
+    "disable-custom-all-reduce": {
+      "type": ["boolean", "null"]
+    },
+    "worker-cls": {
+      "type": "string"
+    },
+    "worker-extension-cls": {
+      "type": "string"
+    },
+    "enable-multimodal-encoder-data-parallel": {
+      "type": ["boolean", "null"]
+    },
+    "swap-space": {
+      "type": "integer"
+    },
+    "num-gpu-blocks-override": {
+      "type": ["integer", "null"]
+    },
+    "enable-prefix-caching": {
+      "type": ["boolean", "null"]
+    },
+    "cpu-offload-gb": {
+      "type": "integer"
+    },
+    "calculate-kv-scales": {
+      "type": ["boolean", "null"]
+    },
+    "kv-sharing-fast-prefill": {
+      "type": ["boolean", "null"]
+    },
+    "mamba-cache-dtype": {
+      "type": "string",
+      "enum": ["auto", "float32"]
+    },
+    "mamba-ssm-cache-dtype": {
+      "type": "string",
+      "enum": ["auto", "float32"]
+    },
+    "limit-mm-per-prompt": {
+      "type": "object"
+    },
+    "media-io-kwargs": {
+      "type": "object"
+    },
+    "mm-processor-kwargs": {
+      "type": ["object", "null"]
+    },
+    "mm-processor-cache-gb": {
+      "type": "integer"
+    },
+    "disable-mm-preprocessor-cache": {
+      "type": ["boolean", "null"]
+    },
+    "interleave-mm-strings": {
+      "type": ["boolean", "null"]
+    },
+    "skip-mm-profiling": {
+      "type": ["boolean", "null"]
+    },
+    "enable-lora": {
+      "type": ["boolean", "null"]
+    },
+    "enable-lora-bias": {
+      "type": ["boolean", "null"]
+    },
+    "max-loras": {
+      "type": "integer"
+    },
+    "max-lora-rank": {
+      "type": "integer"
+    },
+    "lora-extra-vocab-size": {
+      "type": "integer"
+    },
+    "max-cpu-loras": {
+      "type": ["integer", "null"]
+    },
+    "fully-sharded-loras": {
+      "type": ["boolean", "null"]
+    },
+    "default-mm-loras": {
+      "type": ["object", "null"]
+    },
+    "show-hidden-metrics-for-version": {
+      "type": ["string", "null"]
+    },
+    "otlp-traces-endpoint": {
+      "type": ["string", "null"]
+    },
+    "max-num-batched-tokens": {
+      "type": ["integer", "null"]
+    },
+    "max-num-seqs": {
+      "type": ["integer", "null"]
+    },
+    "max-num-partial-prefills": {
+      "type": "integer"
+    },
+    "max-long-partial-prefills": {
+      "type": "integer"
+    },
+    "cuda-graph-sizes": {
+      "type": "array",
+      "items": {}
+    },
+    "long-prefill-token-threshold": {
+      "type": "integer"
+    },
+    "num-lookahead-slots": {
+      "type": "integer"
+    },
+    "scheduler-delay-factor": {
+      "type": "number"
+    },
+    "enable-chunked-prefill": {
+      "type": ["boolean", "null"]
+    },
+    "disable-chunked-mm-input": {
+      "type": ["boolean", "null"]
+    },
+    "scheduler-cls": {
+      "type": "string"
+    },
+    "disable-hybrid-kv-cache-manager": {
+      "type": ["boolean", "null"]
+    },
+    "async-scheduling": {
+      "type": ["boolean", "null"]
+    },
+    "speculative-config": {
+      "type": ["object", "null"]
+    },
+    "kv-transfer-config": {
+      "type": ["object", "null"]
+    },
+    "kv-events-config": {
+      "type": ["object", "null"]
+    },
+    "enable-log-requests": {
+      "type": ["boolean", "null"]
+    },
+    "disable-log-requests": {
+      "type": ["boolean", "null"]
+    },
+    "no-enable-chunked-prefill": {
+      "type": "null"
+    },
+    "no-trust-remote-code": {
+      "type": "null"
+    },
+    "no-enforce-eager": {
+      "type": "null"
+    },
+    "no-disable-sliding-window": {
+      "type": "null"
+    },
+    "no-disable-cascade-attn": {
+      "type": "null"
+    },
+    "no-skip-tokenizer-init": {
+      "type": "null"
+    },
+    "no-enable-prompt-embeds": {
+      "type": "null"
+    },
+    "no-enable-sleep-mode,": {
+      "type": "null"
+    },
+    "no-use-tqdm-on-load": {
+      "type": "null"
+    },
+    "no-guided-decoding-disable-fallback": {
+      "type": "null"
+    },
+    "no-guided-decoding-disable-any-whitespace": {
+      "type": "null"
+    },
+    "no-guided-decoding-disable-additional-properties": {
+      "type": "null"
+    },
+    "no-data-parallel-hybrid-lb": {
+      "type": "null"
+    },
+    "no-enable-expert-parallel": {
+      "type": "null"
+    },
+    "no-enable-eplb": {
+      "type": "null"
+    },
+    "no-eplb-log-balancedness": {
+      "type": "null"
+    },
+    "no-ray-workers-use-nsight": {
+      "type": "null"
+    },
+    "no-disable-custom-all-reduce": {
+      "type": "null"
+    },
+    "no-enable-prefix-caching": {
+      "type": "null"
+    },
+    "no-calculate-kv-scales": {
+      "type": "null"
+    },
+    "no-kv-sharing-fast-prefill": {
+      "type": "null"
+    },
+    "no-interleave-mm-strings": {
+      "type": "null"
+    },
+    "no-skip-mm-profiling": {
+      "type": "null"
+    },
+    "no-enable-lora": {
+      "type": "null"
+    },
+    "no-enable-lora-bias": {
+      "type": "null"
+    },
+    "no-fully-sharded-loras": {
+      "type": "null"
+    },
+    "no-disable-chunked-mm-input": {
+      "type": "null"
+    },
+    "no-disable-hybrid-kv-cache-manager": {
+      "type": "null"
+    },
+    "no-async-scheduling": {
+      "type": "null"
+    },
+    "no-enable-log-requests": {
+      "type": "null"
+    },
+    "no-disable-log-requests": {
+      "type": "null"
+    }
+  },
+  "additionalProperties": true
+}

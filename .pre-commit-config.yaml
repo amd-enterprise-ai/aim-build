@@ -1,0 +1,81 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Global exclude pattern applies to all hooks
+exclude: \.patch$
+
+repos:
+- repo: local
+  hooks:
+  - id: copyright-check
+    name: AMD Copyright Check
+    description: Check that all files have the required AMD copyright
+    entry: utils/check_copyright.py
+    language: python
+    pass_filenames: true
+    always_run: false
+
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: check-json
+  - id: check-yaml
+    exclude: ".*_template\\.yaml$"
+  - id: end-of-file-fixer
+    exclude: "^docs/docs-aim/.*\\.md$"
+  - id: check-toml
+  - id: trailing-whitespace
+    exclude: "^docs/docs-aim/.*\\.md$"
+
+- repo: https://github.com/psf/black
+  rev: 25.1.0
+  hooks:
+  - id: black
+    language_version: python3.12
+    args: [ "--config=pyproject.toml" ]
+
+- repo: https://github.com/pycqa/flake8
+  rev: 7.1.2
+  hooks:
+  - id: flake8
+    args: [ "--config=.flake8" ]
+
+- repo: https://github.com/pycqa/isort
+  rev: 6.0.0
+  hooks:
+  - id: isort
+    name: isort (python)
+    args: [ "--settings-path=pyproject.toml" ]
+
+- repo: https://github.com/PyCQA/autoflake
+  rev: v2.3.1
+  hooks:
+  - id: autoflake
+    args:
+    - --in-place
+    - --remove-all-unused-imports
+    - --remove-unused-variables
+    - --ignore-init-module-imports
+
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.15.0
+  hooks:
+  - id: mypy
+    args: [ "--config-file=pyproject.toml" ]
+    language_version: python3.12
+    additional_dependencies:
+    - types-PyYAML
+    - types-jsonschema
+    - types-requests
+
+- repo: local
+  hooks:
+  - id: pytest
+    name: pytest
+    entry: python3 -m pytest
+    language: system
+    types: [ python ]
+    pass_filenames: false
+    always_run: true
+    args: [ "tests/", "-v" ]

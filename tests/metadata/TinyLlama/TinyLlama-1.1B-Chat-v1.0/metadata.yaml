@@ -1,0 +1,29 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        capabilities:
+        - "text-generation"
+        - "chat"
+        tags: ""
+        source: "https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        variants: ""
+      hfToken:
+        required: false
+      release:
+        notes: ""
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      title: ""
+      description: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

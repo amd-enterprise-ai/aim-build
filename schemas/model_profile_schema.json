@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model-aware AIM Profile Schema",
+  "type": "object",
+  "allOf": [
+    { "$ref": "general_profile_schema.json" },
+    {
+      "properties": {
+        "aim_id": {
+          "type": "string",
+          "description": "The identifier for the AIM profile (e.g., 'meta-llama/Llama-3.1-8B-Instruct')"
+        },
+        "model_id": {
+          "type": "string",
+          "description": "The model identifier to use for inference (e.g., 'amd/Llama-3.1-8B-Instruct-FP8-KV' for quantized models)"
+        }
+      },
+      "required": ["aim_id", "model_id"]
+    }
+  ]
+}

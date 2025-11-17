@@ -1,0 +1,16 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+image: {{ organization }}/{{ image_name }}:{{ image_version }}
+model: {{ model_name }}
+gpus: {{ gpu_count }}
+
+{% if env_vars %}
+env_vars:
+  {% if hf_token %}
+  HF_TOKEN:
+    key: hf-token
+    name: hf-token
+  {% endif %}
+{% endif %}

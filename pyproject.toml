@@ -1,0 +1,111 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[project]
+name = "aim-build"
+version = "0.8"
+description = "AMD Inference Microservice - Container build and configuration tools"
+readme = {file = "README.md", content-type = "text/markdown"}
+authors = [
+    { name = "AMD" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "click>=8.0.0",
+    "huggingface-hub>=0.34.0,<1.0",
+    "jsonschema==4.25.1",
+    "PyYAML==6.0.3",
+    "tomli>=1.1.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest-cov>=4.0.0",
+    "pytest==8.4.2",
+    "semver>=2,<3"
+]
+dev = [
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "isort>=5.0.0",
+    "jinja2>=3.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest==8.4.2",
+    # Added for development scripts and tests that require HTTP requests.
+    "requests>=2.32.5"
+]
+
+[project.urls]
+Homepage = "https://github.com/amd-enterprise-ai/aim-build"
+
+[project.scripts]
+aim-runtime = "entrypoint:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["aim_runtime"]
+
+[tool.black]
+target-version = ['py312']
+line-length = 120
+
+[tool.isort]
+profile = "black"
+py_version = 312
+line_length = 120
+known_first_party = ["aim_runtime"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
+strict = false
+pretty = true
+show_column_numbers = true
+no_implicit_optional = false
+explicit_package_bases = true
+scripts_are_modules = true
+check_untyped_defs = false
+exclude = ["tests/", "docker/"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+pythonpath = ["src", "."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "-m", "not integration",  # Exclude integration tests by default
+    "--cov=src/aim_runtime",
+    "--cov=ci/utils",
+    "--cov=utils",
+    "--cov=entrypoint.py",
+    "--cov-report=term",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (requires GPU environment, run with '-m integration')",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]

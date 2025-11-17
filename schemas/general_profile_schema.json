@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Base AIM Profile Schema",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "enum": [
+            "vllm"
+          ]
+        },
+        "gpu": {
+          "enum": [
+            "MI100",
+            "MI250X",
+            "MI210",
+            "MI300A",
+            "MI300X",
+            "MI308X",
+            "MI325X",
+            "MI350X",
+            "MI355X",
+            "V710",
+            "W7900",
+            "W7800",
+            "W6900X",
+            "W6800",
+            "W6800X",
+            "V620",
+            "RX9070",
+            "RX7900",
+            "RX6900",
+            "RX6800",
+            "NONE"
+          ]
+        },
+        "precision": {
+          "enum": [
+            "fp4",
+            "fp8",
+            "fp16",
+            "fp32",
+            "bf16",
+            "int4",
+            "int8"
+          ]
+        },
+        "gpu_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "metric": {
+          "enum": [
+            "latency",
+            "throughput"
+          ]
+        },
+        "manual_selection_only": {
+          "type": "boolean",
+          "description": "If true, this profile is only selectable via explicit/manual selection, not by automatic profile selection logic."
+        },
+        "type": {
+          "enum": [
+            "optimized",
+            "unoptimized",
+            "general"
+          ],
+          "description": "Profile type indicating optimization status: 'optimized' for performance-tuned profiles, 'unoptimized' for basic/default configurations, 'general' for generic profiles applicable to multiple models."
+        }
+      },
+      "required": [
+        "engine",
+        "gpu",
+        "precision",
+        "gpu_count",
+        "metric",
+        "manual_selection_only",
+        "type"
+      ]
+    },
+    "env_vars": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Z0-9_]+$": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "engine_args": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "metadata",
+    "env_vars",
+    "engine_args"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "metadata": {
+            "properties": {
+              "engine": {
+                "const": "vllm"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "engine_args": {
+            "$ref": "vllm_engine_schema.json"
+          }
+        }
+      }
+    }
+  ]
+}

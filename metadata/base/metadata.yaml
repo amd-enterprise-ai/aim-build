@@ -1,0 +1,21 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: AMD
+      authors: ''
+      licenses: MIT
+      description: Generic image that can run any model in the AIM catalog.
+      documentation: ''
+      source: https://github.com/amd-enterprise-ai/aim-build
+com:
+  amd:
+    aim:
+      release:
+        notes: ''
+      description:
+        full: Generic image that can run any model in the AIM catalog. Model name
+          should be specified using the environment variable AIM_MODEL_NAME

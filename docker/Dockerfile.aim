@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ARGs before FROM are used in the FROM instruction
+# these must be overridden via --build-arg
+ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
+ARG BASE_REPOSITORY=dummy_base_image
+ARG BASE_VERSION_NUMBER=dummy_base_version_number
+FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER} AS final
+
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG BASE_REGISTRY_NAMESPACE
+ARG BASE_REPOSITORY
+ARG BASE_VERSION_NUMBER
+ARG ORG
+ARG MODEL
+
+# Validate required build arguments
+RUN test -n "${ORG}" || (echo "ERROR: ORG build arg is required and cannot be empty" && exit 1)
+RUN test -n "${MODEL}" || (echo "ERROR: MODEL build arg is required and cannot be empty" && exit 1)
+
+# Set environment variables
+# AIM_ID identifies this as a model-specific AIM container
+ENV AIM_BASE_VERSION=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER}
+ENV AIM_ID=${ORG}/${MODEL}
+ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
+
+RUN echo "AIM Base Version: ${AIM_BASE_VERSION}"
+RUN echo "AIM ID: ${AIM_ID}"
+
+# Copy model-specific profiles
+COPY profiles/${ORG}/${MODEL}/ /workspace/aim-runtime/profiles/${ORG}/${MODEL}/
+
+ENTRYPOINT ["./entrypoint.py"]

@@ -1,0 +1,44 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: AMD
+      authors: ''
+      licenses: llama3.1, MIT
+      description: Massive instruction-tuned version of Llama 3.1 with 405B parameters
+        for the most demanding tasks.
+      documentation: ''
+      source: https://github.com/amd-enterprise-ai/aim-build
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: meta-llama/Llama-3.1-405B-Instruct
+        tags:
+        - text-generation
+        - chat
+        - instruction
+        source: https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct
+        variants:
+        - amd/Llama-3.1-405B-Instruct-FP8-KV
+        - meta-llama/Llama-3.1-405B-Instruct
+        recommendedDeployments:
+        - gpuModel: MI300X
+          gpuCount: 8
+          precision: fp8
+          metric: latency
+          description: Optimized for latency on MI300X using fp8 precision
+        - gpuModel: MI300X
+          gpuCount: 8
+          precision: fp8
+          metric: throughput
+          description: Optimized for throughput on MI300X using fp8 precision
+      hfToken:
+        required: true
+      release:
+        notes: ''
+      description:
+        full: ''

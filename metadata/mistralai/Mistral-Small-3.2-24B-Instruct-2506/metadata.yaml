@@ -1,0 +1,45 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: AMD
+      authors: ''
+      licenses: Apache-2.0, MIT
+      description: 'Mistral-Small-3.2-24B-Instruct-2506 is a minor update of Mistral-Small-3.1-24B-Instruct-2503.
+        Small-3.2 improves in the following categories: - Instruction following: Small-3.2
+        is better at following precise instructions - Repetition errors: Small-3.2
+        produces less infinite generations or repetitive answers - Function calling:
+        Small-3.2''s function calling template is more robust'
+      documentation: ''
+      source: https://github.com/amd-enterprise-ai/aim-build
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: mistralai/Mistral-Small-3.2-24B-Instruct-2506
+        tags:
+        - text-generation
+        - chat
+        source: https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506
+        variants:
+        - mistralai/Mistral-Small-3.2-24B-Instruct-2506
+        recommendedDeployments:
+        - gpuModel: MI300X
+          gpuCount: 1
+          precision: fp16
+          metric: latency
+          description: Optimized for latency on MI300X using fp16 precision
+        - gpuModel: MI300X
+          gpuCount: 1
+          precision: fp16
+          metric: throughput
+          description: Optimized for throughput on MI300X using fp16 precision
+      hfToken:
+        required: false
+      release:
+        notes: ''
+      description:
+        full: ''

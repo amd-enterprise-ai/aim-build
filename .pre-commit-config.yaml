@@ -79,3 +79,14 @@ repos:
     pass_filenames: false
     always_run: true
     args: [ "tests/", "-v" ]
+
+- repo: local
+  hooks:
+  - id: yaml-key-order
+    name: YAML Key Order
+    description: Sort non-top-level keys in profile YAML files alphabetically
+    entry: python3 utils/sort_yaml_keys.py
+    language: system
+    types: [ yaml ]
+    pass_filenames: false
+    always_run: false

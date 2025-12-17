@@ -7,30 +7,30 @@ model_id: amd/Llama-3.1-405B-Instruct-FP8-KV
 metadata:
   engine: vllm
   gpu: MI325X
-  precision: fp8
   gpu_count: 8
-  metric: throughput
   manual_selection_only: true
+  metric: throughput
+  precision: fp8
   type: unoptimized
 engine_args:
-  async-scheduling:
-  disable-uvicorn-access-log:
+  async-scheduling: null
+  disable-uvicorn-access-log: null
   distributed_executor_backend: mp
   dtype: float16
   gpu-memory-utilization: 0.9
   kv-cache-dtype: fp8
+  max-model-len: 32768
   max-num-batched-tokens: 1024
   max-num-seqs: 512
   max-seq-len-to-capture: 32768
-  max-model-len: 32768
-  no-enable-log-requests:
-  no-enable-prefix-caching:
-  no-trust-remote-code:
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
   swap-space: 64
   tensor-parallel-size: 8
 env_vars:
-  GPU_ARCHS: "gfx942"
-  HSA_NO_SCRATCH_RECLAIM: "1"
-  VLLM_ROCM_USE_AITER: "1"
-  VLLM_ROCM_USE_AITER_RMSNORM: "1"
-  VLLM_USE_AITER_TRITON_ROPE: "1"
+  GPU_ARCHS: gfx942
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '1'
+  VLLM_USE_AITER_TRITON_ROPE: '1'

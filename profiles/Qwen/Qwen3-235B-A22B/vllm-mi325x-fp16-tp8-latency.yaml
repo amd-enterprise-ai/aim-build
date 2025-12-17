@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-235B-A22B
+model_id: Qwen/Qwen3-235B-A22B
+metadata:
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 8
+  manual_selection_only: true
+  metric: latency
+  precision: fp16
+  type: unoptimized
+engine_args:
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: auto
+  enable-auto-tool-choice: null
+  enable-expert-parallel: null
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: auto
+  max-model-len: 32768
+  max-num-batched-tokens: 2048
+  max-num-seqs: 512
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  reasoning-parser: qwen3
+  swap-space: 16
+  tensor-parallel-size: 8
+  tool-call-parser: hermes
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_V1_USE_PREFILL_DECODE_ATTENTION: '1'

@@ -7,29 +7,29 @@ model_id: meta-llama/Llama-3.2-1B-Instruct
 metadata:
   engine: vllm
   gpu: MI325X
-  precision: fp16
   gpu_count: 1
-  metric: throughput
   manual_selection_only: true
+  metric: throughput
+  precision: fp16
   type: unoptimized
 engine_args:
-  async-scheduling:
-  disable-uvicorn-access-log:
+  async-scheduling: null
+  disable-uvicorn-access-log: null
   distributed_executor_backend: mp
   dtype: float16
   gpu-memory-utilization: 0.9
+  max-model-len: 32768
   max-num-batched-tokens: 1024
   max-num-seqs: 512
   max-seq-len-to-capture: 32768
-  max-model-len: 32768
-  no-enable-log-requests:
-  no-enable-prefix-caching:
-  no-trust-remote-code:
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
   swap-space: 64
   tensor-parallel-size: 1
 env_vars:
-  GPU_ARCHS: "gfx942"
-  HSA_NO_SCRATCH_RECLAIM: "1"
-  VLLM_ROCM_USE_AITER: "1"
-  VLLM_ROCM_USE_AITER_RMSNORM: "1"
-  VLLM_USE_AITER_TRITON_ROPE: "1"
+  GPU_ARCHS: gfx942
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '1'
+  VLLM_USE_AITER_TRITON_ROPE: '1'

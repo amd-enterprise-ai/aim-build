@@ -5,38 +5,50 @@
 org:
   opencontainers:
     image:
-      vendor: AMD
-      authors: ''
-      licenses: llama3.2, MIT
-      description: Balanced instruction-tuned Llama 3.2 model with 3B parameters.
-      documentation: ''
-      source: https://github.com/amd-enterprise-ai/aim-build
+      vendor: "AMD"
+      authors: ""
+      licenses: "llama3.2, MIT"
+      description: "Balanced instruction-tuned Llama 3.2 model with 3B parameters."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:
       model:
-        canonicalName: meta-llama/Llama-3.2-3B-Instruct
+        canonicalName: "meta-llama/Llama-3.2-3B-Instruct"
         tags:
-        - text-generation
-        - chat
-        - instruction
-        source: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct
+        - "text-generation"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct"
         variants:
-        - meta-llama/Llama-3.2-3B-Instruct
+        - "meta-llama/Llama-3.2-3B-Instruct"
         recommendedDeployments:
-        - gpuModel: MI300X
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: latency
-          description: Optimized for latency on MI300X using fp16 precision
-        - gpuModel: MI300X
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: throughput
-          description: Optimized for throughput on MI300X using fp16 precision
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp1-throughput"
+        publisher: "Meta"
       hfToken:
         required: true
       release:
-        notes: ''
+        notes: ""
       description:
-        full: ''
+        full: "Balanced instruction-tuned Llama 3.2 model with 3B parameters."
+      title: "Llama 3.2 3B Instruct"

@@ -1,0 +1,21 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 4
+  manual_selection_only: false
+  metric: latency
+  precision: fp16
+  type: general
+engine_args:
+  dtype: float16
+  gpu-memory-utilization: 0.95
+  no-enable-chunked-prefill: null
+  tensor-parallel-size: 4
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'

@@ -1,0 +1,28 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: openai/gpt-oss-20b
+model_id: openai/gpt-oss-20b
+metadata:
+  engine: vllm
+  gpu: MI250X
+  gpu_count: 4
+  manual_selection_only: true
+  metric: latency
+  precision: fp4
+  type: unoptimized
+engine_args:
+  enable-auto-tool-choice: null
+  enable-log-requests: false
+  gpu-memory-utilization: 0.9
+  max-model-len: 32768
+  max-num-batched-tokens: 2048
+  max-num-seqs: 512
+  no-async-scheduling: null
+  reasoning-parser: openai_gptoss
+  tensor-parallel-size: 4
+  tool-call-parser: openai
+env_vars:
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_ROCM_USE_AITER: '0'

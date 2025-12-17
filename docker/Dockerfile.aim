@@ -5,14 +5,14 @@
 # ARGs before FROM are used in the FROM instruction
 # these must be overridden via --build-arg
 ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
-ARG BASE_REPOSITORY=dummy_base_image
-ARG BASE_VERSION_NUMBER=dummy_base_version_number
-FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER} AS final
+ARG BASE_REPOSITORY=dummy_base_repository
+ARG BASE_TAG=dummy_base_tag
+FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG} AS final
 
 # Re-declare ARGs after FROM to use them in subsequent instructions
 ARG BASE_REGISTRY_NAMESPACE
 ARG BASE_REPOSITORY
-ARG BASE_VERSION_NUMBER
+ARG BASE_TAG
 ARG ORG
 ARG MODEL
 
@@ -22,11 +22,11 @@ RUN test -n "${MODEL}" || (echo "ERROR: MODEL build arg is required and cannot b
 
 # Set environment variables
 # AIM_ID identifies this as a model-specific AIM container
-ENV AIM_BASE_VERSION=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER}
+ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
 ENV AIM_ID=${ORG}/${MODEL}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
 
-RUN echo "AIM Base Version: ${AIM_BASE_VERSION}"
+RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
 RUN echo "AIM ID: ${AIM_ID}"
 
 # Copy model-specific profiles

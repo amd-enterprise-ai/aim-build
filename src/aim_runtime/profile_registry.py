@@ -17,7 +17,9 @@ from typing import List, Optional
 import yaml
 from jsonschema import ValidationError
 
-from .object_model import Engine, GPUModel, Metric, Precision, Profile, ProfileHandling, ProfileMetadata, ProfileType
+from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata, ProfileType
+
+from .object_model import Profile, ProfileHandling
 from .profile_validator import ProfileValidator
 
 logger = logging.getLogger(__name__)

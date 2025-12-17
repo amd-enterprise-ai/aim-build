@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "0.8"
+version = "0.9"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -19,20 +19,25 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.10",
 ]
+# Core dependencies (aim_runtime)
 dependencies = [
     "click>=8.0.0",
     "huggingface-hub>=0.34.0,<1.0",
     "jsonschema==4.25.1",
     "PyYAML==6.0.3",
-    "tomli>=1.1.0"
 ]
 
 [project.optional-dependencies]
+# Dependencies for running tests
 test = [
     "pytest-cov>=4.0.0",
-    "pytest==8.4.2",
-    "semver>=2,<3"
+    "pytest==9.0.2",
+    "coverage",
+    "pytest-html",
+    "pytest-json-report"
 ]
+
+# Dependencies for development (CI, pre-commit hooks, linting, running utils, etc.)
 dev = [
     "black>=22.0.0",
     "flake8>=5.0.0",
@@ -41,9 +46,13 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
     "pytest-cov>=4.0.0",
-    "pytest==8.4.2",
+    "pytest==9.0.2",
     # Added for development scripts and tests that require HTTP requests.
-    "requests>=2.32.5"
+    "requests>=2.32.5",
+    "semver>=3,<4",
+    "tomli>=1.1.0",
+    "pandas==2.3.3",
+    "openpyxl==3.1.5"
 ]
 
 [project.urls]
@@ -54,7 +63,7 @@ aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["aim_runtime"]
+packages = ["aim_runtime", "aim_common"]
 
 [tool.black]
 target-version = ['py312']

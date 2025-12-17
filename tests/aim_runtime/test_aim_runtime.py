@@ -10,9 +10,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from aim_common import Engine, Precision, ProfileMetadata
 from aim_runtime.aim_runtime import AIMRuntime
 from aim_runtime.config import AIMConfig
-from aim_runtime.object_model import Engine, Precision, Profile, ProfileHandling, ProfileMetadata
+from aim_runtime.object_model import Profile, ProfileHandling
 from aim_runtime.profile_registry import ProfileRegistry
 
 

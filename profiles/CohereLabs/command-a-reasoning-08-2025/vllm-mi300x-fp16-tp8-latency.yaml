@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: CohereLabs/command-a-reasoning-08-2025
+model_id: CohereLabs/command-a-reasoning-08-2025
+metadata:
+  engine: vllm
+  gpu: MI300X
+  gpu_count: 8
+  manual_selection_only: false
+  metric: latency
+  precision: fp16
+  type: optimized
+engine_args:
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: float16
+  gpu-memory-utilization: 0.92
+  max-model-len: 32768
+  max-num-batched-tokens: 1024
+  max-num-seqs: 512
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  swap-space: 64
+  tensor-parallel-size: 8
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MHA: '1'

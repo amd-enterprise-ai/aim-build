@@ -4,7 +4,7 @@ Copyright © Advanced Micro Devices, Inc., or its affiliates.
 SPDX-License-Identifier: MIT
 -->
 
-# Overview
+# AIMs Overview
 
 AIM stands for AMD Inference Microservice. AIMs provide a standardized, portable inference microservices for serving AI
 models on AMD Instinct™ GPUs. AIMs use ROCm 7 under the hood.
@@ -38,17 +38,17 @@ easy to integrate with existing applications and services.
 
 ## Terminology reference
 
-| Word    | Explanation                                                                       |
-|---------|-----------------------------------------------------------------------------------|
-| AIM     | AMD Inference Microservice                                                        |
-| Docker  | A platform for developing, shipping, and running applications in containers       |
-| GPU     | A graphics processing unit. Essential hadrware for running AI models              |
-| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets |
-| LLM     | Large Language Model                                                              |
-| Profile | A predefined YAML-configuration optimized for specific models and hardware        |
-| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing               |
-| S3      | Amazon Simple Storage Service, a scalable object storage service                  |
-| YAML    | A human-readable data serialization format often used for configuration files     |
+| Word    | Explanation                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+| AIM     | AMD Inference Microservice                                                                          |
+| Docker  | A platform for developing, shipping, and running applications in containers                         |
+| GPU     | A graphics processing unit. Essential hadrware for running AI models                                |
+| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
+| LLM     | Large Language Model                                                                                |
+| Profile | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
+| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
+| S3      | Amazon Simple Storage Service, a scalable object storage service                                    |
+| YAML    | A human-readable data serialization format often used for configuration files                       |
 
 
 # Model-specific AIM
@@ -56,7 +56,7 @@ easy to integrate with existing applications and services.
 This AIM allows to deploy meta-llama/Llama-3.3-70B-Instruct with a tailored set of profiles.
 
 * Model name: meta-llama/Llama-3.3-70B-Instruct
-* Description: Latest instruction-tuned Llama 3.3 model with 70B parameters and improved performance.
+* Description: Instruction-tuned Llama 3.3 model with 70B parameters and improved performance.
 * Capabilities:
   * text-generation
   * chat
@@ -69,18 +69,24 @@ The following profiles are available for this model:
 
 |Profile|GPU|Precision|Engine|GPU count|Metric|Type|
 |-------|---|---------|------|---------|------|----|
+|vllm-mi300x-fp16-tp8-latency|MI300X|fp16|vllm|8|latency|unoptimized|
+|vllm-mi300x-fp16-tp1-latency|MI300X|fp16|vllm|1|latency|unoptimized|
 |vllm-mi300x-fp16-tp1-latency|MI300X|fp16|vllm|1|latency|unoptimized|
 |vllm-mi300x-fp16-tp1-throughput|MI300X|fp16|vllm|1|throughput|unoptimized|
 |vllm-mi300x-fp16-tp2-latency|MI300X|fp16|vllm|2|latency|unoptimized|
 |vllm-mi300x-fp16-tp2-throughput|MI300X|fp16|vllm|2|throughput|unoptimized|
-|vllm-mi300x-fp8-tp1-latency|MI300X|fp8|vllm|1|latency|unoptimized|
-|vllm-mi300x-fp8-tp1-throughput|MI300X|fp8|vllm|1|throughput|unoptimized|
+|vllm-mi300x-fp8-tp1-latency|MI300X|fp8|vllm|1|latency|preview|
+|vllm-mi300x-fp8-tp1-throughput|MI300X|fp8|vllm|1|throughput|preview|
 |vllm-mi300x-fp8-tp2-latency|MI300X|fp8|vllm|2|latency|unoptimized|
-|vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|unoptimized|
+|vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|preview|
 |vllm-mi325x-fp16-tp1-latency|MI325X|fp16|vllm|1|latency|unoptimized|
 |vllm-mi325x-fp16-tp1-throughput|MI325X|fp16|vllm|1|throughput|unoptimized|
+|vllm-mi325x-fp16-tp2-latency|MI325X|fp16|vllm|2|latency|unoptimized|
+|vllm-mi325x-fp16-tp2-throughput|MI325X|fp16|vllm|2|throughput|unoptimized|
 |vllm-mi325x-fp8-tp1-latency|MI325X|fp8|vllm|1|latency|unoptimized|
 |vllm-mi325x-fp8-tp1-throughput|MI325X|fp8|vllm|1|throughput|unoptimized|
+|vllm-mi325x-fp8-tp2-latency|MI325X|fp8|vllm|2|latency|unoptimized|
+|vllm-mi325x-fp8-tp2-throughput|MI325X|fp8|vllm|2|throughput|unoptimized|
 |vllm-mi300x-fp16-tp1-latency|MI300X|fp16|vllm|1|latency|general|
 |vllm-mi300x-fp16-tp1-throughput|MI300X|fp16|vllm|1|throughput|general|
 |vllm-mi300x-fp16-tp2-latency|MI300X|fp16|vllm|2|latency|general|
@@ -91,6 +97,10 @@ The following profiles are available for this model:
 |vllm-mi300x-fp16-tp8-throughput|MI300X|fp16|vllm|8|throughput|general|
 |vllm-mi325x-fp16-tp1-latency|MI325X|fp16|vllm|1|latency|general|
 |vllm-mi325x-fp16-tp1-throughput|MI325X|fp16|vllm|1|throughput|general|
+|vllm-mi325x-fp16-tp2-latency|MI325X|fp16|vllm|2|latency|general|
+|vllm-mi325x-fp16-tp2-throughput|MI325X|fp16|vllm|2|throughput|general|
+|vllm-mi325x-fp16-tp4-latency|MI325X|fp16|vllm|4|latency|general|
+|vllm-mi325x-fp16-tp4-throughput|MI325X|fp16|vllm|4|throughput|general|
 |vllm-mi325x-fp16-tp8-latency|MI325X|fp16|vllm|8|latency|general|
 |vllm-mi325x-fp16-tp8-throughput|MI325X|fp16|vllm|8|throughput|general|
 

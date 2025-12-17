@@ -23,7 +23,7 @@ various environments. Follow these instructions to quickly get started with runn
 docker run \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
 ```
 
 
@@ -39,7 +39,7 @@ docker run \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
 ```
 
 ## 2. Model caching for production
@@ -55,7 +55,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4 \
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   download-to-cache --model-id mistralai/Mixtral-8x7B-Instruct-v0.1
 ```
 
@@ -66,7 +66,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
 ```
 
 ## 3. Kubernetes deployment
@@ -98,7 +98,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+          image: amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -264,7 +264,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
 ```
 
 
@@ -277,7 +277,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4 \
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   --help
 ```
 
@@ -285,7 +285,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4 \
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   <subcommand> --help
 ```
 
@@ -296,7 +296,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5
 ```
 
 ### 6.3 Checking profile selection results
@@ -308,7 +308,7 @@ docker run \
   -e AIM_GPU_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4 \
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   dry-run
 ```
 
@@ -316,7 +316,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.4 \
+  amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   list-profiles
 ```
 

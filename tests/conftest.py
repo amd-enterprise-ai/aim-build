@@ -9,8 +9,9 @@ from typing import Any
 
 import pytest
 
+from aim_common import Engine, Metric, Precision
 from aim_runtime import AIMConfig
-from aim_runtime.object_model import Engine, Metric, Precision, Profile
+from aim_runtime.object_model import Profile
 from aim_runtime.profile_registry import ProfileRegistry
 from aim_runtime.profile_validator import ProfileValidator
 
@@ -58,7 +59,7 @@ def metadata_path(test_root: Path) -> str:
 @pytest.fixture
 def aim_config(schemas_path: str, profiles_path: str) -> AIMConfig:
     """Create a test configuration with known valid parameters."""
-    from aim_runtime.object_model import GPUModel
+    from aim_common import GPUModel
 
     return AIMConfig(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",

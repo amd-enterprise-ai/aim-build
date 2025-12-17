@@ -14,6 +14,8 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 
+from aim_common import ProfileType
+
 # TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
 if sys.version_info >= (3, 11):
     from enum import StrEnum
@@ -33,7 +35,7 @@ from .profile_validator import ProfileValidator
 
 logger = logging.getLogger(__name__)
 
-UNKNOWN_PRECISION_PRIORITY = 999
+UNKNOWN_PRIORITY = 999
 
 
 class ProfileNotFound(Exception):
@@ -182,8 +184,8 @@ class ProfileSelector:
 
         return search_paths
 
-    def _order_profiles_by_priority_then_precision(self, profiles: List[Profile]) -> List[Profile]:
-        """Order profiles by priority first, then precision preference."""
+    def _order_profiles(self, profiles: List[Profile]) -> List[Profile]:
+        """Order profiles by priority first, then precision preference, then by type."""
         precision = self.config.precision
 
         # Define precision priority (lower number = higher priority)
@@ -197,6 +199,13 @@ class ProfileSelector:
             Precision.FP32: 7,
         }
 
+        type_priority = {
+            ProfileType.OPTIMIZED: 1,
+            ProfileType.PREVIEW: 2,
+            ProfileType.UNOPTIMIZED: 3,
+            ProfileType.GENERAL: 4,
+        }
+
         if precision != Precision.AUTO:
             # If specific precision requested, filter for exact match first
             exact_matches = [p for p in profiles if p.matches_precision(precision)]
@@ -205,10 +214,12 @@ class ProfileSelector:
 
         # Sort by priority first (lower priority number = higher precedence),
         # then by precision priority (lower precision first for auto)
+        # then by profile type priority (optimized over preview)
         def get_sort_key(profile: Profile) -> tuple:
             profile_precision = profile.metadata.precision
-            precision_prio = precision_priority.get(profile_precision, UNKNOWN_PRECISION_PRIORITY)
-            return (profile.profile_handling.priority, precision_prio)
+            precision_prio = precision_priority.get(profile_precision, UNKNOWN_PRIORITY)
+            type_prio = type_priority.get(profile.metadata.type, UNKNOWN_PRIORITY)
+            return (profile.profile_handling.priority, precision_prio, type_prio)
 
         sorted_profiles = sorted(profiles, key=get_sort_key)
 
@@ -306,7 +317,7 @@ class ProfileSelector:
         # Order compatible profiles by priority and precision preference
         if categorized_results[ProfileCompatibilityState.COMPATIBLE]:
             compatible_results = categorized_results[ProfileCompatibilityState.COMPATIBLE]
-            ordered_profiles = self._order_profiles_by_priority_then_precision([r.profile for r in compatible_results])
+            ordered_profiles = self._order_profiles([r.profile for r in compatible_results])
             # Create a new list with the same ProfileCompatibilityResult objects but reordered
             # Create mapping by index since profiles can't be used as dict keys
             profile_id_to_result = {id(r.profile): r for r in compatible_results}

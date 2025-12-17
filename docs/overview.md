@@ -4,7 +4,7 @@ Copyright © Advanced Micro Devices, Inc., or its affiliates.
 SPDX-License-Identifier: MIT
 -->
 
-# Overview
+# AIMs Overview
 
 AIM stands for AMD Inference Microservice. AIMs provide a standardized, portable inference microservices for serving AI
 models on AMD Instinct™ GPUs. AIMs use ROCm 7 under the hood.
@@ -38,14 +38,14 @@ easy to integrate with existing applications and services.
 
 ## Terminology reference
 
-| Word    | Explanation                                                                       |
-|---------|-----------------------------------------------------------------------------------|
-| AIM     | AMD Inference Microservice                                                        |
-| Docker  | A platform for developing, shipping, and running applications in containers       |
-| GPU     | A graphics processing unit. Essential hadrware for running AI models              |
-| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets |
-| LLM     | Large Language Model                                                              |
-| Profile | A predefined YAML-configuration optimized for specific models and hardware        |
-| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing               |
-| S3      | Amazon Simple Storage Service, a scalable object storage service                  |
-| YAML    | A human-readable data serialization format often used for configuration files     |
+| Word    | Explanation                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+| AIM     | AMD Inference Microservice                                                                          |
+| Docker  | A platform for developing, shipping, and running applications in containers                         |
+| GPU     | A graphics processing unit. Essential hadrware for running AI models                                |
+| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
+| LLM     | Large Language Model                                                                                |
+| Profile | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
+| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
+| S3      | Amazon Simple Storage Service, a scalable object storage service                                    |
+| YAML    | A human-readable data serialization format often used for configuration files                       |

@@ -22,11 +22,12 @@ else:
         """Minimal StrEnum for Python <3.11."""
 
 
+from aim_common import Engine, GPUModel, Metric, Precision
 from aim_runtime import ProfileRegistry
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import AIMConfig
 from aim_runtime.model_cache_resolver import ModelCacheResolver
-from aim_runtime.object_model import Engine, GPUModel, Metric, Precision, Profile
+from aim_runtime.object_model import Profile
 from aim_runtime.profile_validator import ProfileValidator
 
 

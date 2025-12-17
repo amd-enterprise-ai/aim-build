@@ -1,0 +1,54 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Qwen3 is the latest generation of LLMs in the Qwen series, offering a comprehensive suite models. This is the 235B parameter mixture-of-experts (MoE) variant."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-235B-A22B"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "conversational"
+        source: "https://huggingface.co/Qwen/Qwen3-235B-A22B"
+        variants:
+        - "Qwen/Qwen3-235B-A22B"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp8-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp8-throughput"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3 is the latest generation of LLMs in the Qwen series, offering a comprehensive suite models. This is the 235B parameter mixture-of-experts (MoE) variant."
+      title: "Qwen3 235B A22B"

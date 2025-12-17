@@ -8,8 +8,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from aim_common import Engine, GPUModel, Metric, Precision
 from aim_runtime.config import AIMConfig
-from aim_runtime.object_model import Engine, GPUModel, Metric, Precision, Profile
+from aim_runtime.object_model import Profile
 from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileNotFound, ProfileSelector
 
 

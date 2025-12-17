@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from aim_runtime.object_model import GPUModel
+from aim_common import GPUModel
 from aim_runtime.profile_registry import ProfileRegistry
 
 

@@ -5,40 +5,51 @@
 org:
   opencontainers:
     image:
-      vendor: AMD
-      authors: ''
-      licenses: llama3.3, MIT
-      description: Latest instruction-tuned Llama 3.3 model with 70B parameters and
-        improved performance.
-      documentation: ''
-      source: https://github.com/amd-enterprise-ai/aim-build
+      vendor: "AMD"
+      authors: ""
+      licenses: "llama3.3, MIT"
+      description: "Instruction-tuned Llama 3.3 model with 70B parameters and improved performance."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:
       model:
-        canonicalName: meta-llama/Llama-3.3-70B-Instruct
+        canonicalName: "meta-llama/Llama-3.3-70B-Instruct"
         tags:
-        - text-generation
-        - chat
-        - instruction
-        source: https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct
+        - "text-generation"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"
         variants:
-        - amd/Llama-3.3-70B-Instruct-FP8-KV
-        - meta-llama/Llama-3.3-70B-Instruct
+        - "amd/Llama-3.3-70B-Instruct-FP8-KV"
+        - "meta-llama/Llama-3.3-70B-Instruct"
         recommendedDeployments:
-        - gpuModel: MI300X
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp8
-          metric: latency
-          description: Optimized for latency on MI300X using fp8 precision
-        - gpuModel: MI300X
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp8
-          metric: throughput
-          description: Optimized for throughput on MI300X using fp8 precision
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
+        publisher: "Meta"
       hfToken:
         required: true
       release:
-        notes: ''
+        notes: ""
       description:
-        full: ''
+        full: "Instruction-tuned Llama 3.3 model with 70B parameters and improved performance."
+      title: "Llama 3.3 70B Instruct"

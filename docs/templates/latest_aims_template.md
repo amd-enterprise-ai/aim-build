@@ -10,5 +10,5 @@ SPDX-License-Identifier: MIT
 |#|Model|Docker Pull / Notes|HF Token|
 |-|-|-|-|
 {% for item in models -%}
-|{{ loop.index }}|{{ item.model_name }}|docker pull {{ item.organization }}/{{ item.image_name }}:{{ item.image_version }}|{{ item.hf_token }}|
+|{{ loop.index }}|{{ item.model_name }}|docker pull {{ item.organization }}/{{ item.image_repository }}:{{ item.image_version }}|{{ item.hf_token }}|
 {% endfor %}

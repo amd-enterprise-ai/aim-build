@@ -26,30 +26,30 @@ com:
           precision: "fp8"
           metric: "throughput"
           description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
+        publisher: "Meta"
       hfToken:
         required: true
       release:
         notes: ""
       description:
-        full: "The Meta Llama 3.1 collection, released by Meta on July 23, 2024, is\
-          \ a set of multilingual large language models available in 8B, 70B, and\
-          \ 405B parameter sizes. The models are offered in both pretrained and instruction-tuned\
-          \ versions, with the latter being optimized for dialogue use cases. Built\
-          \ on an auto-regressive transformer architecture with Grouped-Query Attention\
-          \ (GQA), the tuned models are refined using Supervised Fine-Tuning (SFT)\
-          \ and Reinforcement Learning with Human Feedback (RLHF). Llama 3.1 is intended\
-          \ for commercial and research applications. The instruction-tuned models\
-          \ are designed for assistant-like chat, while the pretrained models can\
-          \ be adapted for various natural language generation tasks. The custom commercial\
-          \ license also allows for using the model's output for synthetic data generation\
-          \ and distillation to improve other models."
+        full: "Meta Llama 3.1 8B model optimized for chat and instruction following. Built on transformer architecture with GQA and RLHF training."
+      title: "Llama 3.1 8B Instruct"
 org:
   opencontainers:
     image:
       vendor: "AMD"
       authors: ""
       licenses: "llama3.1, MIT"
-      description: "Instruction-tuned version of Llama 3.1 8B optimized for chat and\
-        \ instruction following."
+      description: "Meta Llama 3.1 8B model optimized for chat and instruction following. Built on transformer architecture with GQA and RLHF training."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # AIM Container Technical Architecture
 >
-> **Version**: 0.8
+> **Version**: 0.9
 >
 > **Scope**: This document describes the internal technical architecture of AIM *containers*. It deliberately excludes higher‑level orchestration (Kubernetes, Helm, Operators) to focus on what ships inside and immediately around a single container instance.
 
@@ -93,7 +93,7 @@ Each profile YAML file follows a standardized structure with the following key s
   + `gpu_count`: Number of GPUs for tensor parallelism (1, 2, 4, 8)
   + `metric`: Optimization target ("latency" or "throughput")
   + `manual_selection_only`: Boolean flag (true = only selectable via explicit `AIM_PROFILE_ID`)
-  + `type`: Profile type classification ("optimized", "unoptimized", or "general")
+  + `type`: Profile type classification ("optimized", "unoptimized", "preview", or "general")
 * **`engine_args`**: Engine-specific command-line arguments and parameters
 * **`env_vars`**: Environment variables to set during runtime execution
 
@@ -103,6 +103,7 @@ The metadata section enables intelligent profile selection by providing structur
 * `"optimized"`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
 * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
 * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
+* `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
 
 ### 3.3 Schema & Integrity
 
@@ -131,7 +132,8 @@ The profile selector executes these stages:
    - Optimization metric (latency vs throughput)
    - `manual-selection-only` flag (profiles with this flag are excluded from automatic selection)
 5. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
-6. **Profile Selection** – Return the best-matched profile from the ordered list
+6. **Type ordering** - Sort remaining profiles by type in the order of: optimized, preview, unoptimized, general.
+7. **Profile Selection** – Return the best-matched profile from the ordered list
 
 The selection algorithm leverages the structured metadata section to efficiently filter and rank profiles based on the runtime environment and user preferences. This metadata-driven approach ensures optimal profile selection while maintaining deterministic fallback behavior.
 
@@ -416,7 +418,7 @@ ARG BASE_REPOSITORY=vllm
 ARG BASE_TAG=rocm6.4.1_vllm_0.9.1_20250715
 FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
 
-ARG AIM_BASE_VERSION
+ARG AIM_BASE_IMAGE_REF
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -425,7 +427,7 @@ ENV PYTHONPATH="/workspace/aim-runtime/src"
 ENV HF_HOME="/workspace/model-cache"
 ENV HF_DATASETS_CACHE="/workspace/model-cache"
 ENV HF_HUB_DISABLE_TELEMETRY="1"
-ENV AIM_BASE_VERSION=${AIM_BASE_VERSION}
+ENV AIM_BASE_IMAGE_REF=${AIM_BASE_IMAGE_REF}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
 
 # Create workspace directory
@@ -475,15 +477,15 @@ Illustrative layering:
 ```Dockerfile
 ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
 ARG BASE_REPOSITORY=dummy_base_image
-ARG BASE_VERSION_NUMBER=dummy_base_version_number
-FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER} AS final
+ARG BASE_IMAGE_TAG=dummy_base_image_tag
+FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_IMAGE_TAG} AS final
 
 ARG ORG
 ARG MODEL
 
 # Set environment variables
 # AIM_ID identifies this as a model-specific AIM container
-ENV AIM_BASE_VERSION=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_VERSION_NUMBER}
+ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_IMAGE_TAG}
 ENV AIM_ID=${ORG}/${MODEL}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
 

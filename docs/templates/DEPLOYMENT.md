@@ -32,7 +32,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 
 {% if aim_deployment.hf_token %}
@@ -57,7 +57,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 
 ## 2. Model caching for production
@@ -79,7 +79,7 @@ docker run --rm \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
   -v /path/to/model-cache:/workspace/model-cache \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
 {% if aim_deployment.is_base %}
   download-to-cache --model-id <ANY_SUPPORTED_MODEL>
 {% else %}
@@ -100,7 +100,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 
 ## 3. Kubernetes deployment
@@ -143,7 +143,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+          image: {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -342,7 +342,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 
 {% if aim_deployment.is_base %}
@@ -359,7 +359,7 @@ docker run \
   -e AWS_DEFAULT_REGION=<YOUR_BUCKET_REGION> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 {% endif %}
 
@@ -372,7 +372,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
   --help
 ```
 
@@ -380,7 +380,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
   <subcommand> --help
 ```
 
@@ -397,7 +397,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
 ```
 
 ### 6.3 Checking profile selection results
@@ -415,7 +415,7 @@ docker run \
 {% if aim_deployment.is_base %}
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
   dry-run
 ```
 
@@ -423,7 +423,7 @@ docker run \
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_name }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
   list-profiles
 ```
 

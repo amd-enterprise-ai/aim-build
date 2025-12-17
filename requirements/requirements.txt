@@ -8,15 +8,15 @@ attrs==25.4.0
     # via
     #   jsonschema
     #   referencing
-certifi==2025.10.5
+certifi==2025.11.12
     # via requests
 charset-normalizer==3.4.4
     # via requests
-click==8.3.0
+click==8.3.1
     # via aim-build (pyproject.toml)
 filelock==3.20.0
     # via huggingface-hub
-fsspec==2025.10.0
+fsspec==2025.12.0
     # via huggingface-hub
 hf-xet==1.2.0
     # via huggingface-hub
@@ -40,17 +40,15 @@ referencing==0.37.0
     #   jsonschema-specifications
 requests==2.32.5
     # via huggingface-hub
-rpds-py==0.28.0
+rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-tomli==2.3.0
-    # via aim-build (pyproject.toml)
 tqdm==4.67.1
     # via huggingface-hub
 typing-extensions==4.15.0
     # via
     #   huggingface-hub
     #   referencing
-urllib3==2.5.0
+urllib3==2.6.2
     # via requests

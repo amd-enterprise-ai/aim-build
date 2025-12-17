@@ -1,0 +1,212 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AIM Metadata Schema",
+  "description": "JSON Schema for AIM model metadata.yaml files",
+  "type": "object",
+  "properties": {
+    "com": {
+      "type": "object",
+      "properties": {
+        "amd": {
+          "type": "object",
+          "properties": {
+            "aim": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "canonicalName": {
+                      "type": "string",
+                      "description": "The canonical name of the model in format 'org/model-name'"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array of tags describing the model's capabilities"
+                    },
+                    "source": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Source URL where the model can be found"
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array of model variants available"
+                    },
+                    "publisher": {
+                      "type": "string",
+                      "description": "Name of the model publisher"
+                    },
+                    "recommendedDeployments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "gpuModel": {
+                            "type": "string",
+                            "description": "GPU model name (e.g., MI300X)",
+                            "enum": [
+                              "MI100",
+                              "MI250X",
+                              "MI210",
+                              "MI300A",
+                              "MI300X",
+                              "MI308X",
+                              "MI325X",
+                              "MI350X",
+                              "MI355X",
+                              "V710",
+                              "W7900",
+                              "W7800",
+                              "W6900X",
+                              "W6800",
+                              "W6800X",
+                              "V620",
+                              "RX9070",
+                              "RX7900",
+                              "RX6900",
+                              "RX6800",
+                              "NONE"
+                            ]
+                          },
+                          "gpuCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 8,
+                            "description": "Number of GPUs required"
+                          },
+                          "precision": {
+                            "type": "string",
+                            "enum": ["fp4", "fp8", "fp16", "fp32", "bf16", "int4", "int8"],
+                            "description": "Precision format for the deployment"
+                          },
+                          "metric": {
+                            "type": "string",
+                            "enum": ["latency", "throughput"],
+                            "description": "Optimization metric for this deployment"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Human-readable description of this deployment configuration"
+                          },
+                          "profileId": {
+                            "type": "string",
+                            "description": "Identifier for the specific or unoptimized profile"
+                          }
+                        },
+                        "required": ["gpuModel", "gpuCount"],
+                        "additionalProperties": false
+                      },
+                      "description": "Array of recommended deployment configurations"
+                    }
+                  },
+                  "required": ["canonicalName", "publisher"],
+                  "additionalProperties": false
+                },
+                "hfToken": {
+                  "type": "object",
+                  "properties": {
+                    "required": {
+                      "type": "boolean",
+                      "description": "Whether HuggingFace token is required to access this model"
+                    }
+                  },
+                  "required": ["required"],
+                  "additionalProperties": false
+                },
+                "release": {
+                  "type": "object",
+                  "properties": {
+                    "notes": {
+                      "type": "string",
+                      "description": "Release notes for this model version"
+                    }
+                  },
+                  "required": ["notes"],
+                  "additionalProperties": false
+                },
+                "description": {
+                  "type": "object",
+                  "properties": {
+                    "full": {
+                      "type": "string",
+                      "description": "Full description of the model, its capabilities, and use cases",
+                      "maxLength": 160
+                    }
+                  },
+                  "required": ["full"],
+                  "additionalProperties": false
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Title of the AIM"
+                }
+              },
+              "required": ["model", "title"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["aim"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["amd"],
+      "additionalProperties": false
+    },
+    "org": {
+      "type": "object",
+      "properties": {
+        "opencontainers": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "object",
+              "properties": {
+                "vendor": {
+                  "type": "string",
+                  "description": "Vendor/organization name"
+                },
+                "authors": {
+                  "type": "string",
+                  "description": "Authors of the image/model"
+                },
+                "licenses": {
+                  "type": "string",
+                  "description": "License information for the model"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Brief description of the image/model",
+                  "maxLength": 160
+                },
+                "documentation": {
+                  "type": "string",
+                  "description": "URL to documentation or empty string"
+                },
+                "source": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "Source repository URL"
+                }
+              },
+              "required": ["vendor", "authors", "licenses", "description", "documentation", "source"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["image"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["opencontainers"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["com", "org"],
+  "additionalProperties": false
+}

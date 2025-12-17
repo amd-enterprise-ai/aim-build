@@ -11,8 +11,8 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
+from aim_common import Engine, Precision
 from aim_runtime.config import AIMConfig
-from aim_runtime.object_model import Engine, Precision
 from entrypoint import cli
 
 

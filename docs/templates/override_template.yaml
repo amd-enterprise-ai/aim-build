@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-image: {{ organization }}/{{ image_name }}:{{ image_version }}
+image: {{ organization }}/{{ image_repository }}:{{ image_version }}
 model: {{ model_name }}
 gpus: {{ gpu_count }}
 

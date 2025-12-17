@@ -40,18 +40,18 @@ MODEL_LOWER = $(shell echo $(MODEL) | tr '[:upper:]' '[:lower:]')
 
 # Base container version (semantic versioning)
 # Used for: aim-base:0.3
-AIM_BASE_VERSION = $(shell python -c "import tomllib; f=open('pyproject.toml', 'rb'); print(tomllib.load(f)['project']['version'])")
+AIM_BASE_IMAGE_TAG = $(shell python -c "import tomllib; f=open('pyproject.toml', 'rb'); print(tomllib.load(f)['project']['version'])")
 
-# Base image tags
+# Base image references
 # Example: aim-base:0.3
-LOCAL_BASE_IMAGE  = $(AIM_BASE_REPOSITORY):$(AIM_BASE_VERSION)
-REMOTE_BASE_IMAGE = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_BASE_REPOSITORY):$(AIM_BASE_VERSION)
+LOCAL_BASE_IMAGE_REF  = $(AIM_BASE_REPOSITORY):$(AIM_BASE_IMAGE_TAG)
+REMOTE_BASE_IMAGE_REF = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_BASE_REPOSITORY):$(AIM_BASE_IMAGE_TAG)
 
-# Model-specific image tags
+# Model-specific image references
 # Example: aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20251001
-MODEL_TAG         = $(AIM_BASE_VERSION)-$(ORG_LOWER)-$(MODEL_LOWER)-$(DATE_VERSION)
-LOCAL_MODEL_IMAGE = $(AIM_REPOSITORY):$(MODEL_TAG)
-REMOTE_MODEL_IMAGE = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_REPOSITORY):$(MODEL_TAG)
+MODEL_TAG              = $(AIM_BASE_IMAGE_TAG)-$(ORG_LOWER)-$(MODEL_LOWER)-$(DATE_VERSION)
+LOCAL_MODEL_IMAGE_REF  = $(AIM_REPOSITORY):$(MODEL_TAG)
+REMOTE_MODEL_IMAGE_REF = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_REPOSITORY):$(MODEL_TAG)
 
 
 
@@ -82,24 +82,23 @@ build: build-base build-model
 
 # Build the base AIM container (contains AIM runtime, no model-specific profiles)
 build-base:
-	@echo ">>> Building base image: $(LOCAL_BASE_IMAGE)"
+	@echo ">>> Building base image: $(LOCAL_BASE_IMAGE_REF)"
 	docker buildx build \
 		--build-arg BASE_REGISTRY_NAMESPACE=$(BASE_REGISTRY_NAMESPACE) \
 		--build-arg BASE_REPOSITORY=$(BASE_REPOSITORY) \
-		--build-arg BASE_VERSION_NUMBER=$(BASE_TAG) \
-		--build-arg AIM_BASE_VERSION=$(AIM_BASE_VERSION) \
-		-t $(LOCAL_BASE_IMAGE) -f $(DOCKERFILE_BASE) .
+		--build-arg BASE_TAG=$(BASE_TAG) \
+		-t $(LOCAL_BASE_IMAGE_REF) -f $(DOCKERFILE_BASE) .
 
 # Build the model-specific AIM container
 build-model: build-base tag-base
-	@echo ">>> Building model-specific image: $(LOCAL_MODEL_IMAGE) for $(ORG)/$(MODEL)"
+	@echo ">>> Building model-specific image: $(LOCAL_MODEL_IMAGE_REF) for $(ORG)/$(MODEL)"
 	docker buildx build \
 		--build-arg BASE_REGISTRY_NAMESPACE=$(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE) \
 		--build-arg BASE_REPOSITORY=$(AIM_BASE_REPOSITORY) \
-		--build-arg BASE_VERSION_NUMBER=$(AIM_BASE_VERSION) \
+		--build-arg BASE_TAG=$(AIM_BASE_IMAGE_TAG) \
 		--build-arg ORG=$(ORG) \
 		--build-arg MODEL=$(MODEL) \
-		-t $(LOCAL_MODEL_IMAGE) \
+		-t $(LOCAL_MODEL_IMAGE_REF) \
 		-f $(DOCKERFILE_MODEL) .
 
 # Build all model-specific containers for all organization/model profiles
@@ -127,13 +126,13 @@ tag: tag-base tag-model
 
 # Tag the base image
 tag-base: build-base
-	@echo ">>> Tagging base image for registry: $(REMOTE_BASE_IMAGE)"
-	docker tag $(LOCAL_BASE_IMAGE) $(REMOTE_BASE_IMAGE)
+	@echo ">>> Tagging base image for registry: $(REMOTE_BASE_IMAGE_REF)"
+	docker tag $(LOCAL_BASE_IMAGE_REF) $(REMOTE_BASE_IMAGE_REF)
 
 # Tag the model-specific image
 tag-model:
-	@echo ">>> Tagging model-specific image for registry: $(REMOTE_MODEL_IMAGE)"
-	docker tag $(LOCAL_MODEL_IMAGE) $(REMOTE_MODEL_IMAGE)
+	@echo ">>> Tagging model-specific image for registry: $(REMOTE_MODEL_IMAGE_REF)"
+	docker tag $(LOCAL_MODEL_IMAGE_REF) $(REMOTE_MODEL_IMAGE_REF)
 
 # Tag all model-specific containers for all profiles
 tag-all-models:
@@ -160,13 +159,13 @@ push: push-base push-model
 
 # Push the base image
 push-base: tag-base
-	@echo ">>> Pushing base image: $(REMOTE_BASE_IMAGE)"
-	docker push $(REMOTE_BASE_IMAGE)
+	@echo ">>> Pushing base image: $(REMOTE_BASE_IMAGE_REF)"
+	docker push $(REMOTE_BASE_IMAGE_REF)
 
 # Push the model-specific image
 push-model: tag-model
-	@echo ">>> Pushing model-specific image: $(REMOTE_MODEL_IMAGE)"
-	docker push $(REMOTE_MODEL_IMAGE)
+	@echo ">>> Pushing model-specific image: $(REMOTE_MODEL_IMAGE_REF)"
+	docker push $(REMOTE_MODEL_IMAGE_REF)
 
 # Push all model-specific containers for all profiles
 push-all-models:
@@ -265,10 +264,10 @@ dev-setup: update-dev-dependencies
 # Clean up local images
 clean:
 	@echo ">>> Cleaning up local Docker images"
-	docker image rm $(LOCAL_BASE_IMAGE) || true
-	docker image rm $(LOCAL_MODEL_IMAGE) || true
-	docker image rm $(REMOTE_BASE_IMAGE) || true
-	docker image rm $(REMOTE_MODEL_IMAGE) || true
+	docker image rm $(LOCAL_BASE_IMAGE_REF) || true
+	docker image rm $(LOCAL_MODEL_IMAGE_REF) || true
+	docker image rm $(REMOTE_BASE_IMAGE_REF) || true
+	docker image rm $(REMOTE_MODEL_IMAGE_REF) || true
 
 # Clean up all model-specific images
 clean-all-models:
@@ -281,8 +280,8 @@ clean-all-models:
 					model=$$(basename $$model_dir); \
 					org_lower=$$(echo $$org | tr '[:upper:]' '[:lower:]'); \
 					model_lower=$$(echo $$model | tr '[:upper:]' '[:lower:]'); \
-					local_image="aim:$(AIM_BASE_VERSION)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
-					remote_image="$(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/aim:$(AIM_BASE_VERSION)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
+					local_image="aim:$(AIM_BASE_IMAGE_TAG)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
+					remote_image="$(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/aim:$(AIM_BASE_IMAGE_TAG)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
 					echo ">>> Removing $$local_image and $$remote_image"; \
 					docker image rm $$local_image $$remote_image || true; \
 				fi; \

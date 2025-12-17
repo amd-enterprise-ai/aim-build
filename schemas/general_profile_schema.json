@@ -66,9 +66,10 @@
           "enum": [
             "optimized",
             "unoptimized",
-            "general"
+            "general",
+            "preview"
           ],
-          "description": "Profile type indicating optimization status: 'optimized' for performance-tuned profiles, 'unoptimized' for basic/default configurations, 'general' for generic profiles applicable to multiple models."
+          "description": "Profile maturity level based on performance validation. Possible values: 'optimized' (fully validated and tuned for best performance), 'unoptimized' (functional but not performance-tuned), 'general' (broadly applicable, may not be optimal for all cases), 'preview' (experimental or early access, not fully validated)."
         }
       },
       "required": [

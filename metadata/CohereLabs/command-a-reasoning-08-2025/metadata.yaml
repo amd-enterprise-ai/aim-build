@@ -1,0 +1,65 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "CC-BY-NC-4.0, MIT"
+      description: "Cohere's Command A Reasoning is a multilingual text generation model optimized for conversational AI and reasoning tasks across 23+ languages."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "CohereLabs/command-a-reasoning-08-2025"
+        tags:
+        - "text-generation"
+        - "conversational"
+        - "chat"
+        - "multilingual"
+        source: "https://huggingface.co/CohereLabs/command-a-reasoning-08-2025"
+        variants:
+        - "CohereLabs/command-a-reasoning-08-2025"
+        recommendedDeployments:
+        - gpuModel: "MI250X"
+          gpuCount: 8
+          metric: "latency"
+          description: "Optimized for latency on MI250X using fp16 precision"
+          profileId: "vllm-mi250x-fp16-tp8-latency"
+        - gpuModel: "MI250X"
+          gpuCount: 8
+          metric: "throughput"
+          description: "Optimized for throughput on MI250X using fp16 precision"
+          profileId: "vllm-mi250x-fp16-tp8-throughput"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp2-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp2-throughput"
+        publisher: "Cohere"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "Cohere's Command A Reasoning is a multilingual text generation model optimized for conversational AI and reasoning tasks across 23+ languages."
+      title: "Command A Reasoning 08 2025"

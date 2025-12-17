@@ -5,38 +5,49 @@
 org:
   opencontainers:
     image:
-      vendor: AMD
-      authors: ''
-      licenses: Apache-2.0, MIT
-      description: The Mixtral-8x7B Large Language Model (LLM) is a pretrained generative
-        Sparse Mixture of Experts.
-      documentation: ''
-      source: https://github.com/amd-enterprise-ai/aim-build
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Mixture of experts model with 8 experts of 7B parameters each for efficient scaling."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:
       model:
-        canonicalName: mistralai/Mixtral-8x7B-Instruct-v0.1
+        canonicalName: "mistralai/Mixtral-8x7B-Instruct-v0.1"
         tags:
-        - text-generation
-        - chat
-        source: https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1"
         variants:
-        - mistralai/Mixtral-8x7B-Instruct-v0.1
+        - "mistralai/Mixtral-8x7B-Instruct-v0.1"
         recommendedDeployments:
-        - gpuModel: MI300X
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: latency
-          description: Optimized for latency on MI300X using fp16 precision
-        - gpuModel: MI300X
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: throughput
-          description: Optimized for throughput on MI300X using fp16 precision
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp16 precision"
+          profileId: "vllm-mi325x-fp16-tp1-throughput"
+        publisher: "Mistral AI"
       hfToken:
         required: false
       release:
-        notes: ''
+        notes: ""
       description:
-        full: ''
+        full: "Mixture of experts model with 8 experts of 7B parameters each for efficient scaling."
+      title: "Mixtral 8x7B Instruct v0.1"

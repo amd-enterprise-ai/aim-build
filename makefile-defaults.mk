@@ -11,7 +11,7 @@
 #
 # Example overrides:
 #   make build-model ORG=meta-llama MODEL=Llama-3.1-70B-Instruct
-#   make build-base AIM_BASE_VERSION=0.4
+#   make build-base AIM_BASE_IMAGE_TAG=0.4
 # ==============================================================================
 
 # ==============================================================================
@@ -19,7 +19,7 @@
 # ==============================================================================
 # Target registry/namespace for pushing built images
 AIM_REGISTRY_HOSTNAME  = ghcr.io
-AIM_REGISTRY_NAMESPACE = amd-enterprise-ai
+AIM_REGISTRY_NAMESPACE = silogen
 
 # ==============================================================================
 # Version Configuration
@@ -33,8 +33,8 @@ DATE_VERSION = v$(shell date +%Y%m%d)
 # ==============================================================================
 # Upstream base image to build from (e.g., ROCm runtime image)
 BASE_REGISTRY_NAMESPACE = rocm
-BASE_REPOSITORY			= 7.0
-BASE_TAG				= rocm7.0_ubuntu_22.04_vllm_0.10.1_instinct_20250915
+BASE_REPOSITORY         = vllm
+BASE_TAG                = rocm7.0.0_vllm_0.11.1_20251103
 
 # ==============================================================================
 # Container Image Names

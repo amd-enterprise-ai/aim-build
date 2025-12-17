@@ -1,0 +1,64 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "OpenAI's GPT-OSS 120B is a text generation model with conversational capabilities, supporting tool calling and reasoning tasks."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "openai/gpt-oss-120b"
+        tags:
+        - "text-generation"
+        - "conversational"
+        - "chat"
+        source: "https://huggingface.co/openai/gpt-oss-120b"
+        variants:
+        - "openai/gpt-oss-120b"
+        recommendedDeployments:
+        - gpuModel: "MI250X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI250X using fp4 precision"
+          profileId: "vllm-mi250x-mxfp4-tp2-latency"
+        - gpuModel: "MI250X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI250X using fp4 precision"
+          profileId: "vllm-mi250x-mxfp4-tp2-throughput"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp4 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp4 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp4 precision"
+          profileId: "vllm-mi325x-mxfp4-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp4 precision"
+          profileId: "vllm-mi325x-mxfp4-tp1-throughput"
+        publisher: "OpenAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "OpenAI's GPT-OSS 120B is a text generation model with conversational capabilities, supporting tool calling and reasoning tasks."
+      title: "GPT OSS 120B"

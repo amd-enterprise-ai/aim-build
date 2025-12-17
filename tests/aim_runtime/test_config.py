@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from aim_common import GPUModel
 from aim_runtime.config import AIMConfig
-from aim_runtime.object_model import GPUModel
 
 
 class TestGPUModelConfig:

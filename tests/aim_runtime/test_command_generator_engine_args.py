@@ -11,18 +11,10 @@ from unittest.mock import patch
 import pytest
 from jsonschema import ValidationError
 
+from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata, ProfileType
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, DEFAULT_SCHEMA_SEARCH_PATH, AIMConfig
-from aim_runtime.object_model import (
-    Engine,
-    GPUModel,
-    Metric,
-    Precision,
-    Profile,
-    ProfileHandling,
-    ProfileMetadata,
-    ProfileType,
-)
+from aim_runtime.object_model import Profile, ProfileHandling
 
 
 @pytest.fixture
@@ -171,18 +163,30 @@ class TestCommandGeneratorEngineArgsOverride:
         """Test that overrides are logged appropriately."""
         import logging
 
+        # Clear any previous log records and handlers to ensure test isolation
+        caplog.clear()
+
+        # Get the logger and clear any handlers
+        logger = logging.getLogger("aim_runtime.command_generator")
+        logger.handlers.clear()
+        logger.setLevel(logging.DEBUG)  # Ensure we capture all logs
+
         caplog.set_level(logging.INFO)
 
         mock_config.schema_search_path = str(schemas_path)
         mock_config.engine_args_override = {"gpu-memory-utilization": 0.80, "max-model-len": 4096}
         generator = CommandGenerator(mock_config)
 
+        # Clear caplog before the operation we want to test
+        caplog.clear()
         generator._merge_and_validate_engine_args(mock_profile, Engine.VLLM)
 
         # Check logging
         assert "user-provided engine argument overrides" in caplog.text.lower()
+
         # Also check debug-level logs if present
         caplog.set_level(logging.DEBUG)
+        caplog.clear()  # Clear before second call
         generator._merge_and_validate_engine_args(mock_profile, Engine.VLLM)
         assert any("gpu-memory-utilization" in record.message for record in caplog.records)
 

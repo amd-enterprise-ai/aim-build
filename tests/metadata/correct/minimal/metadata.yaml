@@ -6,24 +6,33 @@ com:
   amd:
     aim:
       model:
-        canonicalName: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        capabilities:
+        canonicalName: "correct/minimal"
+        tags:
         - "text-generation"
         - "chat"
-        tags: ""
         source: "https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        variants: ""
+        variants:
+        - "amd/TinyLlama-1.1B-Chat-v1.0"
+        - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+        - gpuModel: "MI325X"
+          gpuCount: 1
+        publisher: "TinyLlama"
       hfToken:
         required: false
       release:
         notes: ""
+      description:
+        full: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
+      title: "TinyLlama 1.1B Chat v1.0"
 org:
   opencontainers:
     image:
       vendor: "AMD"
       authors: ""
-      licenses: "Apache-2.0"
-      title: ""
+      licenses: "Apache-2.0, MIT"
       description: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"

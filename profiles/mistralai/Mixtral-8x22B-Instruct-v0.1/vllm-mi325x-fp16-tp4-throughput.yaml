@@ -1,0 +1,30 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: mistralai/Mixtral-8x22B-Instruct-v0.1
+model_id: mistralai/Mixtral-8x22B-Instruct-v0.1
+metadata:
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 4
+  manual_selection_only: true
+  metric: throughput
+  precision: fp16
+  type: unoptimized
+engine_args:
+  distributed_executor_backend: mp
+  dtype: float16
+  gpu-memory-utilization: 0.95
+  no-enable-chunked-prefill: null
+  tensor-parallel-size: 4
+env_vars:
+  HIP_FORCE_DEV_KERNARG: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  PYTORCH_TUNABLEOP_ENABLED: '1'
+  PYTORCH_TUNABLEOP_TUNING: '0'
+  PYTORCH_TUNABLEOP_VERBOSE: '1'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_USE_TRITON_FLASH_ATTN: '0'
+  VLLM_USE_V1: '0'

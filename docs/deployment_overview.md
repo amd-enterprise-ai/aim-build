@@ -48,4 +48,5 @@ See [KServe deployment documentation](./kserve_deployment.md) for detailed setup
 
 ## Docker
 
-It is possible to run AIM with Docker just as a regular image. Please refer to [Docker documentation](https://docs.docker.com/reference/cli/docker/) on how to use Docker.
+It is possible to run AIM with Docker just as a regular image. Please refer to [Docker documentation](https://docs.docker.com/reference/cli/docker/)
+on how to use Docker. Also, see [AIM Docker deployment documentation](./docker_deployment.md) for AIM-specific instructions.

@@ -5,17 +5,17 @@
 org:
   opencontainers:
     image:
-      vendor: AMD
-      authors: ''
-      licenses: MIT
-      description: Generic image that can run any model in the AIM catalog.
-      documentation: ''
-      source: https://github.com/amd-enterprise-ai/aim-build
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:
       release:
-        notes: ''
+        notes: ""
       description:
-        full: Generic image that can run any model in the AIM catalog. Model name
-          should be specified using the environment variable AIM_MODEL_NAME
+        full: "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME."
+      title: "AIM Base"

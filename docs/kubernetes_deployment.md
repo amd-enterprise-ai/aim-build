@@ -78,25 +78,9 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.4"
+          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.5"
           imagePullPolicy: Always
           env:
-            - name: AIM_PRECISION
-              value: "auto"
-            - name: AIM_GPU_COUNT
-              value: "1"
-            - name: AIM_GPU_MODEL
-              value: "auto"
-            - name: AIM_ENGINE
-              value: "vllm"
-            - name: AIM_METRIC
-              value: "latency"
-            - name: AIM_LOG_LEVEL_ROOT
-              value: "INFO"
-            - name: AIM_LOG_LEVEL
-              value: "INFO"
-            - name: AIM_PORT
-              value: "8000"
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:

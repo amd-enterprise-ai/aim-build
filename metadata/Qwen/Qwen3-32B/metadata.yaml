@@ -5,39 +5,50 @@
 org:
   opencontainers:
     image:
-      vendor: AMD
-      authors: ''
-      licenses: Apache-2.0, MIT
-      description: Qwen is the large language model and large multimodal model series
-        of the Qwen Team, Alibaba Group.
-      documentation: ''
-      source: https://github.com/amd-enterprise-ai/aim-build
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Qwen3 is the latest generation of large language models in Qwen series, offering a comprehensive suite of dense and mixture-of-experts (MoE) models."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:
       model:
-        canonicalName: Qwen/Qwen3-32B
+        canonicalName: "Qwen/Qwen3-32B"
         tags:
-        - text-generation
-        - chat
-        source: https://huggingface.co/Qwen/Qwen3-32B
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen3-32B"
         variants:
-        - Qwen/Qwen3-32B
-        - Qwen/Qwen3-32B-FP8
+        - "Qwen/Qwen3-32B"
+        - "Qwen/Qwen3-32B-FP8"
         recommendedDeployments:
-        - gpuModel: MI300X
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: latency
-          description: Optimized for latency on MI300X using fp16 precision
-        - gpuModel: MI300X
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+        - gpuModel: "MI300X"
           gpuCount: 1
-          precision: fp16
-          metric: throughput
-          description: Optimized for throughput on MI300X using fp16 precision
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
+        publisher: "Qwen"
       hfToken:
         required: false
       release:
-        notes: ''
+        notes: ""
       description:
-        full: ''
+        full: "Qwen3 is the latest generation of large language models in Qwen series, offering a comprehensive suite of dense and mixture-of-experts (MoE) models."
+      title: "Qwen3 32B"

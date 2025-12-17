@@ -111,7 +111,7 @@ docker run \
   -e AWS_DEFAULT_REGION=us-west-2 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 **Example with MinIO:**
@@ -123,7 +123,7 @@ docker run \
   -e AWS_ENDPOINT_URL=https://minio.example.com:9000 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 ### Engine Arguments Override
@@ -137,7 +137,7 @@ docker run \
   -e AIM_ENGINE_ARGS='{"max-model-len": 8192, "gpu-memory-utilization": 0.85}' \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 Arguments are validated against the engine's schema and merged with profile defaults. User-provided arguments override profile defaults, while system arguments (like `port`) always take precedence.
@@ -166,7 +166,7 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -v /host/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 ### Logging Configuration
@@ -187,28 +187,28 @@ docker run \
   -e AIM_LOG_LEVEL_ROOT=WARNING \
   -e AIM_LOG_LEVEL=INFO \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0
+  aim-base:0.9
 
 # Debugging: Show all AIM details but only errors from dependencies
 docker run \
   -e AIM_LOG_LEVEL_ROOT=ERROR \
   -e AIM_LOG_LEVEL=DEBUG \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0
+  aim-base:0.9
 
 # Maximum verbosity: Show everything
 docker run \
   -e AIM_LOG_LEVEL_ROOT=DEBUG \
   -e AIM_LOG_LEVEL=DEBUG \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0
+  aim-base:0.9
 
 # Minimal logging: Only critical errors
 docker run \
   -e AIM_LOG_LEVEL_ROOT=CRITICAL \
   -e AIM_LOG_LEVEL=WARNING \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 **Detailed logging includes:**
@@ -235,7 +235,7 @@ docker run \
   -e AIM_GPU_COUNT=2 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 **Note:** When using `AIM_GPU_MODEL`, it's recommended to also explicitly set `AIM_GPU_COUNT` to ensure the correct profile is selected.
@@ -256,7 +256,7 @@ Some models (like those from Meta's Llama family) are gated and require a Huggin
 For the base container:
 
 ```bash
-docker run -e HF_TOKEN=your_token_here -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct aim-base:0.3.0
+docker run -e HF_TOKEN=your_token_here -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct aim-base:0.9
 ```
 
 For model-specific containers:
@@ -311,7 +311,7 @@ docker run \
   -v /host/path/to/custom-profiles:/workspace/aim-runtime/profiles/custom \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 ### Custom Profile Example
@@ -353,13 +353,13 @@ Performs profile selection and starts the inference server. This is the default 
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 
 # Or explicitly specify serve
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   serve
 ```
 
@@ -384,12 +384,12 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -e AIM_GPU_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_ENGINE=vllm \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   dry-run
 
 # Or explicitly specify --format yaml
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   dry-run --format yaml
 ```
 
@@ -424,7 +424,7 @@ Returns the selected profile as a structured JSON object with the profile filena
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   dry-run --format json
 ```
 
@@ -484,7 +484,7 @@ This is useful for:
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   list-profiles
 ```
 
@@ -526,7 +526,7 @@ METRIC_MISMATCH (4 profiles):
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   list-profiles --format table
 ```
 
@@ -537,13 +537,13 @@ Displays all profiles in a colored table showing their compatibility state at a 
 ```bash
 # Show only compatible profiles
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   list-profiles --state compatible
 
 # Show profiles with GPU mismatch
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -e AIM_GPU_MODEL=MI325X \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   list-profiles --state gpu_mismatch --format table
 ```
 
@@ -568,7 +568,7 @@ Pre-downloads models to a local cache directory before running inference. This i
 docker run --rm \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache
 
 # Result: /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
@@ -582,7 +582,7 @@ Override profile selection by specifying the model ID directly with protocol:
 # Download a HuggingFace model directly (local-dir mode)
 docker run --rm \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache --model-id hf://mistralai/Mistral-7B-v0.1
 
 # Result: /workspace/model-cache/mistralai/Mistral-7B-v0.1/
@@ -590,7 +590,7 @@ docker run --rm \
 # Download from S3 with automatic naming
 docker run --rm \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache --model-id s3://bucket/models/org/llama-3.1-8b
 
 # Result: /workspace/model-cache/org/llama-3.1-8b/
@@ -598,7 +598,7 @@ docker run --rm \
 # Download from S3 with custom name
 docker run --rm \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache --model-id s3://bucket/path/to/model --model-name custom-org/my-model
 
 # Result: /workspace/model-cache/custom-org/my-model/
@@ -612,7 +612,7 @@ Use `--use-hf-cache` flag to download using HuggingFace's standard cache structu
 docker run --rm \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache --use-hf-cache
 
 # Result: /workspace/model-cache/models--meta-llama--Llama-3.1-8B-Instruct/
@@ -627,7 +627,7 @@ docker run --rm \
   -e AIM_GPU_MODEL=MI300X \
   -e HF_TOKEN=your_token \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.3.0 \
+  aim-base:0.9 \
   download-to-cache
 
 # Step 2: Serve with pre-cached model
@@ -636,7 +636,7 @@ docker run \
   -v /host/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.3.0
+  aim-base:0.9
 ```
 
 **Note:** The actual model downloaded may differ from `AIM_MODEL_ID` if the selected profile specifies a quantized variant.

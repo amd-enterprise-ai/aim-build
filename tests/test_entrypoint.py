@@ -9,6 +9,7 @@ Tests for entrypoint CLI functionality.
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from aim_common import Engine, Precision
@@ -26,7 +27,6 @@ def mock_config():
         engine=Engine.VLLM,
         port=8000,
         log_level="INFO",
-        custom_model_name=None,
     )
 
 
@@ -74,7 +74,6 @@ class TestEntrypointCLI:
                     runner.invoke(cli, ["dry-run"])
                     mock_runtime_class.assert_called_once_with(mock_config)
                     mock_runtime.dry_run.assert_called_once()
-                    mock_runtime.dry_run_json.assert_not_called()
 
     def test_cli_executes_dry_run_command_json(self, mock_config, runner):
         """Test that CLI executes dry-run command in JSON format."""
@@ -82,13 +81,12 @@ class TestEntrypointCLI:
             with patch("entrypoint.configure_logging"):
                 with patch("entrypoint.AIMRuntime") as mock_runtime_class:
                     mock_runtime = Mock()
-                    mock_runtime.dry_run_json.return_value = [{"filename": "test.yaml", "profile": {"test": "data"}}]
+                    mock_runtime.dry_run.return_value = [{"filename": "test.yaml", "profile": {"test": "data"}}]
                     mock_runtime_class.return_value = mock_runtime
 
                     runner.invoke(cli, ["dry-run", "--format", "json"])
                     mock_runtime_class.assert_called_once_with(mock_config)
-                    mock_runtime.dry_run_json.assert_called_once()
-                    mock_runtime.dry_run.assert_not_called()
+                    mock_runtime.dry_run.assert_called_once_with()
 
     def test_cli_handles_configuration_error(self, runner):
         """Test that CLI handles configuration errors gracefully."""
@@ -164,12 +162,26 @@ class TestDryRunCommand:
             with patch("entrypoint.configure_logging"):
                 with patch("entrypoint.AIMRuntime") as mock_runtime_class:
                     mock_runtime = Mock()
-                    mock_runtime.dry_run_json.return_value = [{"filename": "test.yaml", "profile": {"test": "data"}}]
+                    mock_runtime.dry_run.return_value = [{"filename": "test.yaml", "profile": {"test": "data"}}]
                     mock_runtime_class.return_value = mock_runtime
 
                     runner.invoke(cli, ["dry-run", "--format", "json"])
                     mock_runtime_class.assert_called_once_with(mock_config)
-                    mock_runtime.dry_run_json.assert_called_once()
+                    mock_runtime.dry_run.assert_called_once_with()
+
+    def test_dry_run_format_yaml_writes_only_yaml(self, mock_config, runner):
+        """Test that dry-run with --format yaml prints only YAML to stdout."""
+        with patch("entrypoint.AIMConfig.from_environment", return_value=mock_config):
+            with patch("entrypoint.configure_logging"):
+                with patch("entrypoint.AIMRuntime") as mock_runtime_class:
+                    mock_runtime = Mock()
+                    mock_runtime.dry_run.return_value = [{"aim_id": "test-model", "precision": "fp16"}]
+                    mock_runtime_class.return_value = mock_runtime
+
+                    result = runner.invoke(cli, ["dry-run", "--format", "yaml"])
+                    assert result.exit_code == 0
+                    assert yaml.safe_load(result.output) == [{"aim_id": "test-model", "precision": "fp16"}]
+                    mock_runtime.dry_run.assert_called_once()
 
     def test_dry_run_does_not_execute_script(self, mock_config, runner):
         """Test that dry-run command does not execute any script."""
@@ -201,17 +213,7 @@ class TestDownloadToCacheCommand:
                     # Test HuggingFace protocol
                     result = runner.invoke(cli, ["download-to-cache", "--model-id", "hf://org/model"])
                     assert result.exit_code == 0
-                    mock_runtime.download_to_cache.assert_called_with(
-                        model_id="hf://org/model", use_hf_cache=False, custom_model_name=None
-                    )
-
-                    # Test S3 protocol
-                    mock_runtime.download_to_cache.reset_mock()
-                    result = runner.invoke(cli, ["download-to-cache", "--model-id", "s3://bucket/path/to/model"])
-                    assert result.exit_code == 0
-                    mock_runtime.download_to_cache.assert_called_with(
-                        model_id="s3://bucket/path/to/model", use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_with(model_id="hf://org/model", use_hf_cache=False)
 
     """Test suite for download-to-cache command."""
 
@@ -228,9 +230,7 @@ class TestDownloadToCacheCommand:
 
                     result = runner.invoke(cli, ["download-to-cache"])
                     assert result.exit_code == 0
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=False)
 
     def test_download_to_cache_with_custom_cache_dir(self, runner, tmp_path):
         """Test download-to-cache command with custom cache directory via AIM_CACHE_PATH env var."""
@@ -255,9 +255,7 @@ class TestDownloadToCacheCommand:
 
                     result = runner.invoke(cli, ["download-to-cache"])
                     assert result.exit_code == 0
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=False)
 
     def test_download_to_cache_with_quantized_model(self, mock_config, runner, tmp_path):
         """
@@ -275,9 +273,7 @@ class TestDownloadToCacheCommand:
 
                     result = runner.invoke(cli, ["download-to-cache"])
                     assert result.exit_code == 0
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=False)
 
     def test_download_to_cache_no_model_in_profile(self, mock_config, runner, tmp_path):
         """Test download-to-cache command with profile missing model field."""
@@ -293,9 +289,7 @@ class TestDownloadToCacheCommand:
 
                     result = runner.invoke(cli, ["download-to-cache"])
                     assert result.exit_code == 1
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=False)
 
     def test_download_to_cache_handles_download_error(self, mock_config, runner, tmp_path):
         """Test download-to-cache command handles download errors gracefully."""
@@ -308,9 +302,7 @@ class TestDownloadToCacheCommand:
 
                     result = runner.invoke(cli, ["download-to-cache"])
                     assert result.exit_code == 1
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name=None
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=False)
 
     def test_download_to_cache_with_use_hf_cache_flag(self, mock_config, runner, tmp_path):
         """Test download-to-cache command with --use-hf-cache flag."""
@@ -327,23 +319,4 @@ class TestDownloadToCacheCommand:
                     result = runner.invoke(cli, ["download-to-cache", "--use-hf-cache"])
                     assert result.exit_code == 0
                     # Verify the download was called with use_hf_cache=True
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=True, custom_model_name=None
-                    )
-
-    def test_download_to_cache_with_explicit_custom_model_name(self, mock_config, runner, tmp_path):
-        """Test download-to-cache command with explicit --custom-model-name flag for S3 URIs."""
-        with patch("entrypoint.AIMConfig.from_environment", return_value=mock_config):
-            with patch("entrypoint.configure_logging"):
-                with patch("entrypoint.AIMRuntime") as mock_runtime_class:
-                    mock_runtime = Mock()
-                    mock_runtime.download_to_cache.return_value = "/workspace/model-cache/custom-model-name"
-                    mock_runtime_class.return_value = mock_runtime
-
-                    # Test with --custom-model-name flag for S3 URI
-                    result = runner.invoke(cli, ["download-to-cache", "--custom-model-name", "custom-model-name"])
-                    assert result.exit_code == 0
-                    # Verify the download was called with custom_model_name parameter
-                    mock_runtime.download_to_cache.assert_called_once_with(
-                        model_id=None, use_hf_cache=False, custom_model_name="custom-model-name"
-                    )
+                    mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=True)

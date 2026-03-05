@@ -184,6 +184,18 @@ class TestAIMIDValidation:
                 assert config.aim_id == "test/aim-container"
                 assert config.model_id is None
 
+    def test_model_id_param_only(self):
+        """Test that model_id_param alone is valid."""
+        env_vars = {}
+        model_id_param = "test/aim-container"
+        # Clear AIM_MODEL_ID and AIM_ID if they exist
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("AIM_MODEL_ID", "AIM_ID")}
+        with patch.dict(os.environ, clean_env, clear=True):
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = AIMConfig.from_environment(model_id_param)
+                assert config.aim_id is None
+                assert config.model_id == "test/aim-container"
+
     def test_both_aim_id_and_model_id_raises_error(self):
         """Test that setting both AIM_ID and AIM_MODEL_ID raises ValueError."""
         env_vars = {
@@ -201,61 +213,6 @@ class TestAIMIDValidation:
         with patch.dict(os.environ, clean_env, clear=True):
             with pytest.raises(ValueError, match="Either AIM_MODEL_ID or AIM_ID environment variable is required"):
                 AIMConfig.from_environment()
-
-
-class TestCustomModelNameConfig:
-    """Tests for AIM_CUSTOM_MODEL_NAME environment variable handling."""
-
-    def test_custom_model_name_set(self):
-        """Test that AIM_CUSTOM_MODEL_NAME is read from environment."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-            "AIM_CUSTOM_MODEL_NAME": "my-custom-name",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            config = AIMConfig.from_environment()
-            assert config.custom_model_name == "my-custom-name"
-
-    def test_custom_model_name_not_set(self):
-        """Test that custom_model_name defaults to None when not set."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-        }
-        # Clear AIM_CUSTOM_MODEL_NAME if it exists
-        clean_env = {k: v for k, v in os.environ.items() if k != "AIM_CUSTOM_MODEL_NAME"}
-        with patch.dict(os.environ, clean_env, clear=True):
-            with patch.dict(os.environ, env_vars, clear=False):
-                config = AIMConfig.from_environment()
-                assert config.custom_model_name is None
-
-    def test_custom_model_name_with_slashes(self):
-        """Test that custom_model_name accepts paths with slashes (org/model format)."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-            "AIM_CUSTOM_MODEL_NAME": "meta-llama/Llama-3.1-8B-Instruct",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            config = AIMConfig.from_environment()
-            assert config.custom_model_name == "meta-llama/Llama-3.1-8B-Instruct"
-
-    def test_custom_model_name_in_to_dict(self):
-        """Test that custom_model_name appears in to_dict output."""
-        config = AIMConfig(
-            aim_id="test/aim",
-            custom_model_name="my-custom-name",
-        )
-        config_dict = config.to_dict()
-        assert "custom_model_name" in config_dict
-        assert config_dict["custom_model_name"] == "my-custom-name"
-
-    def test_custom_model_name_in_to_dict_when_none(self):
-        """Test that custom_model_name appears in to_dict output even when None."""
-        config = AIMConfig(
-            aim_id="test/aim",
-        )
-        config_dict = config.to_dict()
-        assert "custom_model_name" in config_dict
-        assert config_dict["custom_model_name"] is None
 
 
 class TestAllowGeneralProfileFallbackConfig:

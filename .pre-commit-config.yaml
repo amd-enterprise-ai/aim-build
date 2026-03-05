@@ -11,7 +11,7 @@ repos:
   - id: copyright-check
     name: AMD Copyright Check
     description: Check that all files have the required AMD copyright
-    entry: utils/check_copyright.py
+    entry: src/aim_utils/check_copyright.py
     language: python
     pass_filenames: true
     always_run: false
@@ -27,6 +27,20 @@ repos:
   - id: check-toml
   - id: trailing-whitespace
     exclude: "^docs/docs-aim/.*\\.md$"
+
+- repo: https://github.com/pre-commit/mirrors-prettier
+  rev: v4.0.0-alpha.8
+  hooks:
+  - id: prettier
+    files: ^\.github/.*\.ya?ml$
+    types: [ yaml ]
+
+- repo: https://github.com/adrienverge/yamllint.git
+  rev: v1.35.1
+  hooks:
+  - id: yamllint
+    files: ^\.github/.*\.ya?ml$
+    args: [ --strict, -c=.yamllint ]
 
 - repo: https://github.com/psf/black
   rev: 25.1.0
@@ -83,10 +97,47 @@ repos:
 - repo: local
   hooks:
   - id: yaml-key-order
-    name: YAML Key Order
+    name: "Profiles: sort keys in YAMLs"
     description: Sort non-top-level keys in profile YAML files alphabetically
-    entry: python3 utils/sort_yaml_keys.py
+    entry: python3 -m aim_utils.profile_utils sort-profile-keys
+    language: system
+    types: [ yaml ]
+    pass_filenames: true
+    always_run: false
+    files: ^profiles/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: check-profile-names
+    name: "Profiles: check names"
+    description: Check if profile metadata matches profile's file name
+    entry: python3 -m aim_utils.profile_utils check-metadata
     language: system
     types: [ yaml ]
     pass_filenames: false
     always_run: false
+    files: ^profiles/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: add-recommended-deployments
+    name: "Metadata: add recommended deployments"
+    description: Add recommended deployments to based on profiles' changes
+    entry: python3 -m aim_utils.metadata_utils add-recommended-deployments
+    language: system
+    types: [ yaml ]
+    pass_filenames: false
+    always_run: false
+    files: ^(profiles|metadata)/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: metadata-validation
+    name: "Metadata: validation"
+    description: Validate metadata YAML files against schema
+    entry: python3 -m aim_utils.metadata_utils validate
+    language: system
+    types: [ yaml ]
+    pass_filenames: false
+    always_run: false
+    files: ^metadata/.*\.yaml$

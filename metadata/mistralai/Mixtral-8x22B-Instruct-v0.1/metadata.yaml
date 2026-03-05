@@ -8,7 +8,7 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "Apache-2.0, MIT"
-      description: "Mixture of experts model with 8 experts of 22B parameters each for efficient scaling."
+      description: "Sparse MoE language model with 141B total parameters across 8 experts and function calling support."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
@@ -26,11 +26,11 @@ com:
         recommendedDeployments:
         - gpuModel: "MI300X"
           gpuCount: 4
+          precision: "fp16"
           metric: "latency"
           description: "Optimized for latency on MI300X using fp16 precision"
-          profileId: "vllm-mi300x-fp16-tp4-latency"
         - gpuModel: "MI300X"
-          gpuCount: 8
+          gpuCount: 4
           precision: "fp16"
           metric: "throughput"
           description: "Optimized for throughput on MI300X using fp16 precision"
@@ -44,11 +44,31 @@ com:
           metric: "throughput"
           description: "Optimized for throughput on MI325X using fp16 precision"
           profileId: "vllm-mi325x-fp16-tp4-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 4
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp16 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 4
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 4
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 4
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp16 precision"
         publisher: "Mistral AI"
       hfToken:
         required: false
       release:
         notes: ""
       description:
-        full: "Mixture of experts model with 8 experts of 22B parameters each for efficient scaling."
+        full: "Mixtral-8x22B-Instruct-v0.1 is a 141 billion total parameter sparse mixture-of-experts (MoE) language model from Mistral AI, composed of 8 experts of 22 billion parameters each. It is an instruct fine-tuned version of Mixtral-8x22B-v0.1 with function calling support. The model handles English, French, Italian, German, and Spanish. It supports tool use with structured tool call IDs for multi-turn function calling workflows."
       title: "Mixtral 8x22B Instruct v0.1"

@@ -226,3 +226,9 @@ docs/overrides/*
 
 # Temporary files generated for various purposes
 docs/temp/*
+
+# VS Code settings
+.vscode/*
+
+# Model cache
+model-cache/*

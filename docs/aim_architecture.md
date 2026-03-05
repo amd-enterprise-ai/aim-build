@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # AIM Container Technical Architecture
 >
-> **Version**: 0.9
+> **Version**: 0.10
 >
 > **Scope**: This document describes the internal technical architecture of AIM *containers*. It deliberately excludes higher‑level orchestration (Kubernetes, Helm, Operators) to focus on what ships inside and immediately around a single container instance.
 
@@ -53,14 +53,18 @@ The container provides a production‑ready, portable inference microservice for
 
 ### 3.1 Artifacts
 
-* **Profile Files**: Organized hierarchically under `/workspace/aim-runtime/profiles/` with fallback layers:
-  + Model-specific: `/workspace/aim-runtime/profiles/<org>/<model>/*.yaml`
-  + General profiles: `/workspace/aim-runtime/profiles/general/*.yaml`
+* **Profile Files**: Organized hierarchically as follows:
+  * Custom model-specific profiles: `/workspace/aim-runtime/profiles/custom/<org>/<model>/*.yaml`
+  * Custom general profiles: `/workspace/aim-runtime/profiles/custom/general/*.yaml`
+  * Built-in model-specific profiles: `/workspace/aim-runtime/profiles/<org>/<model>/*.yaml`
+  * Built-in general profiles: `/workspace/aim-runtime/profiles/general/*.yaml`
+
 
   Example paths:
 
-
 ```
+  /workspace/aim-runtime/profiles/custom/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/vllm-mi300x-fp16-tp1-latency.yaml
+  /workspace/aim-runtime/profiles/custom/general/vllm-mi300x-fp16-tp1-latency.yaml
   /workspace/aim-runtime/profiles/meta-llama/llama-3.1-8b-instruct/vllm-mi300x-fp16-tp1-latency.yaml
   /workspace/aim-runtime/profiles/meta-llama/llama-3.1-8b-instruct/vllm-mi300x-fp16-tp1-throughput.yaml
   /workspace/aim-runtime/profiles/deepseek-ai/deepseek-r1/vllm-mi300x-bf16-tp8-throughput.yaml
@@ -70,9 +74,10 @@ The container provides a production‑ready, portable inference microservice for
 * **Profile Search Path**: Custom profiles supported via convention-based `custom/` directory.
 
   Search precedence:
-  1. `/workspace/aim-runtime/profiles/custom/`
-  2. `/workspace/aim-runtime/profiles/<org>/<model>/`
-  3. `/workspace/aim-runtime/profiles/general/`
+  1. `/workspace/aim-runtime/profiles/custom/<org>/<model>/`
+  2. `/workspace/aim-runtime/profiles/custom/general/`
+  3. `/workspace/aim-runtime/profiles/<org>/<model>/`
+  4. `/workspace/aim-runtime/profiles/general/`
 
 ### 3.2 Profile Structure
 
@@ -93,17 +98,48 @@ Each profile YAML file follows a standardized structure with the following key s
   + `gpu_count`: Number of GPUs for tensor parallelism (1, 2, 4, 8)
   + `metric`: Optimization target ("latency" or "throughput")
   + `manual_selection_only`: Boolean flag (true = only selectable via explicit `AIM_PROFILE_ID`)
-  + `type`: Profile type classification ("optimized", "unoptimized", "preview", or "general")
+  + `type`: Profile type classification (`optimized`, `unoptimized`, `preview`, or `general`)
 * **`engine_args`**: Engine-specific command-line arguments and parameters
 * **`env_vars`**: Environment variables to set during runtime execution
 
 The metadata section enables intelligent profile selection by providing structured, machine-readable information about the profile's target configuration.
 
 **Profile Type Classification**: The `type` field categorizes profiles based on their optimization status:
-* `"optimized"`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
-* `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
-* `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
-* `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
+* `optimized`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
+* `unoptimized`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
+* `general`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
+* `preview`: Performance-tuned profiles which do not reach the same level of performance as `optimized` profiles, intended for early access to new configurations
+
+**Profile Kinds**: Four kinds of profiles can be distinguished based on their structure and location (in order of
+selection precedence):
+
+* Custom model-specific profiles
+* Custom general profiles
+* Built-in model-specific profiles
+* Built-in general profiles
+
+In case of base image, built-in model-specific profiles are not available. In order to select a profile, `AIM_ID` or
+`AIM_MODEL_ID` environment variable must be set. `AIM_ID` is used to select a model-specific profile, while `AIM_MODEL_ID`
+can be used to select general profiles:
+
+| Kind                    | Location                                               | Precedence | Environment variable         |
+|-------------------------|--------------------------------------------------------|------------|------------------------------|
+| Custom model-specific   | `/workspace/aim-runtime/profiles/custom/<org>/<model>` | 1          | `AIM_ID=<org>/<model>`       |
+| Custom general          | `/workspace/aim-runtime/profiles/custom/general/`      | 2          | `AIM_MODEL_ID=<org>/<model>` |
+| Built-in model-specific | N/A                                                    | -          | -                            |
+| Built-in general        | `/workspace/aim-runtime/profiles/general/`             | 3          | `AIM_MODEL_ID=<org>/<model>` |
+
+In case of model-specific image, environment variables do not have to be used and built-in model-specific profiles become
+available:
+
+| Kind                    | Location                                                | Precedence | Environment variable                              |
+|-------------------------|---------------------------------------------------------|------------|---------------------------------------------------|
+| Custom model-specific   | `/workspace/aim-runtime/profiles/custom/<org>/<model>/` | 1          | `AIM_ID=<org>/<model>` (set out of the box)       |
+| Custom general          | `/workspace/aim-runtime/profiles/custom/general/`       | 2          | `AIM_MODEL_ID=<org>/<model>` (set out of the box) |
+| Built-in model-specific | `/workspace/aim-runtime/profiles/<org>/<model>/`        | 3          | `AIM_ID=<org>/<model>` (set out of the box)       |
+| Built-in general        | `/workspace/aim-runtime/profiles/general/`              | 4          | `AIM_MODEL_ID=<org>/<model>` (set out of the box) |
+
+Setting `AIM_MODEL_ID` for model-specific container is not supported because it is resolved internally.
 
 ### 3.3 Schema & Integrity
 
@@ -132,7 +168,7 @@ The profile selector executes these stages:
    - Optimization metric (latency vs throughput)
    - `manual-selection-only` flag (profiles with this flag are excluded from automatic selection)
 5. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
-6. **Type ordering** - Sort remaining profiles by type in the order of: optimized, preview, unoptimized, general.
+6. **Type ordering** - Sort remaining profiles by type in the order of: `optimized`, `preview`, `unoptimized`, `general`.
 7. **Profile Selection** – Return the best-matched profile from the ordered list
 
 The selection algorithm leverages the structured metadata section to efficiently filter and rank profiles based on the runtime environment and user preferences. This metadata-driven approach ensures optimal profile selection while maintaining deterministic fallback behavior.
@@ -154,32 +190,31 @@ model_id: amd/Llama-3.1-8B-Instruct-FP8-KV
 metadata:
   engine: vllm
   gpu: MI300X
-  precision: fp8
   gpu_count: 1
-  metric: latency
   manual_selection_only: false
+  metric: latency
+  precision: fp8
   type: optimized
 engine_args:
+  async-scheduling: null
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: fp8
+  max-model-len: 32768
+  max-num-batched-tokens: 1024
+  max-num-seqs: 512
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
   swap-space: 64
   tensor-parallel-size: 1
-  max-num-seqs: 512
-  kv-cache-dtype: fp8
-  max-seq-len-to-capture: 32768
-  max-num-batched-tokens: 1024
-  max-model-len: 32768
-  no-enable-prefix-caching:
-  no-enable-log-requests:
-  disable-uvicorn-access-log:
-  no-trust-remote-code:
-  gpu-memory-utilization: 0.9
-  distributed_executor_backend: mp
-  async-scheduling:
 env_vars:
-  GPU_ARCHS: "gfx942"
-  HSA_NO_SCRATCH_RECLAIM: "1"
-  VLLM_USE_AITER_TRITON_ROPE: "1"
-  VLLM_ROCM_USE_AITER: "1"
-  VLLM_ROCM_USE_AITER_RMSNORM: "1"
+  GPU_ARCHS: gfx942
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '1'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'
 ```
 
 Model-specific profiles include two key fields that enable flexibility:
@@ -208,6 +243,30 @@ engine_args:
 env_vars:
   VLLM_DO_NOT_TRACK: "1"
 ```
+
+### 3.6 Controlling profile selection
+
+Users can influence profile selection through the following environment variables:
+- `AIM_PROFILE_ID`: Explicitly specify a profile filename (skips heuristic selection)
+- `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: When set to "false", general profiles become marked as `manual_selection_only: true`
+and are not considered for automatic selection
+
+Profiles can be of different types (see Section 3.2 for details):
+* `optimized`
+* `unoptimized`
+* `general`
+* `preview`
+
+Profiles of types `optimized` and `preview` are participating in automatic profile selection by default, and therefore can be
+selected without any intervention from the user. `General` profiles can be selected automatically if base container is
+used (see Section 12.2). `General` profiles can be automatically selected for model-specific containers as well, but
+only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". Unoptimized profiles are usually
+excluded from automatic selection, however, any profile with the `manual_selection_only` field set to `true` can be
+excluded as well.
+
+It is still possible to select profiles with `manual_selection_only=true` for runtime. This is achieved by setting the
+environment variable `AIM_PROFILE_ID` with the desired profile identifier. Profile identifier is the filename of the
+profile without the `.yaml` extension.
 
 ## 4. AIM Runtime & Command Execution
 
@@ -279,11 +338,11 @@ AIM containers support flexible model caching strategies to optimize deployment 
 
 **Architecture**: The `ModelCacheResolver` component resolves model locations across two cache formats:
 - **Local Directory Format**: Flat structure where `{cache_path}/{model_id}/` contains model files (config.json, safetensors, tokenizer files)
-- **HuggingFace Hub Format**: Nested structure matching HF cache layout with snapshots subdirectory
+- **Hugging Face Hub Format**: Nested structure matching HF cache layout with snapshots subdirectory
 
 **Cache Path**: Configurable via environment variable, defaults to `/workspace/model-cache`
 
-**Fallback Strategy**: If model not found in cache, automatically downloads from HuggingFace Hub to cache directory
+**Fallback Strategy**: If model not found in cache, automatically downloads from Hugging Face Hub to cache directory
 
 For detailed implementation including pre-population strategies, volume mounting patterns, and format specifications, see [Model Caching Documentation](./model_caching.md).
 
@@ -457,10 +516,12 @@ ENTRYPOINT ["./entrypoint.py"]
 
 Extends the base image by **adding model‑specific profile overlays** at `/workspace/aim-runtime/profiles/<org>/<model>/`. It does **not** embed or pre‑download model weights. All weight materialization still occurs at runtime through the normal engine+cache path, ensuring a lean image.
 
-* **Versioning**: The tag reflects the model, the base container version, and a date-based version for profile updates.
-  + **Format**: `<base_version>-<org>-<model>-v<date>`
-  + **Example**: `aim:0.1.0-meta-llama-llama-3.1-8b-instruct-v20250821`
-  + All parts of the tag are lowercased for compatibility.
+* **Versioning**: The container name reflects organisation and model; the tag follows semantic versioning.
+  + **Format**: `aim-<org>-<model>:MAJOR.MINOR.PATCH[-rcN|-preview]`
+  + **Example**: `aim-meta-llama-llama-3-1-8b-instruct:0.8.5`
+  + All parts of the image name are lowercased for compatibility.
+
+Currently, the make file produces date-based version for model specific images, however it is planned to be changed.
 
 * **Profile Fallback Control**: Sets `AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"` to ensure the container prioritizes its model-specific optimized profiles. General profiles remain available for manual selection via `AIM_PROFILE_ID` if needed.
 

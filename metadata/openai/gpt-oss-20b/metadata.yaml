@@ -8,7 +8,7 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "Apache-2.0, MIT"
-      description: "OpenAI's GPT-OSS 20B is a text generation model with conversational capabilities, supporting tool calling and reasoning tasks."
+      description: "Open-weight 21B parameter MoE model with 3.6B active parameters for lower-latency use cases."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
@@ -54,11 +54,31 @@ com:
           metric: "throughput"
           description: "Optimized for throughput on MI325X using fp4 precision"
           profileId: "vllm-mi325x-mxfp4-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp4 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp4 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp4 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp4 precision"
         publisher: "OpenAI"
       hfToken:
         required: false
       release:
         notes: ""
       description:
-        full: "OpenAI's GPT-OSS 20B is a text generation model with conversational capabilities, supporting tool calling and reasoning tasks."
+        full: "GPT-OSS 20B is an open-weight mixture-of-experts (MoE) language model from OpenAI with 21 billion total parameters and 3.6 billion active parameters. The model features configurable reasoning effort across three levels (low, medium, high), full chain-of-thought access, and agentic capabilities including function calling, web browsing, and Python code execution. It supports structured outputs and fine-tuning on consumer hardware. Post-trained with MXFP4 quantization of MoE weights, enabling deployment within 16GB of memory. Designed for lower-latency and local or specialized use cases. Licensed under Apache 2.0."
       title: "GPT OSS 20B"

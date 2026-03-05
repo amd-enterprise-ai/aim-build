@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: mistralai/Mixtral-8x22B-Instruct-v0.1
+model_id: mistralai/Mixtral-8x22B-Instruct-v0.1
+metadata:
+  engine: vllm
+  gpu: MI350X
+  gpu_count: 4
+  manual_selection_only: false
+  metric: latency
+  precision: fp16
+  type: optimized
+engine_args:
+  async-scheduling: null
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: float16
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.9
+  max-model-len: 32768
+  max-num-batched-tokens: 2048
+  max-num-seqs: 512
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  swap-space: 64
+  tensor-parallel-size: 4
+  tool-call-parser: mistral
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MHA: '1'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

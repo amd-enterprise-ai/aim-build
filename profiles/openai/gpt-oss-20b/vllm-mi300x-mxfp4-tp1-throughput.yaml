@@ -11,7 +11,7 @@ metadata:
   manual_selection_only: false
   metric: throughput
   precision: fp4
-  type: optimized
+  type: preview
 engine_args:
   async-scheduling: null
   compilation-config:

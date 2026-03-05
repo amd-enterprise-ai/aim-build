@@ -122,7 +122,7 @@ class ProfileRegistry:
         metadata_dict = profile_data["metadata"]
         metadata = ProfileMetadata(
             engine=Engine(metadata_dict["engine"].lower()),
-            gpu=GPUModel(metadata_dict["gpu"].upper()),
+            gpu=GPUModel.from_string(metadata_dict["gpu"]),
             precision=Precision(metadata_dict["precision"].lower()),
             gpu_count=metadata_dict["gpu_count"],
             metric=Metric(metadata_dict["metric"].lower()),

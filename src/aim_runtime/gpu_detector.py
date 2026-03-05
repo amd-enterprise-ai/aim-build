@@ -52,49 +52,6 @@ class GPUInfo:
 class GPUDetector:
     """Detects AMD GPUs and provides information about them."""
 
-    # GPU device ID to model name mapping
-    # reference: https://github.com/ROCm/gpu-operator/blob/main/helm-charts-k8s/templates/gpu-nfd-default-rule.yaml
-    GPU_MODEL_MAPPING = {
-        # AMD Instinct
-        "0x738c": GPUModel.MI100,
-        "0x738e": GPUModel.MI100,
-        "0x7408": GPUModel.MI250X,
-        "0x740c": GPUModel.MI250X,  # MI250/MI250X
-        "0x740f": GPUModel.MI210,
-        "0x7410": GPUModel.MI210,  # MI210 VF
-        "0x74a0": GPUModel.MI300A,
-        "0x74a1": GPUModel.MI300X,
-        "0x74a2": GPUModel.MI308X,
-        "0x74a5": GPUModel.MI325X,
-        "0x74a8": GPUModel.MI308X,  # MI308X HF
-        "0x74a9": GPUModel.MI300X,  # MI300X HF
-        "0x74b5": GPUModel.MI300X,  # MI300X VF
-        "0x74b6": GPUModel.MI308X,
-        "0x74b9": GPUModel.MI325X,  # MI325X VF
-        "0x74bd": GPUModel.MI300X,  # MI300X HF
-        "0x75a0": GPUModel.MI350X,
-        "0x75a3": GPUModel.MI355X,
-        "0x75b0": GPUModel.MI350X,  # MI350X VF
-        "0x75b3": GPUModel.MI355X,  # MI355X VF
-        # AMD Radeon Pro
-        "0x7460": GPUModel.V710,
-        "0x7461": GPUModel.V710,  # Radeon Pro V710 MxGPU
-        "0x7448": GPUModel.W7900,
-        "0x744a": GPUModel.W7900,  # W7900 Dual Slot
-        "0x7449": GPUModel.W7800,  # W7800 48GB
-        "0x745e": GPUModel.W7800,
-        "0x73a2": GPUModel.W6900X,
-        "0x73a3": GPUModel.W6800,  # W6800 GL-XL
-        "0x73ab": GPUModel.W6800X,  # W6800X / W6800X Duo
-        "0x73a1": GPUModel.V620,
-        "0x73ae": GPUModel.V620,  # Radeon Pro V620 MxGPU
-        # AMD Radeon
-        "0x7550": GPUModel.RX9070,  # RX 9070 / 9070 XT
-        "0x744c": GPUModel.RX7900,  # RX 7900 XT / 7900 XTX / 7900 GRE / 7900M
-        "0x73af": GPUModel.RX6900,
-        "0x73bf": GPUModel.RX6800,  # RX 6800 / 6800 XT / 6900 XT
-    }
-
     def __init__(self):
         self._gpus: Optional[List[GPUInfo]] = None
         self._detected = False
@@ -165,7 +122,7 @@ class GPUDetector:
             GPU model name (e.g., "MI300X") or "Unknown" if not found
         """
         norm = self._normalize_device_id(device_id)
-        return self.GPU_MODEL_MAPPING.get(norm, GPUModel.UNKNOWN)
+        return GPUModel.from_string_with_default(norm, GPUModel.UNKNOWN)
 
     @cached_property
     def gpu_models(self) -> Optional[List[GPUModel]]:

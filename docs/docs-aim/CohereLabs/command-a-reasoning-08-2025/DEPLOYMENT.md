@@ -7,8 +7,9 @@ SPDX-License-Identifier: MIT
 # AMD Inference Microservice deployment guide
 
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
- CohereLabs/command-a-reasoning-08-2025 model  in
-various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs.
+ CohereLabs/command-a-reasoning-08-2025 model in
+various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs. This guide
+assumes MI300X GPU on the target system.
 
 ## Prerequisites
 
@@ -25,7 +26,7 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
 ```
 
 Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for gated models)
@@ -42,7 +43,7 @@ docker run \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
 ```
 
 ## 2. Model caching for production
@@ -59,7 +60,7 @@ mkdir -p /path/to/model-cache
 docker run --rm \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0 \
   download-to-cache --model-id CohereLabs/command-a-reasoning-08-2025
 ```
 
@@ -71,7 +72,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
 ```
 
 ## 3. Kubernetes deployment
@@ -79,7 +80,6 @@ docker run \
 ### 3.1 Deployment
 
 It is possible to deploy AIM using Kubernetes. In this doc a sample Kubernetes deployment manifest is provided.
-
 
 Create `deployment.yaml` with the following content:
 
@@ -103,7 +103,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+          image: amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -275,10 +275,22 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
 ```
 
+### 5.2 Using profiles excluded from automatic selection
 
+To use a profile excluded from automatic selection, an environment variable `AIM_PROFILE_ID` should be set with the
+desired profile identifier. Profile identifier is the filename of the profile without the `.yaml` extension.
+
+```bash
+docker run \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+  -e AIM_PROFILE_ID=vllm-mi250x-fp16-tp8-latency \
+  --device=/dev/kfd --device=/dev/dri \
+  -p 8000:8000 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
+```
 
 ## 6. Monitoring and troubleshooting
 
@@ -288,7 +300,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0 \
   --help
 ```
 
@@ -296,7 +308,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0 \
   <subcommand> --help
 ```
 
@@ -308,7 +320,7 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -321,7 +333,7 @@ docker run \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0 \
   dry-run
 ```
 
@@ -329,7 +341,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.9.0 \
+  amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.10.0 \
   list-profiles
 ```
 

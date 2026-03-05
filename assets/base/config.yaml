@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+base_image:
+  base_registry_namespace: rocm
+  base_repository: vllm
+  base_tag: rocm7.0.0_vllm_0.11.2_20251210
+  registry_host: docker.io

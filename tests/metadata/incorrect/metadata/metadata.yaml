@@ -31,7 +31,8 @@ com:
       release:
         notes: ""
       description:
-        full: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices. Adding more characters here to fail 160 character limit test."
+        full: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
+      unknownField: "this field is not allowed by the schema"
       title: "TinyLlama 1.1B Chat v1.0"
 org:
   opencontainers:

@@ -17,7 +17,6 @@ engine_args:
   dtype: float16
   gpu-memory-utilization: 0.95
   max-model-len: 32768
-  no-enable-chunked-prefill: null
   tensor-parallel-size: 8
 env_vars:
   HIP_FORCE_DEV_KERNARG: '1'
@@ -27,4 +26,3 @@ env_vars:
   PYTORCH_TUNABLEOP_VERBOSE: '1'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
   VLLM_DO_NOT_TRACK: '1'
-  VLLM_USE_TRITON_FLASH_ATTN: '0'

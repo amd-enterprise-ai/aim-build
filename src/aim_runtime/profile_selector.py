@@ -248,21 +248,38 @@ class ProfileSelector:
         # Use merged assessment approach
         results = self.assess_all_profiles()
         compatible_results = results[ProfileCompatibilityState.COMPATIBLE]
-
+        logger.info(f"Found {len(compatible_results)} compatible profiles")
+        logger.info(compatible_results)
         # Exclude profiles with metadata.manual_selection_only == True from automatic selection
         auto_compatible_results = [r for r in compatible_results if not r.profile.metadata.manual_selection_only]
+        logger.info(f"{len(auto_compatible_results)} compatible profiles after excluding manual-selection-only")
+        logger.debug(
+            f"Auto-compatible profiles: {[r.profile.profile_handling.filename for r in auto_compatible_results]}"
+        )
 
         if not auto_compatible_results:
-            # Provide detailed error message with breakdown
-            error_parts = []
-            for state, results_list in results.items():
-                if results_list and state != ProfileCompatibilityState.COMPATIBLE:
-                    error_parts.append(f"{len(results_list)} {state.value}")
+            # Check if we have compatible profiles that are manual-only
+            manual_only_profiles = [r for r in compatible_results if r.profile.metadata.manual_selection_only]
 
-            error_detail = ", ".join(error_parts) if error_parts else "no profiles found"
-            raise ProfileNotFound(
-                f"No compatible profile found for AIM {self.config.aim_id}. Profile breakdown: {error_detail}"
-            )
+            if manual_only_profiles:
+                # Case 1: Compatible profiles exist but all require manual selection
+                profile_ids = [r.profile.profile_id for r in manual_only_profiles]
+                raise ProfileNotFound(
+                    f"Found {len(manual_only_profiles)} compatible profile(s) for AIM {self.config.aim_id}, "
+                    f"but they require explicit selection via AIM_PROFILE_ID environment variable. "
+                    f"Available profiles have the following AIM_PROFILE_ID values: {', '.join(profile_ids)}"
+                )
+            else:
+                # Case 2: No compatible profiles at all
+                error_parts = []
+                for state, results_list in results.items():
+                    if results_list and state != ProfileCompatibilityState.COMPATIBLE:
+                        error_parts.append(f"{len(results_list)} {state.value}")
+
+                error_detail = ", ".join(error_parts) if error_parts else "no profiles found"
+                raise ProfileNotFound(
+                    f"No compatible profile found for AIM {self.config.aim_id}. Profile breakdown: {error_detail}"
+                )
 
         # Return the highest-priority auto-compatible profile
         best_profile = auto_compatible_results[0].profile

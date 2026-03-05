@@ -33,10 +33,10 @@ This AIM allows to deploy {{ aim_overview.model_name }} with a tailored set of p
 
 The following profiles are available for this model:
 
-|Profile|GPU|Precision|Engine|GPU count|Metric|Type|
-|-------|---|---------|------|---------|------|----|
+|Profile|GPU|Precision|Engine|GPU count|Metric|Type| Manual Only |
+|-------|---|---------|------|---------|------|----|-------------|
 {% for profile in profiles %}
-|{{ profile.profile_name }}|{{ profile.gpu }}|{{ profile.precision }}|{{ profile.engine }}|{{ profile.gpu_count }}|{{ profile.metric }}|{{ profile.profile_type }}|
+|{{ profile.profile_name }}|{{ profile.gpu }}|{{ profile.precision }}|{{ profile.engine }}|{{ profile.gpu_count }}|{{ profile.metric }}|{{ profile.profile_type }}|{{ profile.manual_selection_only }}|
 {% endfor %}
 
 The columns should be read as follows:
@@ -47,9 +47,10 @@ The columns should be read as follows:
 * **GPU count**: Number of GPUs utilized in the profile.
 * **Metric**: Performance metric optimized the profile is optimized for. Common metrics are `latency` (time taken to generate a response) and `throughput` (number of requests handled per second).
 * **Type**: Indicates whether the profile is `optimized`, `unoptimized`, or `general`.
-  * `optimized` profiles are those that have been specifically tuned for the model and hardware combination to deliver the best performance.
-  * `unoptimized` profiles are provided without specific tuning and may not deliver optimal performance.
-  * `general` profiles are created without a specific model in mind and can be used for a variety of models.
+  * `"optimized"`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
+  * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
+  * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
+  * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
 
 {% if terms_of_use.defined %}
 

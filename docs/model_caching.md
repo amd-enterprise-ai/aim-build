@@ -21,12 +21,10 @@ flowchart TB
         A[Run download-to-cache<br/>AIM_MODEL_ID or --model-id] --> A1{Profile Selection}
         A1 -->|AIM_MODEL_ID| A2[Select profile<br/>Get actual HF model]
         A1 -->|--model-id| A3[Direct model<br/>Bypass profiles]
-        A2 --> B{Model Source}
-        A3 --> B
-        B -->|hf://| C[HuggingFace Hub]
-        B -->|s3://| D[S3/MinIO/Ceph]
+        C[Hugging Face Hub<br/>hf:// ]
+        A2 --> C
+        A3 --> C
         C --> E[Download to Local Cache]
-        D --> E
         E --> F{Cache Format}
         F -->|Default| G[Local Directory<br/>/cache/org/model/]
         F -->|--use-hf-cache| H[HF Cache<br/>/cache/hub/models--org--model/]
@@ -60,17 +58,15 @@ flowchart TB
 
 ## Model Sources
 
-AIM can download models from multiple sources using storage backends:
-
-- **HuggingFace Hub** (`hf://org/model`) - Public and gated models
-- **S3/S3-compatible** (`s3://bucket/path`) - AWS S3, MinIO, Ceph, etc.
+AIM can download models from **Hugging Face Hub** using storage backend. The URL should be in the following format:
+`hf://org/model`. Public and gated models can be downloaded.
 
 ## Cache Formats
 
 Downloaded models can be stored in two formats:
 
-| Format | Local Directory (default) | HuggingFace Cache |
-|--------|---------------------------|-------------------|
+| Format | Local Directory (default) | Hugging Face Cache |
+|--------|---------------------------|-------|
 | **Directory** | `cache/org/model/` | `cache/hub/models--org--model/` |
 | **Structure** | Simple, flat files | Blobs with symlinks |
 | **Readable** | ✅ Yes | ⚠️ Complex |
@@ -96,7 +92,7 @@ Downloaded models can be stored in two formats:
 │       ├── config.json
 │       └── ...
 │
-└── hub/                                         # HuggingFace Cache Format (--use-hf-cache)
+└── hub/                                         # Hugging Face Cache Format (--use-hf-cache)
     ├── models--meta-llama--Llama-3.1-8B-Instruct/   # Nested under hub/
     │   ├── blobs/                              # Content-addressed storage
     │   │   ├── abc123...
@@ -110,7 +106,7 @@ Downloaded models can be stored in two formats:
         └── ...
 ```
 
-> **Note:** Both formats coexist in the same cache directory. Local directory format uses flat `org/model/` paths, while HuggingFace format nests everything under `hub/` subdirectory with a special blob storage structure.
+> **Note:** Both formats coexist in the same cache directory. Local directory format uses flat `org/model/` paths, while Hugging Face format nests everything under `hub/` subdirectory with a special blob storage structure.
 
 #### Local Directory: Flexible Mounting
 
@@ -137,7 +133,7 @@ volumes:
 - Independent lifecycle management (backup, resize, delete per model)
 - Cost and performance optimization through tiered storage selection
 
-**HuggingFace Cache Format:**
+**Hugging Face Cache Format:**
 - ⚠️ **Single cache limitation** - HF cache structure requires mounting entire cache directory
 - ⚠️ **Cannot split models** - All models must be in the same PVC/volume
 - ⚠️ **Single StorageClass** - All cached models constrained to same performance tier
@@ -176,7 +172,7 @@ sequenceDiagram
     participant Container as AIM Container
     participant ProfileSelector as Profile Selector
     participant Storage as Storage Backend
-    participant Source as Model Source<br/>(HF/S3)
+    participant Source as Model Source<br/>(HF)
     participant Cache as Local Cache
 
     User->>Container: docker run download-to-cache
@@ -192,10 +188,8 @@ sequenceDiagram
         Container->>Storage: Route to backend with --model-id
     end
 
-    alt HuggingFace Source
+    alt Hugging Face Source
         Storage->>Source: snapshot_download()
-    else S3 Source
-        Storage->>Source: boto3.download_file()
     end
 
     Source-->>Storage: Model files
@@ -213,9 +207,8 @@ sequenceDiagram
 ## Command Options
 
 **Flags:**
-- `--model-id TEXT` - Explicit model source with protocol (`hf://org/model` or `s3://bucket/path`)
-- `--use-hf-cache` - Store in HuggingFace cache format instead of local directory
-- `--model-name TEXT` - Custom directory name (for S3 sources only)
+- `--model-id TEXT` - Explicit model source with protocol (`hf://org/model`)
+- `--use-hf-cache` - Store in Hugging Face cache format instead of local directory
 
 **Environment Variables:**
 - `AIM_MODEL_ID` - Model identifier for profile selection (required for `aim-base` container unless `--model-id` used)
@@ -224,20 +217,16 @@ sequenceDiagram
 - `AIM_GPU_COUNT` - Number of GPUs - used for profile selection
 - `AIM_METRIC` - Optimization target (latency, throughput) - used for profile selection
 - `AIM_CACHE_PATH` - Cache directory (default: `/workspace/model-cache`)
-- `HF_TOKEN` - HuggingFace token for gated models
-- `AWS_ACCESS_KEY_ID` - AWS access key for S3 (optional if using IAM role)
-- `AWS_SECRET_ACCESS_KEY` - AWS secret key for S3 (optional if using IAM role)
-- `AWS_DEFAULT_REGION` - AWS region (default: `us-east-1`)
-- `AWS_ENDPOINT_URL` - Custom S3 endpoint for S3-compatible storage like MinIO or Ceph
+- `HF_TOKEN` - Hugging Face token for gated models
 
 > **📝 Important:**
-> - **Model-specific containers** (e.g., `aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930`) have the model ID baked in. Users specify high-level parameters (`AIM_PRECISION`, `AIM_GPU_MODEL`, `AIM_METRIC`) which trigger profile selection to determine the actual HuggingFace model to download (may be a quantized variant like `amd/Llama-3.1-8B-Instruct-FP8-KV`).
+> - **Model-specific containers** (e.g., `aim-meta-llama-llama-3-1-8b-instruct:0.8.5`) have the model ID baked in. Users specify high-level parameters (`AIM_PRECISION`, `AIM_GPU_MODEL`, `AIM_METRIC`) which trigger profile selection to determine the actual Hugging Face model to download (may be a quantized variant like `amd/Llama-3.1-8B-Instruct-FP8-KV`).
 > - **Base container** (`aim-base`) requires `AIM_MODEL_ID` for profile selection.
 > - Use `--model-id` to bypass profile selection and download a specific model directly.
 
 ## Download Examples
 
-### HuggingFace Hub
+### Hugging Face Hub
 
 ```bash
 # Profile-based download (model-specific container with baked-in model ID)
@@ -246,59 +235,27 @@ sequenceDiagram
 docker run --rm \
   -e AIM_PRECISION="fp16" \
   -e AIM_GPU_MODEL="MI300X" \
-  -e HF_TOKEN="your_token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache
 # → /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
 
 # Direct download (bypasses profile selection, downloads exact model specified)
 docker run --rm \
   -v /host/cache:/workspace/model-cache \
-  aim-base:0.3.0 \
-  download-to-cache --model-id hf://mistralai/Mistral-7B-v0.1
+  aim-base:0.9 download-to-cache --model-id hf://mistralai/Mistral-7B-v0.1
 # → /workspace/model-cache/mistralai/Mistral-7B-v0.1/
 
-# Use HuggingFace cache format with model-specific container
+# Use Hugging Face cache format with model-specific container
 docker run --rm \
   -e AIM_PRECISION="fp16" \
-  -e HF_TOKEN="your_token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache --use-hf-cache
 # → /workspace/model-cache/hub/models--meta-llama--Llama-3.1-8B-Instruct/
-```
-
-### S3 / S3-Compatible Storage
-
-```bash
-# Automatic directory naming from S3 path
-docker run --rm \
-  -e AWS_ACCESS_KEY_ID="key" \
-  -e AWS_SECRET_ACCESS_KEY="secret" \
-  -v /host/cache:/workspace/model-cache \
-  aim-base:0.3.0 \
-  download-to-cache --model-id s3://bucket/models/meta-llama/llama-3.1-8b
-# → /workspace/model-cache/meta-llama/llama-3.1-8b/
-
-# Custom directory naming (for S3 sources)
-docker run --rm \
-  -v /host/cache:/workspace/model-cache \
-  aim-base:0.3.0 \
-  download-to-cache \
-    --model-id s3://bucket/deep/path/model \
-    --model-name custom-org/my-model
-# → /workspace/model-cache/custom-org/my-model/
-
-# S3-compatible endpoints (MinIO, Ceph, etc.)
-docker run --rm \
-  -e AWS_ENDPOINT_URL="https://minio.example.com:9000" \
-  -e AWS_ACCESS_KEY_ID="minioadmin" \
-  -e AWS_SECRET_ACCESS_KEY="minioadmin" \
-  -v /host/cache:/workspace/model-cache \
-  aim-base:0.3.0 \
-  download-to-cache --model-id s3://models/org/llama-7b
-# → /workspace/model-cache/org/llama-7b/
 ```
 
 ### Without GPU Access
@@ -310,8 +267,9 @@ docker run --rm \
   -e AIM_GPU_MODEL="MI300X" \
   -e AIM_GPU_COUNT="1" \
   -e AIM_PRECISION="fp16" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache
 # → /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
 ```
@@ -330,9 +288,10 @@ Optionally download models before serving to eliminate startup delays:
 # Pre-warm cache using model-specific container
 docker run --rm \
   -e AIM_PRECISION="fp16" \
-  -e HF_TOKEN="your_token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /persistent/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache
 
 # Serve immediately (no download delay)
@@ -340,7 +299,7 @@ docker run \
   -e AIM_PRECISION="fp16" \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 ```
 
 **Benefits:**
@@ -361,10 +320,10 @@ Let the system automatically download the model on first use, subsequent contain
 docker run \
   -e AIM_PRECISION="fp16" \
   -e AIM_METRIC="throughput" \
-  -e HF_TOKEN="your_token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 # (Downloads model on first start based on profile selection)
 
 # Subsequent containers: Use cached model
@@ -373,7 +332,7 @@ docker run \
   -e AIM_METRIC="throughput" \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8001:8000 \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 # (No download, uses cache)
 ```
 
@@ -396,22 +355,16 @@ At runtime, AIM resolves models in this order:
 1. **Local directory**: `{AIM_CACHE_PATH}/org/model/`
    - If found: Use local path directly
    - Sets `--served-model-name org/model` for API consistency
-2. **HuggingFace cache**: `{HF_HOME}/hub/`
+2. **Hugging Face cache**: `{HF_HOME}/hub/`
    - If found: HF libraries handle resolution automatically
-   - If not found: Downloads from HuggingFace Hub to cache
+   - If not found: Downloads from Hugging Face Hub to cache
 
 **Environment Variables:**
 - `AIM_CACHE_PATH` - Base directory (default: `/workspace/model-cache`)
-- `HF_HOME` - HuggingFace cache (default: `/workspace/model-cache`)
-- `HF_TOKEN` - HuggingFace token for gated models
+- `HF_HOME` - Hugging Face cache (default: `/workspace/model-cache`)
+- `HF_TOKEN` - Hugging Face token for gated models
 
-**For S3 models** (when `AIM_MODEL_ID` starts with `s3://`):
-- `AWS_ACCESS_KEY_ID` - AWS access key (optional if using IAM role)
-- `AWS_SECRET_ACCESS_KEY` - AWS secret key (optional if using IAM role)
-- `AWS_DEFAULT_REGION` - AWS region (default: `us-east-1`)
-- `AWS_ENDPOINT_URL` - Custom S3 endpoint for S3-compatible storage like MinIO or Ceph
-
-> **Note:** If models are pre-downloaded using `download-to-cache`, runtime serving doesn't require S3 credentials since models are served from local cache.
+> **Note:** If models are pre-downloaded using `download-to-cache`, runtime serving doesn't require credentials since models are served from local cache.
 
 ---
 
@@ -425,24 +378,24 @@ Pre-download multiple models to a shared volume:
 # Download models to shared cache using model-specific containers
 docker run --rm \
   -e AIM_PRECISION="fp16" \
-  -e HF_TOKEN="token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /shared/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache
 
 docker run --rm \
   -e AIM_PRECISION="fp16" \
-  -e HF_TOKEN="token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /shared/cache:/workspace/model-cache \
-  aim:0.3.0-mistralai-mistral-7b-v0.1-v20250930 \
+  aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
   download-to-cache
 
-# Serve any model from the shared cache
+# Serve one of the models from the shared cache
 docker run \
   -e AIM_PRECISION="fp16" \
   -v /shared/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 ```
 
 ## Air-Gapped Deployment
@@ -452,9 +405,9 @@ Download on connected system, transfer to air-gapped environment:
 ```bash
 # On connected system - download models using model-specific container
 docker run --rm \
-  -e HF_TOKEN="token" \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /transfer/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
   download-to-cache
 
 # Transfer cache to air-gapped system
@@ -464,7 +417,7 @@ rsync -av /transfer/cache/ airgapped-host:/data/cache/
 docker run \
   -v /data/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 ```
 
 ---
@@ -492,6 +445,7 @@ curl http://localhost:8000/v1/completions \
 docker run \
   -e AIM_PRECISION="fp16" \
   -v /host/cache:/workspace/model-cache \
-  aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20250930 dry-run
+  --device=/dev/kfd --device=/dev/dri \
+  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 dry-run
 ```
 Look for `--model` argument in output to see resolved path.

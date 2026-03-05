@@ -12,13 +12,21 @@ model variants not supported by AIM, or specific performance requirements not co
 
 ## Overview
 
-Custom profiles follow the same YAML structure as standard profiles but are placed in the `/workspace/aim-runtime/profiles/custom/`
-directory within the container. On the users' side, custom profiles can be placed in any folder, but must be mounted to
-the container at the specified path. When AIM starts, it scans the custom profiles directory first, so custom profiles
-take precedence over both model-specific and general profiles.
+Four kinds of profiles can be distinguished based on their structure and location (in order of selection precedence,
+from highest to lowest):
+
+* Custom model-specific profiles
+* Custom general profiles
+* Built-in model-specific profiles
+* Built-in general profiles
+
+Custom profiles follow the same YAML structure as standard profiles but are placed in the
+`/workspace/aim-runtime/profiles/custom/` directory within the container. On the users' side, custom profiles can be
+placed in a folder that must be mounted to the container at the path specified above. When AIM starts, it scans the
+custom profiles directory first, so custom profiles take precedence over built-in profiles.
 
 **Key Features:**
-- **Highest Search Precedence**: Custom profiles are prioritized over model-specific and general profiles
+- **Highest Search Precedence**: Custom profiles are prioritized over built-in profiles
 - **Flexible Deployment**: Mount custom profiles via volumes
 - **Experimental Safe**: Test new configurations without building new AIM images
 
@@ -32,7 +40,7 @@ A profile can be defined as a YAML file. The file should adhere to the AIM profi
 
 ## Using Custom Profiles
 
-Assume you have a custom profile YAML for `DeepSeek R1 Distill Qwen 32B` model named `vllm-mi300x-fp16-tp1-latency-custom.yaml` placed in
+Assume you have a custom profile YAML for `DeepSeek R1 Distill Qwen 32B` model named `vllm-mi300x-fp16-tp1-latency.yaml` placed in
 the folder `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B`.
 
 It contains the following:
@@ -43,48 +51,77 @@ model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 metadata:
   engine: vllm
   gpu: MI300X
-  precision: fp16
-  gpu_count: 8
-  metric: latency
+  gpu_count: 1
   manual_selection_only: false
+  metric: latency
+  precision: fp16
   type: unoptimized
 engine_args:
-  gpu-memory-utilization: 0.95
   distributed_executor_backend: mp
-  no-enable-chunked-prefill: null
-  max-model-len: 32768
   dtype: float16
-  tensor-parallel-size: 8
+  gpu-memory-utilization: 0.95
+  tensor-parallel-size: 1
 env_vars:
-  VLLM_DO_NOT_TRACK: "1"
-  VLLM_USE_TRITON_FLASH_ATTN: "0"
-  HIP_FORCE_DEV_KERNARG: "1"
-  NCCL_MIN_NCHANNELS: "112"
-  TORCH_BLAS_PREFER_HIPBLASLT: "1"
-  PYTORCH_TUNABLEOP_ENABLED: "1"
-  PYTORCH_TUNABLEOP_VERBOSE: "1"
-  PYTORCH_TUNABLEOP_TUNING: "0"
+  HIP_FORCE_DEV_KERNARG: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  PYTORCH_TUNABLEOP_ENABLED: '1'
+  PYTORCH_TUNABLEOP_TUNING: '0'
+  PYTORCH_TUNABLEOP_VERBOSE: '1'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'
 ```
 
-See [Profile Structure](https://github.com/amd-enterprise-ai/aim-build/blob/main/docs/aim_architecture.md#32-profile-structure)
+A custom general profile can look the same, but it should not contain `aim_id` and `model_id`. Also, `metadata.type`
+should be set to `general`. See [Profile Structure](https://github.com/amd-enterprise-ai/aim-build/blob/main/docs/aim_architecture.md#32-profile-structure)
 chapter in the development documentation for details on each field.
 
 ### Usage with Docker
 
-To use a custom profile with Docker, mount the directory containing the profile to `/workspace/aim-runtime/profiles/custom/`
-in the container. Put the profile in your directory of choice. In the examples the current working directory is assumed.
+To use a custom profile with Docker, the directory containing the profile has to be mounted to the container. The target
+path is `/workspace/aim-runtime/profiles/custom/`. The mapped directory must have a certain structure (assuming that the
+directory to map is in the current working directory and is named `custom-profiles`):
+
+```./custom-profiles/
+    ├── org/
+    │   └── model/
+    │       └── profile.yaml
+    └── general/
+        └── profile.yaml
+```
+
 All profiles, including the custom ones, are validated against the [AIM profile schema](https://github.com/amd-enterprise-ai/aim-build/tree/main/schemas) at runtime.
 
-#### Running base image with custom profile
+#### Running base image with custom general profile
+
+`AIM_MODEL_ID` environment variable is set to ensure the correct profile is selected.
 
 ```bash
 docker run \
   -e AIM_MODEL_ID=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B \
+  -e AIM_GPU_MODEL=MI300X \
+  -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
+  --device=/dev/kfd --device=/dev/dri \
+  amdenterpriseai/aim-base:0.10 list-profiles
+```
+
+As a result, a custom general profile will be selected if it is present in the mounted directory. If there is no custom
+general profile, AIM will fall back to built-in general profiles and select the best match.
+
+#### Running base image with custom model-specific profile
+
+`AIM_ID` environment variable is set to ensure the correct profile is selected.
+
+```bash
+docker run \
+  -e AIM_ID=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.9
+  amdenterpriseai/aim-base:0.10
 ```
+
+As a result, a custom model-specific profile will be selected if it is present in the mounted directory. If there is no
+such profile, AIM will fall back to built-in general profiles and select the best match.
 
 ### Usage with Kubernetes
 
@@ -97,13 +134,13 @@ First, create a ConfigMap containing your custom profile:
 
 ```bash
 kubectl create configmap custom-profiles \
-  --from-file=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/vllm-mi300x-fp16-tp1-latency-custom.yaml \
+  --from-file=profiles/custom/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/vllm-mi300x-fp16-tp1-latency.yaml \
   -n YOUR_K8S_NAMESPACE
 ```
 
 #### Example Deployment with Custom Profile
 
-Here's an example Kubernetes deployment that uses a custom profile:
+Here's an example Kubernetes deployment that uses a custom model-specific profile:
 
 ```yaml
 apiVersion: apps/v1
@@ -125,16 +162,11 @@ spec:
     spec:
       containers:
         - name: aim-custom-profile
-          image: "amdenterpriseai/aim-base:0.9"
+          image: "amdenterpriseai/aim-base:0.10"
           imagePullPolicy: Always
           env:
-            - name: AIM_MODEL_ID
+            - name: AIM_ID
               value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: hf-token
-                  key: hf-token
           ports:
             - name: http
               containerPort: 8000
@@ -182,6 +214,8 @@ spec:
             name: custom-profiles
 ```
 
+Use `AIM_MODEL_ID` environment variable instead of `AIM_ID` if you want to use a custom general profile.
+
 #### Example Service
 
 ```yaml
@@ -228,4 +262,16 @@ curl http://localhost:8000/v1/completions \
         "max_tokens": 7,
         "temperature": 0
     }'
+```
+
+Remove the deployment and service:
+
+```bash
+kubectl delete -f . -n YOUR_K8S_NAMESPACE
+```
+
+Remove config map:
+
+```bash
+kubectl delete configmap custom-profiles -n YOUR_K8S_NAMESPACE
 ```

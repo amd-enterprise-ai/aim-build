@@ -167,11 +167,15 @@ def test_find_profile_no_suitable_profile_found(schemas_path: str, profiles_path
         with pytest.raises(ProfileNotFound) as exc_info:
             selector.find_profile()
 
-        assert "No compatible profile found" in str(exc_info.value)
+        error_message = str(exc_info.value)
+        assert "No compatible profile found" in error_message
+        assert "Profile breakdown:" in error_message
+        # Should NOT mention manual selection when profiles are truly incompatible
+        assert "AIM_PROFILE_ID" not in error_message
 
 
 def test_find_profile_manual_selection_only(selector_with_mock_gpu: ProfileSelector, aim_config: AIMConfig) -> None:
-    """Test that profiles with manual_selection_only are handled correctly."""
+    """Test that profiles with manual_selection_only can be selected with explicit profile_id."""
 
     manual_profile_id = "test_profile_manual"
     config_with_id = AIMConfig(
@@ -621,9 +625,15 @@ def test_find_profile_fallback_disabled_excludes_general_from_auto_selection(
 
         selector = ProfileSelector(config)
 
-        # Should raise ProfileNotFound since general profiles are marked manual-only
-        with pytest.raises(ProfileNotFound, match="No compatible profile found"):
+        # Should raise ProfileNotFound with informative message about manual-only profiles
+        with pytest.raises(ProfileNotFound) as exc_info:
             selector.find_profile()
+
+        error_message = str(exc_info.value)
+        # Check that error mentions manual selection requirement
+        assert "require explicit selection via AIM_PROFILE_ID" in error_message
+        # Check that it lists available profiles
+        assert "Available profiles have the following AIM_PROFILE_ID values:" in error_message
 
         # But general profiles should still be listable
         general_profiles = selector.registry.get_general_profiles()

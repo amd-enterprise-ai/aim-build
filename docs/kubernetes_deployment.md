@@ -20,7 +20,7 @@ correctly.
 
 ### 1. Create secret
 
-AIM uses DockerHub container registry to host its images. The images are public and no authentication is required to pull.
+AIM uses Docker Hub container registry to host its images. The images are public and no authentication is required to pull.
 However, some models are gated and require authentication to download them from Hugging Face. Therefore, you need to
 create a Kubernetes secret.
 

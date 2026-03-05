@@ -9,6 +9,7 @@ Tests for AIMRuntime class including dry-run functionality.
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 
 from aim_common import Engine, Precision, ProfileMetadata
 from aim_runtime.aim_runtime import AIMRuntime
@@ -28,20 +29,10 @@ class TestNormalizeModelSource:
         )
         assert AIMRuntime.normalize_model_source("mistralai/Mistral-7B-v0.1") == "hf://mistralai/Mistral-7B-v0.1"
 
-    def test_normalize_s3_uri_unchanged(self):
-        """Test that S3 URIs are returned unchanged."""
-        s3_uri = "s3://my-bucket/path/to/model"
-        assert AIMRuntime.normalize_model_source(s3_uri) == s3_uri
-
     def test_normalize_hf_uri_unchanged(self):
         """Test that hf:// URIs are returned unchanged."""
         hf_uri = "hf://org/model"
         assert AIMRuntime.normalize_model_source(hf_uri) == hf_uri
-
-    def test_normalize_complex_s3_paths(self):
-        """Test that complex S3 paths are preserved."""
-        complex_uri = "s3://bucket/models/org/llama-3.1-8b/checkpoint-1000"
-        assert AIMRuntime.normalize_model_source(complex_uri) == complex_uri
 
 
 @pytest.fixture
@@ -108,7 +99,7 @@ class TestAIMRuntimeDryRun:
                 runtime.profile_selector.find_profile.return_value = model_profile
                 runtime.command_generator.generate_command_script.return_value = script_path
 
-                result = runtime.dry_run()
+                result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
 
         # Check for profile path (format-agnostic)
         assert model_profile.profile_handling.path in result
@@ -120,7 +111,7 @@ class TestAIMRuntimeDryRun:
         assert "engine: vllm" in result or 'engine: "vllm"' in result
         # Check for generated script
         assert "#!/bin/bash" in result
-        assert "echo 'test script'" in result
+        assert "echo ''test script''" in result
 
     def test_dry_run_with_complex_yaml(self, mock_config, complex_profile, script_file_factory):
         """Test that dry_run returns complex YAML content correctly."""
@@ -134,7 +125,7 @@ class TestAIMRuntimeDryRun:
                 runtime.profile_selector.find_profile.return_value = complex_profile
                 runtime.command_generator.generate_command_script.return_value = script_path
 
-                result = runtime.dry_run()
+                result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
 
         # Check for profile path (format-agnostic)
         assert complex_profile.profile_handling.path in result
@@ -157,7 +148,7 @@ class TestAIMRuntimeDryRun:
                 runtime.profile_selector.find_profile.return_value = model_profile
                 runtime.command_generator.generate_command_script.return_value = script_path
 
-                result = runtime.dry_run()
+                result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
 
         # Check for profile path (format-agnostic - could be in header or comment)
         assert model_profile.profile_handling.path in result
@@ -175,11 +166,8 @@ class TestAIMRuntimeDryRun:
                 runtime.profile_selector.find_profile.return_value = model_profile
                 runtime.command_generator.generate_command_script.return_value = script_path
 
-                result = runtime.dry_run()
+                result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
 
-        # Verify sections are present
-        assert "SELECTED PROFILE" in result or "Selected profile" in result
-        assert "GENERATED SCRIPT" in result or "Generated script" in result
         # Verify script content is included
         assert "#!/bin/bash" in result
         assert "export TEST_VAR=value" in result
@@ -234,137 +222,136 @@ class TestAIMRuntimeServe:
                             mock_logger.info.assert_any_call(f"Selected profile: {mock_profile.profile_handling.path}")
 
 
+@pytest.fixture
+def dry_run_json_mocks():
+    """Patch ProfileSelector and CommandGenerator for dry_run tests; yields a helper to create runtime."""
+    with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
+        with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
+            mock_cg_return = Mock()
+            mock_cg_return.generate_command_script.return_value = "tests/assets/test_script.sh"
+            mock_cg.return_value = mock_cg_return
+
+            def create_runtime(config, profile=None, find_profile_side_effect=None):
+                runtime = AIMRuntime(config)
+                runtime.profile_selector = mock_ps.return_value
+                if find_profile_side_effect is not None:
+                    runtime.profile_selector.find_profile.side_effect = find_profile_side_effect
+                elif profile is not None:
+                    runtime.profile_selector.find_profile.return_value = profile
+                return runtime
+
+            yield create_runtime
+
+
 class TestAIMRuntimeDryRunJson:
     """Test suite for AIMRuntime dry_run_json functionality."""
 
-    def test_dry_run_json_returns_profile_dict(self, mock_config, model_profile):
+    def test_dry_run_json_returns_profile_dict(self, mock_config, model_profile, dry_run_json_mocks):
         """Test that dry_run_json returns list with filename and parsed YAML content."""
-        with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
-            with patch("aim_runtime.aim_runtime.CommandGenerator"):
-                runtime = AIMRuntime(mock_config)
-                runtime.profile_selector = mock_ps.return_value
-                runtime.profile_selector.find_profile.return_value = model_profile
+        create_runtime = dry_run_json_mocks
+        runtime = create_runtime(mock_config, profile=model_profile)
+        result = runtime.dry_run()
 
-                result = runtime.dry_run_json()
+        assert isinstance(result, list)
+        profile_entry = result[0]
 
-                assert isinstance(result, list)
-                assert len(result) == 1
-                profile_entry = result[0]
-                assert profile_entry["filename"] == model_profile.profile_handling.filename
-                profile_data = profile_entry["profile"]
-                assert isinstance(profile_data, dict)
-                assert profile_data["aim_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-                assert profile_data["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-                assert profile_data["metadata"]["precision"] == "fp16"
-                assert profile_data["metadata"]["gpu_count"] == 1
-                assert profile_data["metadata"]["engine"] == "vllm"
-                # Check models field
-                assert "models" in profile_entry
-                assert isinstance(profile_entry["models"], list)
-                assert len(profile_entry["models"]) >= 1
-                assert profile_entry["models"][0]["name"] == "meta-llama/Llama-3.1-8B-Instruct"
-                assert profile_entry["models"][0]["source"] == "hf://meta-llama/Llama-3.1-8B-Instruct"
-                # Check size_gb field is present
-                assert "size_gb" in profile_entry["models"][0]
+        assert profile_entry["filename"] == model_profile.profile_handling.filename
+        profile_data = profile_entry["profile"]
+        assert isinstance(profile_data, dict)
+        assert profile_data["aim_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+        assert profile_data["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+        assert profile_data["metadata"]["precision"] == "fp16"
+        assert profile_data["metadata"]["gpu_count"] == 1
+        assert profile_data["metadata"]["engine"] == "vllm"
+        # Check models field
+        assert "models" in profile_entry
+        assert isinstance(profile_entry["models"], list)
+        assert len(profile_entry["models"]) >= 1
+        assert profile_entry["models"][0]["name"] == "meta-llama/Llama-3.1-8B-Instruct"
+        assert profile_entry["models"][0]["source"] == "hf://meta-llama/Llama-3.1-8B-Instruct"
+        # Check size_gb field is present
+        assert "size_gb" in profile_entry["models"][0]
 
-    def test_dry_run_json_with_base_container_and_model_id(self, general_aim_config, general_profiles_path):
+    def test_dry_run_json_with_base_container_and_model_id(
+        self, general_aim_config, general_profiles_path, dry_run_json_mocks
+    ):
         """Test that dry_run_json includes model info from AIM_MODEL_ID for base containers with general profiles."""
         from aim_runtime.profile_validator import ProfileValidator
 
-        with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
-            with patch("aim_runtime.aim_runtime.CommandGenerator"):
-                runtime = AIMRuntime(general_aim_config)
-                runtime.profile_selector = mock_ps.return_value
+        validator = ProfileValidator(general_aim_config.schema_search_path)
+        registry = ProfileRegistry.discover_and_validate(search_paths=[general_profiles_path], validator=validator)
+        general_profile = registry.find_by_id("general/minimal_profile_no_model")
 
-                # Load a general profile (no model_id in YAML)
-                validator = ProfileValidator(general_aim_config.schema_search_path)
-                registry = ProfileRegistry.discover_and_validate(
-                    search_paths=[general_profiles_path], validator=validator
-                )
-                general_profile = registry.find_by_id("general/minimal_profile_no_model")
-                runtime.profile_selector.find_profile.return_value = general_profile
+        create_runtime = dry_run_json_mocks
+        runtime = create_runtime(general_aim_config, profile=general_profile)
+        result = runtime.dry_run()
 
-                result = runtime.dry_run_json()
+        assert isinstance(result, list)
+        profile_entry = result[0]
 
-                assert isinstance(result, list)
-                assert len(result) == 1
-                profile_entry = result[0]
+        # Check that models field includes the model from config.model_id
+        assert "models" in profile_entry
+        assert isinstance(profile_entry["models"], list)
+        assert len(profile_entry["models"]) == 1
+        assert profile_entry["models"][0]["name"] == "meta-llama/Llama-3.1-8B-Instruct"
+        assert profile_entry["models"][0]["source"] == "hf://meta-llama/Llama-3.1-8B-Instruct"
+        # Check size_gb field is present with storage estimate
+        assert "size_gb" in profile_entry["models"][0]
 
-                # Check that models field includes the model from config.model_id
-                assert "models" in profile_entry
-                assert isinstance(profile_entry["models"], list)
-                assert len(profile_entry["models"]) == 1
-                assert profile_entry["models"][0]["name"] == "meta-llama/Llama-3.1-8B-Instruct"
-                assert profile_entry["models"][0]["source"] == "hf://meta-llama/Llama-3.1-8B-Instruct"
-                # Check size_gb field is present with storage estimate
-                assert "size_gb" in profile_entry["models"][0]
-
-    def test_dry_run_json_returns_empty_dict_on_profile_not_found(self, mock_config):
+    def test_dry_run_json_returns_empty_dict_on_profile_not_found(self, mock_config, dry_run_json_mocks):
         """Test that dry_run_json returns empty list when no profile is found."""
         from aim_runtime.profile_selector import ProfileNotFound
 
-        with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
-            with patch("aim_runtime.aim_runtime.CommandGenerator"):
-                runtime = AIMRuntime(mock_config)
-                runtime.profile_selector = mock_ps.return_value
-                runtime.profile_selector.find_profile.side_effect = ProfileNotFound("No profile found")
+        create_runtime = dry_run_json_mocks
+        runtime = create_runtime(mock_config, find_profile_side_effect=ProfileNotFound("No profile found"))
+        result = runtime.dry_run()
 
-                result = runtime.dry_run_json()
+        assert result == []
 
-                assert result == []
-
-    def test_dry_run_json_returns_empty_dict_on_file_not_found(self, mock_config, mock_profile):
+    def test_dry_run_json_returns_empty_dict_on_file_not_found(self, mock_config, mock_profile, dry_run_json_mocks):
         """Test that dry_run_json returns empty list when profile file cannot be read."""
         mock_profile.profile_handling.path = "/nonexistent/path/to/profile.yaml"
         mock_profile.profile_handling.filename = "profile.yaml"
 
-        with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
-            with patch("aim_runtime.aim_runtime.CommandGenerator"):
-                runtime = AIMRuntime(mock_config)
-                runtime.profile_selector = mock_ps.return_value
-                runtime.profile_selector.find_profile.return_value = mock_profile
+        create_runtime = dry_run_json_mocks
+        runtime = create_runtime(mock_config, profile=mock_profile)
+        result = runtime.dry_run()
 
-                result = runtime.dry_run_json()
+        assert result == []
 
-                assert result == []
-
-    def test_dry_run_json_with_complex_yaml(self, mock_config, complex_profile):
+    def test_dry_run_json_with_complex_yaml(self, mock_config, complex_profile, dry_run_json_mocks):
         """Test that dry_run_json handles complex YAML content correctly."""
-        with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
-            with patch("aim_runtime.aim_runtime.CommandGenerator"):
-                runtime = AIMRuntime(mock_config)
-                runtime.profile_selector = mock_ps.return_value
-                runtime.profile_selector.find_profile.return_value = complex_profile
+        create_runtime = dry_run_json_mocks
+        runtime = create_runtime(mock_config, profile=complex_profile)
+        result = runtime.dry_run()
 
-                result = runtime.dry_run_json()
+        assert isinstance(result, list)
 
-                assert isinstance(result, list)
-                assert len(result) == 1
-                profile_entry = result[0]
-                assert profile_entry["filename"] == complex_profile.profile_handling.filename
-                profile_data = profile_entry["profile"]
-                assert isinstance(profile_data, dict)
-                # Complex profile has comprehensive test data
-                assert profile_data["aim_id"] == "test/model"
-                assert profile_data["model_id"] == "test/model"
-                assert profile_data["metadata"]["engine"] == "vllm"
-                assert profile_data["metadata"]["precision"] == "fp16"
-                # Check engine_args with various types
-                assert "engine_args" in profile_data
-                assert profile_data["engine_args"]["string-arg"] == "string_value"
-                assert profile_data["engine_args"]["int-arg"] == 42
-                assert profile_data["engine_args"]["float-arg"] == 3.14159
-                assert profile_data["engine_args"]["bool-true-arg"] is True
-                # Check env_vars
-                assert "env_vars" in profile_data
-                assert profile_data["env_vars"]["SIMPLE_VAR"] == "simple"
-                # Check models field
-                assert "models" in profile_entry
-                assert isinstance(profile_entry["models"], list)
-                assert len(profile_entry["models"]) >= 1
-                assert profile_entry["models"][0]["name"] == "test/model"
-                # Check size_gb field is present
-                assert "size_gb" in profile_entry["models"][0]
+        profile_entry = result[0]
+        assert profile_entry["filename"] == complex_profile.profile_handling.filename
+        profile_data = profile_entry["profile"]
+        assert isinstance(profile_data, dict)
+        # Complex profile has comprehensive test data
+        assert profile_data["aim_id"] == "test/model"
+        assert profile_data["model_id"] == "test/model"
+        assert profile_data["metadata"]["engine"] == "vllm"
+        assert profile_data["metadata"]["precision"] == "fp16"
+        # Check engine_args with various types
+        assert "engine_args" in profile_data
+        assert profile_data["engine_args"]["string-arg"] == "string_value"
+        assert profile_data["engine_args"]["int-arg"] == 42
+        assert profile_data["engine_args"]["float-arg"] == 3.14159
+        assert profile_data["engine_args"]["bool-true-arg"] is True
+        # Check env_vars
+        assert "env_vars" in profile_data
+        assert profile_data["env_vars"]["SIMPLE_VAR"] == "simple"
+        # Check models field
+        assert "models" in profile_entry
+        assert isinstance(profile_entry["models"], list)
+        assert len(profile_entry["models"]) >= 1
+        assert profile_entry["models"][0]["name"] == "test/model"
+        # Check size_gb field is present
+        assert "size_gb" in profile_entry["models"][0]
 
 
 class TestExtractModelsFromProfile:

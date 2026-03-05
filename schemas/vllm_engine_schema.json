@@ -67,9 +67,6 @@
     "enforce-eager": {
       "type": ["boolean", "null"]
     },
-    "max-seq-len-to-capture": {
-      "type": "integer"
-    },
     "max-logprobs": {
       "type": "integer"
     },

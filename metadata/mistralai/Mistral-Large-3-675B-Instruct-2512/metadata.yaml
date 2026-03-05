@@ -1,0 +1,75 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      authors: ""
+      description: "675B parameter granular MoE multimodal model with 41B active parameters and vision capabilities."
+      documentation: ""
+      licenses: "Apache-2.0, MIT"
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+      vendor: "AMD"
+com:
+  amd:
+    aim:
+      description:
+        full: "Mistral-Large-3-675B-Instruct-2512 is a 675 billion total parameter granular mixture-of-experts (MoE) multimodal language model from Mistral AI, with 41 billion active parameters. It consists of a 673B parameter (39B active) language model and a 2.5B vision encoder. The model is the instruct post-trained version in FP8 precision. It supports text and vision inputs, native function calling with JSON output, and handles 11 languages including English, French, Spanish, German, Italian, Portuguese, Dutch, Chinese, Japanese, Korean, and Arabic. It provides a 256K token context window. Designed for long document understanding, AI assistants, agentic tool use, and enterprise knowledge work. Licensed under Apache 2.0."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "mistralai/Mistral-Large-3-675B-Instruct-2512"
+        publisher: "Mistral AI"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp8-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp8-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        source: "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "multilingual"
+        - "vision"
+        variants:
+        - "mistralai/Mistral-Large-3-675B-Instruct-2512"
+      release:
+        notes: ""
+      title: "Mistral Large 3 675B Instruct 2512"

@@ -136,8 +136,7 @@
                   "properties": {
                     "full": {
                       "type": "string",
-                      "description": "Full description of the model, its capabilities, and use cases",
-                      "maxLength": 160
+                      "description": "Full description of the model, its capabilities, and use cases"
                     }
                   },
                   "required": ["full"],

@@ -7,8 +7,9 @@ SPDX-License-Identifier: MIT
 # AMD Inference Microservice deployment guide
 
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
-{% if aim_deployment.is_base %} any supported model {% else %} {{ aim_deployment.model_name }} model {% endif %} in
-various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs.
+{% if aim_deployment.is_base %} any supported model {% else %} {{ aim_deployment.model_name }} model {% endif %}in
+various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs. This guide
+assumes {{ aim_deployment.gpu_model }} GPU on the target system.
 
 ## Prerequisites
 
@@ -32,7 +33,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 
 {% if aim_deployment.hf_token %}
@@ -57,7 +58,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 
 ## 2. Model caching for production
@@ -79,7 +80,7 @@ docker run --rm \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
   -v /path/to/model-cache:/workspace/model-cache \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
 {% if aim_deployment.is_base %}
   download-to-cache --model-id <ANY_SUPPORTED_MODEL>
 {% else %}
@@ -100,7 +101,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 
 ## 3. Kubernetes deployment
@@ -120,7 +121,6 @@ kubectl create secret generic hf-token \
 ```
 
 {% endif %}
-
 Create `deployment.yaml` with the following content:
 
 ```yaml
@@ -143,7 +143,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+          image: {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -342,27 +342,26 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 
-{% if aim_deployment.is_base %}
-### 5.2 Using S3-hosted models
+{% if aim_deployment.profile_name_to_override_automatic_selection %}
+### 5.2 Using profiles excluded from automatic selection
+
+To use a profile excluded from automatic selection, an environment variable `AIM_PROFILE_ID` should be set with the
+desired profile identifier. Profile identifier is the filename of the profile without the `.yaml` extension.
 
 ```bash
 docker run \
 {% if aim_deployment.hf_token %}
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
 {% endif %}
-  -e AIM_MODEL_ID=s3://my-bucket/models/<ANY_SUPPORTED_MODEL> \
-  -e AWS_ACCESS_KEY_ID=<YOUR_ACCESS_KEY> \
-  -e AWS_SECRET_ACCESS_KEY=<YOUR_SECRET_KEY> \
-  -e AWS_DEFAULT_REGION=<YOUR_BUCKET_REGION> \
+  -e AIM_PROFILE_ID={{ aim_deployment.profile_name_to_override_automatic_selection }} \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 {% endif %}
-
 
 ## 6. Monitoring and troubleshooting
 
@@ -372,7 +371,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
   --help
 ```
 
@@ -380,7 +379,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
   <subcommand> --help
 ```
 
@@ -397,7 +396,7 @@ docker run \
 {% endif %}
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
 
 ### 6.3 Checking profile selection results
@@ -415,7 +414,7 @@ docker run \
 {% if aim_deployment.is_base %}
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
   dry-run
 ```
 
@@ -423,7 +422,7 @@ docker run \
 
 ```bash
 docker run \
-  {{ aim_deployment.organization }}/{{ aim_deployment.image_repository }}:{{ aim_deployment.image_version }} \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
   list-profiles
 ```
 

@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+base_image:
+  base_registry_namespace: silogen
+  base_repository: aim-base
+  base_tag: "0.10"
+  registry_host: ghcr.io

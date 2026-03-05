@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import click
+import yaml
 
 from aim_runtime.aim_runtime import AIMRuntime
 from aim_runtime.config import AIMConfig
@@ -90,14 +91,14 @@ def dry_run(format):
         # Create runtime and perform dry-run
         runtime = AIMRuntime(config)
 
+        profiles_dict = runtime.dry_run()
+
         if format == "json":
             # Return all compatible profiles as JSON
-            profiles_dict = runtime.dry_run_json()
             print(json.dumps(profiles_dict, indent=2))
         else:
             # Display the selected profile as YAML
-            yaml_output = runtime.dry_run()
-            print(yaml_output)
+            print(yaml.safe_dump(profiles_dict, sort_keys=False))
 
     except ValueError as e:
         # Configure basic logging in case config loading failed
@@ -108,7 +109,7 @@ def dry_run(format):
         logger.error(f"File not found: {e}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.exception(f"Unexpected error: {e}")
         sys.exit(1)
 
 
@@ -117,7 +118,7 @@ def dry_run(format):
     "--model-id",
     type=str,
     default=None,
-    help="Explicit model id to download (e.g. hf://org/model or s3://path/to/model). Overrides profile selection.",
+    help="Explicit model id to download (e.g. hf://org/model). Overrides profile selection.",
 )
 @click.option(
     "--use-hf-cache",
@@ -125,13 +126,7 @@ def dry_run(format):
     default=False,
     help="Use HuggingFace's default cache directory structure instead of downloading directly to local directory.",
 )
-@click.option(
-    "--custom-model-name",
-    type=str,
-    default=None,
-    help="Custom directory name for S3 downloads (e.g. 'org/model' or 'custom-name'). If not provided, auto-detects from S3 URI. Ignored for HuggingFace downloads. Can also be set via AIM_CUSTOM_MODEL_NAME env var.",
-)
-def download_to_cache(model_id, use_hf_cache, custom_model_name):
+def download_to_cache(model_id, use_hf_cache):
     """Download the model to cache.
 
     Downloads the model to the cache directory specified by AIM_CACHE_PATH environment variable.
@@ -140,17 +135,14 @@ def download_to_cache(model_id, use_hf_cache, custom_model_name):
 
     If --model-id is not provided, uses the current configuration to determine the model.
 
-    For S3 downloads, use --custom-model-name to specify a custom directory name.
-
     Examples:
       aim-runtime download-to-cache
       aim-runtime download-to-cache --model-id hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0
       aim-runtime download-to-cache --use-hf-cache
-      aim-runtime download-to-cache --model-id s3://bucket/path/to/model --custom-model-name org/custom-model
     """
     try:
         # Load configuration from environment variables
-        config = AIMConfig.from_environment()
+        config = AIMConfig.from_environment(model_id)
 
         # Configure logging based on the config
         configure_logging(root_log_level=config.log_level_root, aim_log_level=config.log_level)
@@ -160,10 +152,7 @@ def download_to_cache(model_id, use_hf_cache, custom_model_name):
 
         # Download the model
         # Custom model name from CLI takes precedence over env var
-        final_custom_model_name = custom_model_name or config.custom_model_name
-        downloaded_path = runtime.download_to_cache(
-            model_id=model_id, use_hf_cache=use_hf_cache, custom_model_name=final_custom_model_name
-        )
+        downloaded_path = runtime.download_to_cache(model_id=model_id, use_hf_cache=use_hf_cache)
 
         print(f"\nModel downloaded to: {downloaded_path}")
 

@@ -1,0 +1,75 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      authors: ""
+      description: "14B parameter instruction-tuned language model with vision and function calling capabilities."
+      documentation: ""
+      licenses: "Apache-2.0, MIT"
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+      vendor: "AMD"
+com:
+  amd:
+    aim:
+      description:
+        full: "Ministral-3-14B-Instruct-2512 is a 14 billion parameter language model from Mistral AI, consisting of a 13.5B language model and a 0.4B vision encoder. It is the instruct post-trained version of the Ministral 3 14B model, provided in FP8 precision. The model supports text and vision inputs, native function calling with JSON output, and handles 11 languages including English, French, Spanish, German, Italian, Portuguese, Dutch, Chinese, Japanese, Korean, and Arabic. It provides a 256K token context window and can be deployed on a single GPU with 24GB of VRAM in FP8 precision. Part of the Ministral 3 family designed for edge deployment. Licensed under Apache 2.0."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "mistralai/Ministral-3-14B-Instruct-2512"
+        publisher: "Mistral AI"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+          profileId: "vllm-mi300x-fp8-tp1-latency"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+          profileId: "vllm-mi300x-fp8-tp1-throughput"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        source: "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512"
+        tags:
+        - "multilingual"
+        - "text-generation"
+        - "vision"
+        - "chat"
+        variants:
+        - "mistralai/Ministral-3-14B-Instruct-2512"
+      release:
+        notes: ""
+      title: "Ministral 3 14B Instruct 2512"

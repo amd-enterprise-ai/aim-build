@@ -34,7 +34,7 @@ DATE_VERSION = v$(shell date +%Y%m%d)
 # Upstream base image to build from (e.g., ROCm runtime image)
 BASE_REGISTRY_NAMESPACE = rocm
 BASE_REPOSITORY         = vllm
-BASE_TAG                = rocm7.0.0_vllm_0.11.1_20251103
+BASE_TAG                = rocm7.0.0_vllm_0.11.2_20251210
 
 # ==============================================================================
 # Container Image Names

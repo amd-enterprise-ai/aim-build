@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "0.9"
+version = "0.10"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -52,7 +52,19 @@ dev = [
     "semver>=3,<4",
     "tomli>=1.1.0",
     "pandas==2.3.3",
-    "openpyxl==3.1.5"
+    "openpyxl==3.1.5",
+    "pydantic==2.12.5",
+    # PostgreSQL adapter for validation database and pgcli
+    "psycopg[binary]>=3.1.0",
+    # CLI tool for interactive database exploration
+    "pgcli>=4.0.0"
+]
+
+# Dependencies for accuracy evaluation and model validation
+evaluation = [
+    "transformers>=4.40.0",
+    "lm-eval[api]>=0.4.0",
+    "hf_transfer>=0.1.8"
 ]
 
 [project.urls]
@@ -63,7 +75,7 @@ aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["aim_runtime", "aim_common"]
+packages = ["aim_runtime", "aim_common", "aim_utils"]
 
 [tool.black]
 target-version = ['py312']

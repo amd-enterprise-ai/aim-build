@@ -7,8 +7,9 @@ SPDX-License-Identifier: MIT
 # AMD Inference Microservice deployment guide
 
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
- Qwen/Qwen3-235B-A22B model  in
-various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs.
+ Qwen/Qwen3-235B-A22B model in
+various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs. This guide
+assumes MI300X GPU on the target system.
 
 ## Prerequisites
 
@@ -23,7 +24,7 @@ various environments. Follow these instructions to quickly get started with runn
 docker run \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
 ```
 
 
@@ -34,12 +35,12 @@ Customize your deployment with optional environment variables:
 ```bash
 docker run \
   -e AIM_PRECISION=fp16 \
-  -e AIM_GPU_COUNT=8 \
+  -e AIM_GPU_COUNT=2 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
 ```
 
 ## 2. Model caching for production
@@ -55,7 +56,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0 \
   download-to-cache --model-id Qwen/Qwen3-235B-A22B
 ```
 
@@ -66,7 +67,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
 ```
 
 ## 3. Kubernetes deployment
@@ -74,7 +75,6 @@ docker run \
 ### 3.1 Deployment
 
 It is possible to deploy AIM using Kubernetes. In this doc a sample Kubernetes deployment manifest is provided.
-
 
 Create `deployment.yaml` with the following content:
 
@@ -98,13 +98,13 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+          image: amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
               value: "auto"
             - name: AIM_GPU_COUNT
-              value: "8"
+              value: "2"
             - name: AIM_GPU_MODEL
               value: "auto"
             - name: AIM_ENGINE
@@ -124,11 +124,11 @@ spec:
             requests:
               memory: "16Gi"
               cpu: "4"
-              amd.com/gpu: "8"
+              amd.com/gpu: "2"
             limits:
               memory: "16Gi"
               cpu: "4"
-              amd.com/gpu: "8"
+              amd.com/gpu: "2"
           startupProbe:
             httpGet:
               path: /v1/models
@@ -241,7 +241,7 @@ metadata:
   engine: vllm
   gpu: MI300X
   precision: fp16
-  gpu_count: 8
+  gpu_count: 2
   metric: throughput
   manual_selection_only: false
   type: unoptimized
@@ -249,7 +249,7 @@ metadata:
 engine_args:
   gpu-memory-utilization: 0.95
   dtype: float16
-  tensor-parallel-size: 8
+  tensor-parallel-size: 2
   max-num-batched-tokens: 1024
   max-model-len: 2048
 
@@ -264,10 +264,21 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
 ```
 
+### 5.2 Using profiles excluded from automatic selection
 
+To use a profile excluded from automatic selection, an environment variable `AIM_PROFILE_ID` should be set with the
+desired profile identifier. Profile identifier is the filename of the profile without the `.yaml` extension.
+
+```bash
+docker run \
+  -e AIM_PROFILE_ID=vllm-mi325x-fp16-tp4-latency \
+  --device=/dev/kfd --device=/dev/dri \
+  -p 8000:8000 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
+```
 
 ## 6. Monitoring and troubleshooting
 
@@ -277,7 +288,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0 \
   --help
 ```
 
@@ -285,7 +296,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0 \
   <subcommand> --help
 ```
 
@@ -296,7 +307,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -305,10 +316,10 @@ It is possible to check which profile AIM selects based on the provided environm
 
 ```bash
 docker run \
-  -e AIM_GPU_COUNT=8 \
+  -e AIM_GPU_COUNT=2 \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0 \
   dry-run
 ```
 
@@ -316,7 +327,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.9.0 \
+  amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.10.0 \
   list-profiles
 ```
 

@@ -201,6 +201,10 @@ update-test-dependencies: update-dependencies
 update-dev-dependencies: update-dependencies
 	python -m piptools compile --extra dev --upgrade --resolver backtracking -o requirements/dev-requirements.txt pyproject.toml
 
+.PHONY: update-evaluation-dependencies
+update-evaluation-dependencies: update-dependencies
+	python -m piptools compile --extra evaluation --upgrade --resolver backtracking -o requirements/evaluation-requirements.txt pyproject.toml
+
 # ==============================================================================
 # Testing Targets
 # ==============================================================================
@@ -218,7 +222,7 @@ test: update-test-dependencies
 .PHONY: test-cov
 test-cov:
 	@echo ">>> Running unit tests with coverage (excluding integration tests)"
-	python3 -m pytest tests/ -v -m "not integration" --cov=src/aim_runtime --cov-report=term --cov-report=html
+	python3 -m pytest tests/ -v -m "not integration" --cov=src/aim_runtime --cov=src/aim_common --cov=src/aim_utils --cov-report=term --cov-report=html
 
 # Run integration tests (requires GPU environment)
 .PHONY: test-integration

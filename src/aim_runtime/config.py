@@ -44,7 +44,6 @@ class AIMConfig:
     engine_args_override: Optional[Dict[str, Any]] = None
     log_level_root: str = "WARNING"
     log_level: str = "INFO"
-    custom_model_name: Optional[str] = None  # Custom directory name for downloaded models (from AIM_CUSTOM_MODEL_NAME)
     allow_general_profile_fallback: bool = (
         True  # Whether to allow fallback to general profiles (from AIM_ALLOW_GENERAL_PROFILE_FALLBACK)
     )
@@ -59,6 +58,7 @@ class AIMConfig:
         # This maintains clear separation: model-specific containers use AIM_ID,
         # base containers use AIM_MODEL_ID
         if self.aim_id and self.model_id:
+            logger.error(f"AIM_ID {self.aim_id} and AIM_MODEL_ID {self.model_id} are mutually exclusive.")
             raise ValueError("Cannot set both AIM_ID and AIM_MODEL_ID. Only one should be set.")
 
     @classmethod
@@ -78,15 +78,17 @@ class AIMConfig:
     def _read_enum(cls, name: str, default: str, enum: Type[EnumerationType]) -> EnumerationType:
         value = os.environ.get(name, default)
         # GPUModel enum values are uppercase, so convert appropriately
-        if enum == GPUModel:
-            value = value.upper()
-        else:
-            value = value.lower()
         try:
-            return enum(value)
+            if enum == GPUModel:
+                return GPUModel.from_string(value)
+            else:
+                return enum(value.lower())
         except ValueError:
             logger.warning(f"{name} must be one of {[e.value for e in enum]}. Was {value}. Defaulting to {default}.")
-            return enum(default)
+            if enum == GPUModel:
+                return GPUModel.from_string(default)
+            else:
+                return enum(default.lower())
 
     @classmethod
     def _read_engine_args_override(cls) -> Optional[Dict[str, Any]]:
@@ -135,8 +137,11 @@ class AIMConfig:
             return default
 
     @classmethod
-    def from_environment(cls) -> "AIMConfig":
+    def from_environment(cls, model_id_param: Optional[str] = None) -> "AIMConfig":
         """Create configuration from environment variables.
+
+        Args:
+            model_id_param: Model ID provided as a parameter (overrides AIM_MODEL_ID if AIM_ID is not set)
 
         AIM_ID: Identifies the model-specific AIM container
         AIM_MODEL_ID: Specifies the model to deploy (base containers only)
@@ -165,13 +170,19 @@ class AIMConfig:
         aim_id = os.environ.get("AIM_ID")
         model_id = os.environ.get("AIM_MODEL_ID")
 
+        logger.debug(f"Read AIM_ID: {aim_id}")
+        logger.debug(f"Read AIM_MODEL_ID: {model_id}")
+
         # Validate that only one is set, not both
         if aim_id and model_id:
             raise ValueError("Cannot set both AIM_ID and AIM_MODEL_ID. Only one should be set.")
 
         # At least one must be provided
         if not aim_id and not model_id:
-            raise ValueError("Either AIM_MODEL_ID or AIM_ID environment variable is required")
+            if model_id_param:
+                model_id = model_id_param
+            else:
+                raise ValueError("Either AIM_MODEL_ID or AIM_ID environment variable is required")
 
         return cls(
             aim_id=aim_id,
@@ -189,7 +200,6 @@ class AIMConfig:
             engine_args_override=cls._read_engine_args_override(),
             log_level_root=os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING"),
             log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
-            custom_model_name=os.environ.get("AIM_CUSTOM_MODEL_NAME"),
             allow_general_profile_fallback=cls._read_bool("AIM_ALLOW_GENERAL_PROFILE_FALLBACK", True),
         )
 
@@ -207,7 +217,6 @@ class AIMConfig:
             "profile_base_path": self.profile_base_path,
             "schema_search_path": self.schema_search_path,
             "cache_path": self.cache_path,
-            "custom_model_name": self.custom_model_name,
             "port": self.port,
             "engine_args_override": self.engine_args_override,
             "log_level_root": self.log_level_root,

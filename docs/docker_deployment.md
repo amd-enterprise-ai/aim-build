@@ -32,7 +32,9 @@ Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for g
 
 ### 1.2 Customizing deployment with environment variables
 
-Customize your deployment with optional environment variables:
+Customize your deployment with optional environment variables. In the example below `AIM_PORT` is set to `8080` instead
+of `8000`. `AIM_METRIC` is set to `throughput` instead of `latency`. `AIM_GPU_COUNT` is set to `1` instead of `auto`,
+`AIM_PRECISION` is set to `fp16` instead of `auto`.
 
 ```bash
 docker run \
@@ -42,6 +44,18 @@ docker run \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
+  amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+```
+
+Override automatic profile selection by specifying a profile directly. In the example below, `AIM_PROFILE_ID` is set to
+`vllm-mi300x-fp8-tp1-latency`. All other environment variables' values are set implicitly according to the specified
+profile.
+
+```bash
+docker run \
+  -e AIM_PROFILE_ID=vllm-mi300x-fp8-tp1-latency \
+  --device=/dev/kfd --device=/dev/dri \
+  -p 8000:8000 \
   amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.5
 ```
 

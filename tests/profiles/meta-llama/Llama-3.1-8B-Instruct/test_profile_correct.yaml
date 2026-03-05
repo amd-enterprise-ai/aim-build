@@ -11,7 +11,7 @@ metadata:
   gpu_count: 1
   metric: "latency"
   manual_selection_only: false
-  type: "unoptimized"
+  type: "optimized"
 
 engine_args:
   dtype: "float16"

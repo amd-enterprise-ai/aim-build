@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+extends: default
+
+rules:
+  # Disable document start for GitHub Actions
+  document-start: disable
+
+  # check-keys: false allows 'on' key which GitHub Actions uses for triggers
+  truthy:
+    allowed-values: [ 'true', 'false' ]
+    check-keys: false
+
+  # Disable strict quote requirements - GitHub Actions uses dynamic expressions
+  quoted-strings: disable
+
+  # GitHub Actions expressions might be hard to fit on short lines
+  line-length:
+    max: 160
+    level: warning
+
+  # Enforce 2-space indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Allow comments at any indentation level
+  comments:
+    min-spaces-from-content: 0
+
+  # Keep key checks
+  key-duplicates: enable
+  trailing-spaces: enable

@@ -8,7 +8,7 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "CC-BY-NC-4.0, MIT"
-      description: "Cohere's Command A Reasoning is a multilingual text generation model optimized for conversational AI and reasoning tasks across 23+ languages."
+      description: "111B parameter language model with configurable reasoning and tool use capabilities."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
@@ -55,11 +55,31 @@ com:
           metric: "throughput"
           description: "Optimized for throughput on MI325X using fp16 precision"
           profileId: "vllm-mi325x-fp16-tp2-throughput"
-        publisher: "Cohere"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp16 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp16 precision"
+        publisher: "Cohere Labs"
       hfToken:
         required: true
       release:
         notes: ""
       description:
-        full: "Cohere's Command A Reasoning is a multilingual text generation model optimized for conversational AI and reasoning tasks across 23+ languages."
+        full: "Command A Reasoning is a 111 billion parameter open-weights language model from Cohere Labs, optimized for tool use, agentic tasks, and multilingual use cases with configurable reasoning capabilities. It uses an optimized transformer architecture with sliding window attention (window size 4096) and RoPE for local context modeling, plus global attention layers without positional embeddings for unrestricted token interactions. The model can operate with reasoning on for increased performance or reasoning off for lower latency. It supports tool use with citation grounding, handles 23 languages, and provides a 256k context length with 32k output length. Fine-tuned using supervised fine-tuning (SFT) and preference training."
       title: "Command A Reasoning 08 2025"

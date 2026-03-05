@@ -108,7 +108,7 @@ class Profile:
         """Check if this profile matches the given AIM id.
 
         Args:
-            aim_model_id: The AIM id to match against (e.g., 'meta-llama/Llama-3.1-8B-Instruct')
+            aim_id: The AIM id to match against (e.g., 'meta-llama/Llama-3.1-8B-Instruct')
 
         Returns:
             True if the profile matches the given AIM id

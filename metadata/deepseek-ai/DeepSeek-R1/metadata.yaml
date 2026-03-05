@@ -1,0 +1,74 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      description:
+        full: "DeepSeek-R1 is a 671 billion total parameter mixture-of-experts (MoE) reasoning model from DeepSeek AI, with 37 billion active parameters. Built on DeepSeek-V3-Base, it was trained via large-scale reinforcement learning (RL) directly on the base model to develop chain-of-thought (CoT) reasoning capabilities, followed by supervised fine-tuning (SFT) stages for reasoning and non-reasoning abilities, and preference alignment. The model features self-verification, reflection, and long chain-of-thought generation. It supports a 128K token context length with a maximum generation length of 32,768 tokens. Licensed under MIT with support for commercial use and distillation."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "deepseek-ai/DeepSeek-R1"
+        publisher: "DeepSeek"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp8-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 8
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp8-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 8
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        source: "https://huggingface.co/deepseek-ai/DeepSeek-R1"
+        tags:
+        - "text-generation"
+        - "chat"
+        variants:
+        - "deepseek-ai/DeepSeek-R1"
+        - "deepseek-ai/DeepSeek-R1-0528"
+      release:
+        notes: ""
+      title: "DeepSeek R1"
+org:
+  opencontainers:
+    image:
+      authors: ""
+      description: "671B parameter MoE reasoning model with 37B active parameters and 128K context length."
+      documentation: ""
+      licenses: "MIT"
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+      vendor: "AMD"

@@ -5,21 +5,9 @@
 import functools
 import logging
 import re
-import sys
-from enum import Enum
 from typing import Optional
 
-from semver import VersionInfo
-
-# TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
-# Python 3.10 compatibility: define StrEnum if not available
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-
-    class StrEnum(str, Enum):
-        """Minimal StrEnum for Python <3.11."""
-
+from aim_common.compat import StrEnum
 
 logger = logging.getLogger(__name__)
 
@@ -80,19 +68,21 @@ class AIMVersionSuffix:
 @functools.total_ordering
 class AIMVersion:
 
-    def __init__(self, version: str, is_base: bool = False) -> None:
-        # Matches full version format: major.minor.patch with optional -rc# or -preview suffix
-        self.pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc\d+|preview))?$")
-        # Matches base version format: major.minor with optional -rc# or -preview suffix (no patch)
-        self.base_pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc\d+|preview))?$")
-        # Matches stable full version format: major.minor.patch without any suffix
-        self.pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
-        # Matches stable base version format: major.minor without any suffix (no patch)
-        self.base_pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+    # Compiled patterns aligned with .github/versioning-strategy.md.
+    # Full version: MAJOR.MINOR.PATCH with optional -rcN or -preview suffix (model-specific images)
+    pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc[1-9]\d*|preview))?$")
+    # Base version: MAJOR.MINOR with optional -rcN or -preview suffix (base images)
+    base_pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc[1-9]\d*|preview))?$")
+    # Stable full version: MAJOR.MINOR.PATCH without any suffix
+    pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+    # Stable base version: MAJOR.MINOR without any suffix (no patch)
+    base_pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
+    def __init__(self, version: str, is_base: bool = False) -> None:
         pattern = self.base_pattern if is_base else self.pattern
         if not pattern.fullmatch(version):
-            raise ValueError(f"Invalid version format: {version}")
+            expected_fmt = "MAJOR.MINOR[-rcN|-preview]" if is_base else "MAJOR.MINOR.PATCH[-rcN|-preview]"
+            raise ValueError(f"Invalid version format: '{version}'. Expected {expected_fmt}")
 
         self.version = version
         self.is_base = is_base
@@ -142,6 +132,8 @@ class AIMVersion:
 
         self_version = self.__patch_rc(self_version)
         other_version = self.__patch_rc(other_version)
+
+        from semver import VersionInfo
 
         return VersionInfo.parse(self_version) < VersionInfo.parse(other_version)
 
@@ -221,3 +213,20 @@ class AIMVersion:
             return None
 
         return int(parts[1])
+
+
+def validate_version_tag(version: str, is_base: bool = False) -> None:
+    """Validate a version string against the AIM versioning strategy.
+
+    Base images use MAJOR.MINOR[-rcN|-preview] format.
+    Model-specific images use MAJOR.MINOR.PATCH[-rcN|-preview] format.
+    RC numbers start at 1 (rc0 is not valid).
+
+    Args:
+        version: The version string to validate.
+        is_base: If True, validate as base version (no patch component).
+
+    Raises:
+        ValueError: If the version string does not match the expected format.
+    """
+    AIMVersion(version, is_base=is_base)

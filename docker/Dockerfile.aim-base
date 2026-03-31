@@ -17,8 +17,9 @@ ARG BASE_TAG
 # LMCache installation arguments
 # - rocm/7.0:rocm7.0_ubuntu_22.04_vllm_0.10.1_instinct_20250915 = LMCache v0.3.5      = 4409b09
 # - rocm/vllm:rocm7.0.0_vllm_0.11.1_20251103                    = LMCache v0.3.9post2 = d5be14f
+# - current                                                     = LMCache v0.3.15     = 9dc3ab7
 ARG INSTALL_LMCACHE=true
-ARG INSTALL_LMCACHE_COMMIT=d5be14f
+ARG INSTALL_LMCACHE_COMMIT=9dc3ab7
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -29,6 +30,7 @@ ENV HF_DATASETS_CACHE="/workspace/model-cache"
 ENV HF_HUB_DISABLE_TELEMETRY="1"
 ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
+ENV AIM_CONFIG_PATH="/workspace/aim-runtime/config"
 
 RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
 
@@ -42,9 +44,9 @@ COPY requirements/requirements.txt /workspace/aim-runtime/
 COPY src/entrypoint.py /workspace/entrypoint.py
 RUN chmod +x /workspace/entrypoint.py
 
-# Copy general profiles and schemas
-COPY profiles/general /workspace/aim-runtime/profiles/general
-COPY schemas /workspace/aim-runtime/schemas
+# Copy general profiles and engine config
+COPY assets/instinct/base/profiles/general /workspace/aim-runtime/profiles/general
+COPY assets/instinct/base/config /workspace/aim-runtime/config
 
 # Install AIM Runtime in production mode
 RUN cd /workspace/aim-runtime && \
@@ -65,6 +67,15 @@ RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
     else \
         echo "Skipping LMCache installation (INSTALL_LMCACHE=${INSTALL_LMCACHE})"; \
     fi
+
+# Pre-built AITER JIT attention kernels (per GPU architecture).
+# Built by CI on a GPU pod, stored as a container image in GHCR.
+# At runtime, the matching arch's kernels are copied into AITER's system
+# JIT directory so AITER finds them without needing AITER_JIT_DIR override.
+# See docker/aiter-jit-prebuilt/README.md for details.
+ARG AITER_KERNEL_CHECKSUM=""
+ENV AITER_KERNEL_CHECKSUM=${AITER_KERNEL_CHECKSUM}
+COPY docker/aiter-jit-prebuilt/ /workspace/aiter-jit-prebuilt/
 
 # Create cache directories
 RUN mkdir -p /workspace/model-cache

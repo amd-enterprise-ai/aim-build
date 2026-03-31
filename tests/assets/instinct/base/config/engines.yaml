@@ -1,0 +1,10 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Test engine definitions for unit tests.
+
+vllm:
+  launch: python -m vllm.entrypoints.openai.api_server
+  model_arg: --model
+  validator: vllm

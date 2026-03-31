@@ -12,13 +12,44 @@ from .object_model import GPUModel
 
 logger = logging.getLogger(__name__)
 
+# GPU model to GFX architecture mapping for AMD Instinct GPUs
+# Reference: https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html
+# Also mirrored (lowercase, AITER-only subset) in docker/prebuild_aiter_kernels.py
+GPU_TO_GFX_ARCH = {
+    # CDNA1 (gfx908)
+    "MI100": "gfx908",
+    # CDNA2 (gfx90a)
+    "MI210": "gfx90a",
+    "MI250X": "gfx90a",
+    # CDNA3 (gfx942)
+    "MI300A": "gfx942",
+    "MI300X": "gfx942",
+    "MI308X": "gfx942",
+    "MI325X": "gfx942",
+    # CDNA4 (gfx950)
+    "MI350X": "gfx950",
+    "MI355X": "gfx950",
+}
+
+
+def get_gfx_arch(gpu_model: str) -> Optional[str]:
+    """Get GFX architecture for a GPU model.
+
+    Args:
+        gpu_model: GPU model name (e.g., "MI300X", "MI325X")
+
+    Returns:
+        GFX architecture string (e.g., "gfx942", "gfx950") or None if unknown
+    """
+    return GPU_TO_GFX_ARCH.get(gpu_model)
+
 
 @dataclass
 class GPUInfo:
     """Represents information about a single GPU."""
 
     device_id: str
-    model: GPUModel
+    model: Optional[GPUModel]
     vram_total: int  # in MB
     vram_used: int  # in MB
     gfx_utilization: float  # percentage
@@ -39,7 +70,7 @@ class GPUInfo:
         """Convert to dictionary for logging/serialization."""
         return {
             "device_id": self.device_id,
-            "model": self.model.value,
+            "model": self.model.value if self.model else None,
             "vram_total": self.vram_total,
             "vram_used": self.vram_used,
             "vram_free": self.vram_free,
@@ -112,20 +143,13 @@ class GPUDetector:
             return True
         return all(gpu.is_idle for gpu in self.gpus)
 
-    def get_gpu_model(self, device_id: str) -> GPUModel:
-        """Get GPU model name from device ID.
-
-        Args:
-            device_id: GPU device ID (e.g., "74a1")
-
-        Returns:
-            GPU model name (e.g., "MI300X") or "Unknown" if not found
-        """
+    def get_gpu_model(self, device_id: str) -> Optional[GPUModel]:
+        """Get GPU model from device ID, or None if unrecognized."""
         norm = self._normalize_device_id(device_id)
-        return GPUModel.from_string_with_default(norm, GPUModel.UNKNOWN)
+        return GPUModel.from_string_with_default(norm)
 
     @cached_property
-    def gpu_models(self) -> Optional[List[GPUModel]]:
+    def gpu_models(self) -> Optional[List[Optional[GPUModel]]]:
         """Get list of detected GPU model names."""
         if not self.gpus:
             return None

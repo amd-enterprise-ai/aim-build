@@ -1,0 +1,18 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  engine: "vllm"
+  gpu: "MI300X"
+  precision: "fp16"
+  gpu_count: 1
+  metric: "latency"
+  manual_selection_only: false
+  type: "general"
+
+env_vars:
+  DUMMY_VAR: dummy_value
+
+engine_args:
+  dtype: "float16"

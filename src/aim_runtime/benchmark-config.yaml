@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# AIM Benchmarking Configuration
+
+# Fallback configuration suite (one of the config_suites below)
+active_config: "default_opt"
+
+# GPU count to suite mapping - maps GPU counts to specific benchmark suites
+# Used to automatically select appropriate benchmark configurations based on GPU count
+gpu_count_suite_map:
+  1: "AIM_IM2"
+  2: "AIM_IM1"
+  4: "AIM_IM1"
+  8: "AIM_IM1"
+
+# Configuration suites - each is a list of [<input sequence length>, <output sequence length>, <concurrency>, <number of prompts>] lists
+# Names are auto-generated as: isl{ISL}_osl{OSL}_conc{concurrency}_np{num_prompts}
+config_suites:
+  # Quick test for development
+  default_dev: [[100,100,1,1], [100,100,2,4]]
+
+  # Quick default suite
+  default_opt: [[256,256,8,80], [256,256,128,256], [1024,1024,8,80], [1024,1024,128,256], [8192,1024,8,80], [8192,1024,128,256], [1024,8192,8,80], [1024,8192,128,256]]
+
+  # Example benchmark suite for TP1
+  AIM_IM2: [[256,256,4,40], [256,256,8,80], [256,256,32,320], [256,256,64,640], [256,256,128,1280], [256,256,256,2560], [128,2048,4,40], [128,2048,8,80], [128,2048,32,320], [128,2048,64,640], [128,2048,128,1280], [128,2048,256,2560], [8192,1024,4,40], [8192,1024,8,80], [8192,1024,32,320], [8192,1024,64,640], [8192,1024,128,1280], [8192,1024,256,2560], [1024,1024,4,40], [1024,1024,8,80], [1024,1024,32,320], [1024,1024,64,640], [1024,1024,128,1280], [1024,1024,256,2560]]
+
+  # Example benchmark suite TP2+
+  AIM_IM1: [[256,256,8,80], [256,256,64,640], [256,256,256,2560], [128,2048,8,80], [128,2048,64,640], [128,2048,256,2560], [8192,1024,8,80], [8192,1024,64,640], [8192,1024,256,2560], [1024,1024,8,80], [1024,1024,64,640], [1024,1024,256,2560]]
+
+# Global benchmark settings
+settings:
+  timeout_seconds_per_config: 14400  # 4 hours per configuration
+  ignore_eos: true
+  percentile_metrics: "ttft,tpot,itl,e2el"
+  metric_percentiles: "90,99"
+  dataset_name: "random"

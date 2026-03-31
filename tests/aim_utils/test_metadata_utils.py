@@ -12,14 +12,21 @@ from aim_utils import metadata_utils, yaml_utils
 
 
 @pytest.fixture
-def sample_yaml_data(metadata_path: str) -> Dict[str, Any]:
-    return yaml_utils.read_yaml(Path(metadata_path) / "correct" / "TinyLlama-1.1B-Chat-v1.0" / "metadata.yaml")
+def sample_yaml_data(assets_instinct_path: str) -> Dict[str, Any]:
+    return yaml_utils.read_yaml(
+        Path(assets_instinct_path) / "TinyLlama" / "TinyLlama-1.1B-Chat-v1.0_case1" / "metadata.yaml"
+    )
+
+
+@pytest.fixture
+def test_metadata_path():
+    return "tests/assets/instinct"
 
 
 def test_get_value_existing_key(sample_yaml_data):
     assert (
         metadata_utils.get_value(sample_yaml_data, "com.amd.aim.model.canonicalName")
-        == "correct/TinyLlama-1.1B-Chat-v1.0"
+        == "TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1"
     )
     assert metadata_utils.get_value(sample_yaml_data, "org.opencontainers.image.vendor") == "AMD"
     assert metadata_utils.get_value(sample_yaml_data, "com.amd.aim.hfToken.required") is False
@@ -53,9 +60,8 @@ def test_set_value_missing_key_no_add(sample_yaml_data):
     assert metadata_utils.get_value(updated_data, "com.amd.aim.newKey") is None
 
 
-def test_get_model_variants(profiles_path):
-    profiles_path = Path(os.path.join(profiles_path, "meta-llama", "Llama-3.1-8B-Instruct"))
-    variants = metadata_utils.get_model_variants(Path(profiles_path))
+def test_get_model_variants(model_profiles_path):
+    variants = metadata_utils.get_model_variants(Path(model_profiles_path))
     assert len(variants) == 2
     assert variants[0] == "amd/Llama-3.1-8B-Instruct-FP8-KV"
     assert variants[1] == "meta-llama/Llama-3.1-8B-Instruct"
@@ -73,14 +79,14 @@ def test_copy_value(sample_yaml_data):
     )
     assert (
         metadata_utils.get_value(data, "org.opencontainers.image.title")
-        == "<PREFIX><SEP>correct/TinyLlama-1.1B-Chat-v1.0<SEP><POSTFIX>"
+        == "<PREFIX><SEP>TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1<SEP><POSTFIX>"
     )
 
 
 def test_add_recommended_deployments_basic(tmp_path):
     """Test basic functionality of adding recommended deployments."""
     # Create test metadata file
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -97,7 +103,7 @@ def test_add_recommended_deployments_basic(tmp_path):
     yaml_utils.save_yaml(metadata, path=metadata_file)
 
     # Create test profiles directory
-    profiles_dir = tmp_path / "profiles" / "test-org" / "test-model"
+    profiles_dir = tmp_path / "test-org" / "test-model" / "profiles"
     profiles_dir.mkdir(parents=True)
 
     # Create test profile
@@ -139,7 +145,7 @@ def test_add_recommended_deployments_basic(tmp_path):
 def test_add_recommended_deployments_multiple_profiles(tmp_path):
     """Test with multiple profiles for different GPU models and metrics."""
     # Create test metadata file
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -156,7 +162,7 @@ def test_add_recommended_deployments_multiple_profiles(tmp_path):
     yaml_utils.save_yaml(metadata, path=metadata_file)
 
     # Create test profiles directory
-    profiles_dir = tmp_path / "profiles" / "test-org" / "test-model"
+    profiles_dir = tmp_path / "test-org" / "test-model" / "profiles"
     profiles_dir.mkdir(parents=True)
 
     # Create multiple test profiles
@@ -218,7 +224,7 @@ def test_add_recommended_deployments_multiple_profiles(tmp_path):
 def test_add_recommended_deployments_deprioritize_manual_selection_only(tmp_path):
     """Test that profiles with manual_selection_only=True are deprioritized."""
     # Create test metadata file
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -235,7 +241,7 @@ def test_add_recommended_deployments_deprioritize_manual_selection_only(tmp_path
     yaml_utils.save_yaml(metadata, path=metadata_file)
 
     # Create test profiles directory
-    profiles_dir = tmp_path / "profiles" / "test-org" / "test-model"
+    profiles_dir = tmp_path / "test-org" / "test-model" / "profiles"
     profiles_dir.mkdir(parents=True)
 
     # Create test profiles (one manual only, one not)
@@ -293,7 +299,7 @@ def test_add_recommended_deployments_deprioritize_manual_selection_only(tmp_path
 def test_add_recommended_deployments_precision_priority(tmp_path):
     """Test that precision priority is correctly applied."""
     # Create test metadata file
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -310,7 +316,7 @@ def test_add_recommended_deployments_precision_priority(tmp_path):
     yaml_utils.save_yaml(metadata, path=metadata_file)
 
     # Create test profiles directory
-    profiles_dir = tmp_path / "profiles" / "test-org" / "test-model"
+    profiles_dir = tmp_path / "test-org" / "test-model" / "profiles"
     profiles_dir.mkdir(parents=True)
 
     # Create profiles with different precisions, same GPU count
@@ -355,7 +361,7 @@ def test_add_recommended_deployments_precision_priority(tmp_path):
 def test_add_recommended_deployments_no_canonical_name(tmp_path):
     """Test that function skips metadata without canonical name."""
     # Create test metadata file without canonical name
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -376,7 +382,7 @@ def test_add_recommended_deployments_no_canonical_name(tmp_path):
 def test_add_recommended_deployments_no_profiles_dir(tmp_path):
     """Test that function handles missing profiles directory gracefully."""
     # Create test metadata file
-    metadata_dir = tmp_path / "metadata" / "test-org" / "test-model"
+    metadata_dir = tmp_path / "test-org" / "test-model"
     metadata_dir.mkdir(parents=True)
     metadata_file = metadata_dir / "metadata.yaml"
 
@@ -440,31 +446,23 @@ def test_validate_metadata_nonexistent_directory():
     assert result == {"total_count": 0, "valid_count": 0, "invalid_count": 0}
 
 
-def test_validate_metadata_missing_schemas(tmp_path):
-    """Test validate_metadata when schema files don't exist."""
-    # Create a metadata directory in temp path where schemas won't exist
-    metadata_dir = tmp_path / "metadata"
-    metadata_dir.mkdir()
+def test_validate_metadata_invalid_data(tmp_path):
+    """Test validate_metadata with data that doesn't pass validation."""
+    # Create a model-specific asset directory with an invalid metadata.yaml
+    model_dir = tmp_path / "test-org" / "test-model"
+    model_dir.mkdir(parents=True)
 
-    # Create a simple metadata file
-    test_file = metadata_dir / "test.yaml"
+    # Create a metadata file with invalid structure
+    test_file = model_dir / "metadata.yaml"
     yaml_utils.save_yaml({"test": "data"}, path=test_file)
 
-    # Change to temp directory where schemas won't exist
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        result = metadata_utils.validate_metadata(str(metadata_dir))
-        assert result == {"total_count": 0, "valid_count": 0, "invalid_count": 0}
-    finally:
-        os.chdir(original_cwd)
+    result = metadata_utils.validate_metadata(str(tmp_path))
+    assert result == {"total_count": 1, "valid_count": 0, "invalid_count": 1}
 
 
-def test_validate_metadata():
-    """Test validate_metadata with real test metadata files."""
-    test_metadata_path = "tests/metadata"
-
-    # Test with the real test metadata directory that contains TinyLlama
+def test_validate_metadata(test_metadata_path):
+    """Test validate_metadata with test metadata files."""
+    # Test with the test metadata directory that contains TinyLlama
     result = metadata_utils.validate_metadata(test_metadata_path)
 
     # Should find and validate the TinyLlama metadata file
@@ -473,12 +471,12 @@ def test_validate_metadata():
     assert result["invalid_count"] == 1
 
 
-def test_validate_metadata_with_canonical_name_filter():
-    """Test validate_metadata with canonical name filter using real data."""
-    test_metadata_path = "tests/metadata"
-
+def test_validate_metadata_with_canonical_name_filter(test_metadata_path):
+    """Test validate_metadata with canonical name filter using test data."""
     # Test filtering by the TinyLlama canonical name
-    result = metadata_utils.validate_metadata(test_metadata_path, canonical_name="correct/TinyLlama-1.1B-Chat-v1.0")
+    result = metadata_utils.validate_metadata(
+        test_metadata_path, canonical_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1"
+    )
 
     # Should only validate the TinyLlama file
     assert result["total_count"] == 1
@@ -488,7 +486,7 @@ def test_validate_metadata_with_canonical_name_filter():
 
 def test_validate_metadata_main_metadata_directory():
     """Test validate_metadata with the main metadata directory."""
-    main_metadata_path = "metadata"
+    main_metadata_path = "assets/instinct"
 
     # Test with the main metadata directory containing all model metadata
     result = metadata_utils.validate_metadata(main_metadata_path)
@@ -500,12 +498,12 @@ def test_validate_metadata_main_metadata_directory():
     assert result["valid_count"] + result["invalid_count"] == result["total_count"]
 
 
-def test_validate_incorrect_metadata_handling_for_specific_model():
+def test_validate_incorrect_metadata_handling_for_specific_model(test_metadata_path):
     """Test validate_metadata with a specific model from test metadata."""
-    test_metadata_path = "tests/metadata"
-
     # Test with a specific model that should exist in test metadata
-    result = metadata_utils.validate_metadata(test_metadata_path, canonical_name="incorrect/metadata")
+    result = metadata_utils.validate_metadata(
+        test_metadata_path, canonical_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0_case2"
+    )
 
     # Should find exactly one file for this model
     assert result["total_count"] == 1
@@ -513,12 +511,12 @@ def test_validate_incorrect_metadata_handling_for_specific_model():
     assert result["invalid_count"] == 1
 
 
-def test_validate_minimal_recommendations_metadata_handling_for_specific_model():
+def test_validate_minimal_recommendations_metadata_handling_for_specific_model(test_metadata_path):
     """Test validate_metadata with a specific model from test metadata."""
-    test_metadata_path = "tests/metadata"
-
     # Test with a specific model that should exist in test metadata
-    result = metadata_utils.validate_metadata(test_metadata_path, canonical_name="correct/minimal")
+    result = metadata_utils.validate_metadata(
+        test_metadata_path, canonical_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0_case3"
+    )
 
     # Should find exactly one file for this model
     assert result["total_count"] == 1
@@ -526,12 +524,12 @@ def test_validate_minimal_recommendations_metadata_handling_for_specific_model()
     assert result["invalid_count"] == 0
 
 
-def test_validate_profile_id_recommendations_metadata_handling_for_specific_model():
+def test_validate_profile_id_recommendations_metadata_handling_for_specific_model(test_metadata_path):
     """Test validate_metadata with a specific model from test metadata."""
-    test_metadata_path = "tests/metadata"
-
     # Test with a specific model that should exist in test metadata
-    result = metadata_utils.validate_metadata(test_metadata_path, canonical_name="correct/profile_id")
+    result = metadata_utils.validate_metadata(
+        test_metadata_path, canonical_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0_case4"
+    )
 
     # Should find exactly one file for this model
     assert result["total_count"] == 1

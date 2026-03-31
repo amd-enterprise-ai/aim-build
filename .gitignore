@@ -216,6 +216,9 @@ __marimo__/
 # Other
 .archive/
 
+# CI logs
+logs/
+
 # CI Coverage files
 coverage-ci.xml
 htmlcov-ci/
@@ -230,5 +233,5 @@ docs/temp/*
 # VS Code settings
 .vscode/*
 
-# Model cache
+# AIM specific
 model-cache/*

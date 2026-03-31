@@ -43,7 +43,7 @@ metadata/
 └── ...
 ```
 
-## Metadata Schema
+## Metadata Structure
 
 ### Model Metadata Structure
 
@@ -245,19 +245,19 @@ com:
       title: "AIM Base"
 ```
 
-## Schema Validation
+## Validation
 
-Metadata files are validated against JSON schemas located in the `schemas/` directory:
+Metadata files are validated using Pydantic models defined in `src/aim_common/metadata_models.py`:
 
-- `schemas/metadata_schema.json`: Schema for model-specific metadata files
-- `schemas/base_metadata_schema.json`: Schema for the base metadata file
+- `ModelMetadataModel`: Validates model-specific metadata files
+- `BaseMetadataModel`: Validates the base metadata file
 
-These schemas enforce:
+These models enforce:
 - Required fields are present
 - Field types are correct
 - Enum values (like GPU models, precision types) are valid
 - String length constraints (e.g., OCI description ≤ 160 characters)
-- No additional properties beyond the schema
+- No additional properties beyond the model definition
 
 ## Recommended Profiles
 

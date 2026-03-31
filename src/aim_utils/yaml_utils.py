@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: MIT
 import logging
 from dataclasses import dataclass
-from enum import StrEnum
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+from aim_common.compat import StrEnum
 
 # Configure logging
 logger = logging.getLogger(__name__)

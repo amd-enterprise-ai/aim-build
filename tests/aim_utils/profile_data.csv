@@ -1,0 +1,9 @@
+AIM,profile,type
+registry.example.com/org/aim-model-a:1.0,vllm-mi300x-fp16-tp1-latency,optimized
+registry.example.com/org/aim-model-a:1.0,vllm-mi300x-fp8-tp1-latency,optimized
+registry.example.com/org/aim-model-b:1.0,vllm-mi300x-fp16-tp1-latency,preview
+registry.example.com/org/aim-model-b:1.0,vllm-mi300x-fp8-tp1-latency,preview
+registry.example.com/org/aim-model-c:1.0,vllm-mi300x-fp16-tp1-latency,preview
+registry.example.com/org/aim-model-c:1.0,vllm-mi300x-fp8-tp1-latency,unoptimized
+registry.example.com/org/aim-model-d:1.0,vllm-mi300x-fp16-tp1-latency,optimized
+registry.example.com/org/aim-model-d:1.0,vllm-mi300x-fp8-tp1-latency,preview

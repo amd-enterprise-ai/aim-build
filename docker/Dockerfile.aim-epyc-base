@@ -1,0 +1,71 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ARGs before FROM are used in the FROM instruction
+# these must be overridden via --build-arg
+ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
+ARG BASE_REPOSITORY=dummy_base_repository
+ARG BASE_TAG=dummy_base_tag
+FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
+
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG BASE_REGISTRY_NAMESPACE
+ARG BASE_REPOSITORY
+ARG BASE_TAG
+
+# LMCache installation arguments
+ARG INSTALL_LMCACHE=false
+ARG INSTALL_LMCACHE_COMMIT=d5be14f
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONPATH="/workspace/aim-runtime/src"
+ENV HF_HOME="/workspace/model-cache"
+ENV HF_DATASETS_CACHE="/workspace/model-cache"
+ENV HF_HUB_DISABLE_TELEMETRY="1"
+ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
+ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
+ENV AIM_ACC_TYPE="epyc"
+
+RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Copy AIM Runtime source code
+COPY src/ /workspace/aim-runtime/src/
+COPY pyproject.toml /workspace/aim-runtime/
+COPY requirements/requirements.txt /workspace/aim-runtime/
+COPY src/entrypoint.py /workspace/entrypoint.py
+RUN chmod +x /workspace/entrypoint.py
+
+# Copy general profiles and engine config
+COPY assets/epyc/base/profiles/general /workspace/aim-runtime/profiles/general
+COPY assets/epyc/base/config /workspace/aim-runtime/config
+
+# Install AIM Runtime in production mode
+RUN cd /workspace/aim-runtime && \
+    pip3 install -r requirements.txt && \
+    pip3 install --no-deps .
+
+# Install LMCache for KV-caching support (conditional based on INSTALL_LMCACHE)
+# We install from source using commit hash corresponding to the a particular release tag, for supply-chain security (immutable reference).
+RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
+        cd /workspace && \
+        git clone https://github.com/LMCache/LMCache.git && \
+        cd LMCache && \
+        git checkout "${INSTALL_LMCACHE_COMMIT}" && \
+        pip3 install -r requirements/build.txt && \
+        python3 -m pip install --no-build-isolation . && \
+        cd /workspace && \
+        rm -rf LMCache; \
+    else \
+        echo "Skipping LMCache installation (INSTALL_LMCACHE=${INSTALL_LMCACHE})"; \
+    fi
+
+# Create cache directories
+RUN mkdir -p /workspace/model-cache
+
+ENTRYPOINT ["./entrypoint.py"]

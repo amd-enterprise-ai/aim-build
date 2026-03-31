@@ -15,13 +15,15 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Type, Union
 
-from .object_model import Engine, EnumerationType, GPUModel, Metric, Precision
+from aim_common import EnumerationType
+
+from .object_model import Engine, GPUModel, Metric, Precision
 
 logger = logging.getLogger(__name__)
 
 # Default paths for AIM runtime
 DEFAULT_PROFILE_BASE_PATH = "/workspace/aim-runtime/profiles"
-DEFAULT_SCHEMA_SEARCH_PATH = "/workspace/aim-runtime/schemas"
+DEFAULT_CONFIG_PATH = "/workspace/aim-runtime/config"
 DEFAULT_CACHE_PATH = "/workspace/model-cache"
 
 
@@ -31,14 +33,14 @@ class AIMConfig:
 
     aim_id: Optional[str] = None  # The AIM container identifier (from AIM_ID, for model-specific containers)
     model_id: Optional[str] = None  # The model to deploy (from AIM_MODEL_ID, for base container)
-    precision: Precision = Precision.AUTO
+    precision: Optional[Precision] = None  # None = auto-detect best precision
     gpu_count: Union[int, str] = "auto"
     gpu_model: Optional[GPUModel] = None
-    engine: Engine = Engine.VLLM
+    engine: Engine = Engine.VLLM  # type: ignore[attr-defined]
     metric: Metric = Metric.LATENCY
     profile_id: Optional[str] = None
     profile_base_path: str = DEFAULT_PROFILE_BASE_PATH
-    schema_search_path: str = DEFAULT_SCHEMA_SEARCH_PATH
+    config_path: str = DEFAULT_CONFIG_PATH
     cache_path: str = DEFAULT_CACHE_PATH
     port: int = 8000
     engine_args_override: Optional[Dict[str, Any]] = None
@@ -47,6 +49,7 @@ class AIMConfig:
     allow_general_profile_fallback: bool = (
         True  # Whether to allow fallback to general profiles (from AIM_ALLOW_GENERAL_PROFILE_FALLBACK)
     )
+    allow_unoptimized: bool = False  # Whether to allow fallback to unoptimized profiles (from AIM_ALLOW_UNOPTIMIZED)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -77,18 +80,34 @@ class AIMConfig:
     @classmethod
     def _read_enum(cls, name: str, default: str, enum: Type[EnumerationType]) -> EnumerationType:
         value = os.environ.get(name, default)
-        # GPUModel enum values are uppercase, so convert appropriately
         try:
-            if enum == GPUModel:
-                return GPUModel.from_string(value)
-            else:
-                return enum(value.lower())
+            return enum(value.lower())
         except ValueError:
             logger.warning(f"{name} must be one of {[e.value for e in enum]}. Was {value}. Defaulting to {default}.")
-            if enum == GPUModel:
-                return GPUModel.from_string(default)
-            else:
-                return enum(default.lower())
+            return enum(default.lower())
+
+    @classmethod
+    def _read_gpu_model(cls) -> Optional[GPUModel]:
+        """Read AIM_GPU_MODEL env var. Returns None if unset or unrecognized."""
+        value = os.environ.get("AIM_GPU_MODEL")
+        if not value:
+            return None
+        result = GPUModel.from_string_with_default(value)
+        if result is None:
+            logger.warning(f"AIM_GPU_MODEL must be one of {[e.value for e in GPUModel]}. Was {value}. Ignoring.")
+        return result
+
+    @classmethod
+    def _read_precision(cls) -> Optional[Precision]:
+        """Read AIM_PRECISION env var. Returns None (auto-detect) if unset."""
+        value = os.environ.get("AIM_PRECISION")
+        if not value or value.lower() == "auto":
+            return None
+        try:
+            return Precision(value.lower())
+        except ValueError:
+            logger.warning(f"AIM_PRECISION must be one of {[e.value for e in Precision]}. Was {value}. Ignoring.")
+            return None
 
     @classmethod
     def _read_engine_args_override(cls) -> Optional[Dict[str, Any]]:
@@ -149,7 +168,7 @@ class AIMConfig:
         These serve different purposes:
         - AIM_ID:
           * Used for profile filtering (determines which org/model profiles to search)
-          * Example: "meta-llama/Llama-3.1-8B-Instruct" -> searches profiles/meta-llama/Llama-3.1-8B-Instruct/
+          * Example: "meta-llama/Llama-3.1-8B-Instruct" -> searches /workspace/aim-runtime/profiles/meta-llama/Llama-3.1-8B-Instruct/
           * Also serves as the model identifier when using general profiles in model-specific containers
 
         - AIM_MODEL_ID:
@@ -187,20 +206,21 @@ class AIMConfig:
         return cls(
             aim_id=aim_id,
             model_id=model_id,
-            precision=cls._read_enum("AIM_PRECISION", "auto", Precision),
+            precision=cls._read_precision(),
             gpu_count=cls._read_gpu_count(),
-            gpu_model=cls._read_enum("AIM_GPU_MODEL", "NONE", GPUModel),
+            gpu_model=cls._read_gpu_model(),
             engine=cls._read_enum("AIM_ENGINE", "vllm", Engine),
             metric=cls._read_enum("AIM_METRIC", "latency", Metric),
             profile_id=os.environ.get("AIM_PROFILE_ID"),
             profile_base_path=DEFAULT_PROFILE_BASE_PATH,
-            schema_search_path=DEFAULT_SCHEMA_SEARCH_PATH,
+            config_path=DEFAULT_CONFIG_PATH,
             cache_path=os.environ.get("AIM_CACHE_PATH", DEFAULT_CACHE_PATH),
             port=int(os.environ.get("AIM_PORT", 8000)),
             engine_args_override=cls._read_engine_args_override(),
             log_level_root=os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING"),
             log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
             allow_general_profile_fallback=cls._read_bool("AIM_ALLOW_GENERAL_PROFILE_FALLBACK", True),
+            allow_unoptimized=cls._read_bool("AIM_ALLOW_UNOPTIMIZED", False),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -215,13 +235,14 @@ class AIMConfig:
             "metric": self.metric,
             "profile_id": self.profile_id,
             "profile_base_path": self.profile_base_path,
-            "schema_search_path": self.schema_search_path,
+            "config_path": self.config_path,
             "cache_path": self.cache_path,
             "port": self.port,
             "engine_args_override": self.engine_args_override,
             "log_level_root": self.log_level_root,
             "log_level": self.log_level,
             "allow_general_profile_fallback": self.allow_general_profile_fallback,
+            "allow_unoptimized": self.allow_unoptimized,
         }
 
     def log_debug_info(self) -> None:

@@ -77,13 +77,23 @@ class TestProfileMetadata:
 
     def test_profile_from_dict(self):
         """Test ProfileMetadata deserialization from dictionary."""
-        data = {"engine": "vllm", "gpu": "mi325x", "precision": "fp8", "gpu_count": 2, "metric": "latency"}
+        data = {
+            "engine": "vllm",
+            "gpu": "mi325x",
+            "precision": "fp8",
+            "gpu_count": 2,
+            "metric": "latency",
+            "manual_selection_only": False,
+            "type": "general",
+        }
         profile = ProfileMetadata.from_dict(data)
         assert profile.engine == Engine.VLLM
         assert profile.gpu == GPUModel.MI325X
         assert profile.precision == Precision.FP8
         assert profile.gpu_count == 2
         assert profile.metric == Metric.LATENCY
+        assert profile.manual_selection_only is False
+        assert profile.type == ProfileType.GENERAL
 
     def test_profile_equality(self):
         """Test that Profiles with same values are equal."""

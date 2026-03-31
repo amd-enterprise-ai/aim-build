@@ -2,34 +2,37 @@
 #
 # SPDX-License-Identifier: MIT
 from pathlib import Path
+from typing import List
 from unittest.mock import patch
 
-import pytest
-
-from aim_utils.asset_utils import Initializer
-
-
-@pytest.fixture
-def temp_assets_dir(tmp_path):
-    assets_dir = tmp_path / "assets"
-    assets_dir.mkdir()
-    return assets_dir
+from aim_utils.asset_utils import AssetDescriptor, Initializer
 
 
 class TestInitializer:
     class TestImplementation(Initializer):
-        def initialize(self, model_dir: Path) -> None:
+        def initialize(self, descriptor: AssetDescriptor) -> None:
             pass
 
-    def test_initializer_creation(self, temp_assets_dir):
-        initializer = TestInitializer.TestImplementation(assets_path=str(temp_assets_dir))
-        assert initializer.assets_path == str(temp_assets_dir)
+        def get_reference_descriptors(self) -> List[AssetDescriptor]:
+            return [
+                AssetDescriptor(
+                    is_base=False,
+                    is_custom=False,
+                    directory=Path(self.assets_path) / "meta-llama" / "Llama-3.1-8B-Instruct",
+                    org="meta-llama",
+                    model_name="Llama-3.1-8B-Instruct",
+                )
+            ]
+
+    def test_initializer_creation(self, assets_path):
+        initializer = TestInitializer.TestImplementation(assets_path=str(assets_path))
+        assert initializer.assets_path == str(assets_path)
         assert initializer.file_name is None
         assert initializer.recreate is False
 
-    def test_initializer_custom_params(self, temp_assets_dir):
+    def test_initializer_custom_params(self, assets_path):
         initializer = TestInitializer.TestImplementation(
-            assets_path=str(temp_assets_dir),
+            assets_path=str(assets_path),
             file_name="custom.yaml",
             recreate=True,
         )

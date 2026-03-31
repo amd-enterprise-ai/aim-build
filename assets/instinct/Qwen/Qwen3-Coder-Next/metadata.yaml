@@ -1,0 +1,76 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "80B parameter MoE coding agent model with 3B active parameters and hybrid attention architecture."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-Coder-Next"
+        tags:
+        - "text-generation"
+        - "coding"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen3-Coder-Next"
+        variants:
+        - "Qwen/Qwen3-Coder-Next"
+        - "Qwen/Qwen3-Coder-Next-FP8"
+        - "amd/Qwen3-Coder-Next-MXFP4"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+          profileId: "vllm-mi300x-fp8-tp1-throughput"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp4 precision"
+          profileId: "vllm-mi350x-mxfp4-tp1-throughput"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp4 precision"
+          profileId: "vllm-mi355x-mxfp4-tp1-throughput"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-Coder-Next is an 80 billion parameter mixture-of-experts (MoE) language model specialized for coding agents, from the Qwen series by the Qwen Team at Alibaba Group, with 3 billion active parameters per token. It features a hybrid architecture combining Gated Attention with Rotary Position Embeddings and Gated DeltaNet linear attention, with 512 total experts and 10 activated per token. Trained through agentic training with large-scale synthesis of verifiable coding tasks paired with executable environments, enabling learning directly from environment feedback via mid-training and reinforcement learning. Supports non-thinking mode only."
+      title: "Qwen3 Coder Next"

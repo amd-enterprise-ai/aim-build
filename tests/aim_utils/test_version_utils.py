@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 import pytest
 
-from aim_utils.version_utils import AIMVersion, AIMVersionSuffixType
+from aim_utils.version_utils import AIMVersion, AIMVersionSuffixType, validate_version_tag
 
 
 def test_sort_order():
@@ -297,3 +297,86 @@ def test_minor_large_number():
     actual = AIMVersion("0.42.1").minor
     expected = 42
     assert actual == expected
+
+
+# ---------------------------------------------------------------------------
+# Tests for validate_version_tag()
+# ---------------------------------------------------------------------------
+
+
+class TestValidateVersionTag:
+    """Tests for the standalone validate_version_tag function."""
+
+    # --- Valid full (model-specific) versions ---
+
+    @pytest.mark.parametrize(
+        "version",
+        [
+            "0.4.0",
+            "0.4.2",
+            "1.0.0",
+            "0.4.2-rc1",
+            "0.4.2-rc99",
+            "0.4.2-preview",
+            "10.20.30",
+        ],
+    )
+    def test_valid_full_versions(self, version):
+        validate_version_tag(version, is_base=False)
+
+    # --- Valid base versions ---
+
+    @pytest.mark.parametrize(
+        "version",
+        [
+            "0.4",
+            "1.0",
+            "0.11",
+            "0.4-rc1",
+            "0.4-rc10",
+            "0.4-preview",
+            "10.20",
+        ],
+    )
+    def test_valid_base_versions(self, version):
+        validate_version_tag(version, is_base=True)
+
+    # --- Invalid full versions ---
+
+    @pytest.mark.parametrize(
+        "version",
+        [
+            "",
+            "abc",
+            "0.4",  # base format, not full
+            "0.4.2.1",  # four components
+            "0.4.2-rc",  # missing rc number
+            "0.4.2-rc0",  # rc0 not allowed
+            "0.4.2-beta",  # unsupported suffix
+            "v0.4.2",  # leading 'v'
+            "0.04.2",  # leading zero in minor
+            "0.4.02",  # leading zero in patch
+        ],
+    )
+    def test_invalid_full_versions(self, version):
+        with pytest.raises(ValueError):
+            validate_version_tag(version, is_base=False)
+
+    # --- Invalid base versions ---
+
+    @pytest.mark.parametrize(
+        "version",
+        [
+            "",
+            "abc",
+            "0.4.0",  # full format, not base
+            "0.4-rc",  # missing rc number
+            "0.4-rc0",  # rc0 not allowed
+            "0.4-beta",  # unsupported suffix
+            "v0.4",  # leading 'v'
+            "0.04",  # leading zero in minor
+        ],
+    )
+    def test_invalid_base_versions(self, version):
+        with pytest.raises(ValueError):
+            validate_version_tag(version, is_base=True)

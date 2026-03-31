@@ -29,7 +29,7 @@ Supported commands:
 | copy-value                  | Copy values between metadata fields                 |
 | rename-key                  | Rename keys in metadata                             |
 | add-recommended-deployments | Add or update recommended deployment configurations |
-| validate                    | Validate metadata files against schemas             |
+| validate                    | Validate metadata files                             |
 | list-keys                   | List all keys in metadata files                     |
 
 ### Command Examples
@@ -220,15 +220,15 @@ python -m aim_utils.metadata_utils init
 
 4. **Set HF token correctly**: Ensure the `hfToken.required` field accurately reflects whether the model requires authentication.
 
-5. **Validate before committing**: Always validate metadata against the schema before committing changes.
+5. **Validate before committing**: Always validate metadata before committing changes.
 
 6. **Keep licenses accurate**: Ensure the license information matches the original model's license.
 
-## Schema Files
+## Validation Models
 
-The complete JSON schemas can be found in:
+Metadata validation is handled by Pydantic models defined in `src/aim_common/metadata_models.py`:
 
-- `/schemas/metadata_schema.json`
-- `/schemas/base_metadata_schema.json`
+- `ModelMetadataModel`: Validates model-specific metadata files
+- `BaseMetadataModel`: Validates base metadata files
 
-These files provide specification for the metadata structure and validation rules.
+These models provide the specification for the metadata structure and validation rules.

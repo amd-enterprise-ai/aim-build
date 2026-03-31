@@ -11,16 +11,30 @@ This module handles Click command definitions and command logic.
 """
 import json
 import logging
+import os
+import signal
+import subprocess
 import sys
+import time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 import click
 import yaml
 
-from aim_runtime.aim_runtime import AIMRuntime
-from aim_runtime.config import AIMConfig
-from aim_runtime.logging_config import configure_logging
-from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileSelector
+from logging_config import configure_logging
+
+root_log_level = os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING")
+configure_logging(
+    root_log_level=root_log_level,
+    aim_log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
+)
+os.environ["VLLM_LOGGING_LEVEL"] = root_log_level
+
+from aim_runtime.aim_runtime import AIMRuntime  # noqa: E402
+from aim_runtime.config import AIMConfig  # noqa: E402
+from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileSelector  # noqa: E402
 
 # Add the src directory to the Python path
 src_dir = Path(__file__).parent
@@ -181,9 +195,9 @@ def download_to_cache(model_id, use_hf_cache):
 )
 @click.option(
     "--format",
-    type=click.Choice(["text", "table"], case_sensitive=False),
+    type=click.Choice(["text", "table", "json", "yaml"], case_sensitive=False),
     default="table",
-    help="Output format: text (grouped by state) or table (all profiles in table) (default: table)",
+    help="Output format: text, table, json, or yaml (default: table)",
 )
 @click.option(
     "--skip-compatibility-check",
@@ -202,9 +216,10 @@ def list_profiles(state, format, skip_compatibility_check, verbose):
     Examples:
       aim-runtime list-profiles
       aim-runtime list-profiles --state compatible
-      aim-runtime list-profiles --format table
+      aim-runtime list-profiles --format json
+      aim-runtime list-profiles --format yaml
       aim-runtime list-profiles --state gpu_mismatch --format table --verbose
-      aim-runtime list-profiles --skip-compatibility-check --format table
+      aim-runtime list-profiles --skip-compatibility-check --format json
     """
     try:
         # Load configuration from environment variables
@@ -219,25 +234,40 @@ def list_profiles(state, format, skip_compatibility_check, verbose):
         # Create profile selector
         selector = ProfileSelector(config)
 
-        if skip_compatibility_check:
-            # Skip GPU detection and compatibility checks - list all profiles
-            output = selector.format_all_profiles_report(format_type=format)
-        else:
-            # Get categorized profiles with compatibility checks
-            categorized = selector.get_categorized_profiles()
+        if skip_compatibility_check and state != "all":
+            logger.warning("Ignoring --state filter: not applicable with --skip-compatibility-check")
 
-            # Filter by state if specified
-            if state != "all":
-                state_key = ProfileCompatibilityState(state)
-                categorized = {state_key: categorized[state_key]}
-
-            # Output results
-            if format == "table":
-                output = selector.format_table_report(categorized)
+        if format in ("json", "yaml"):
+            # Machine-readable output
+            if skip_compatibility_check:
+                serialized = selector.serialize_all_profiles()
             else:
-                output = selector.format_text_report(categorized)
+                categorized = selector.get_categorized_profiles()
+                if state != "all":
+                    state_key = ProfileCompatibilityState(state)
+                    categorized = {state_key: categorized[state_key]}
+                serialized = selector.serialize_profiles(categorized)
 
-        print(output)
+            if format == "json":
+                print(json.dumps(serialized, indent=2))
+            else:
+                print(yaml.safe_dump(serialized, sort_keys=False))
+        else:
+            # Human-readable output
+            if skip_compatibility_check:
+                output = selector.format_all_profiles_report(format_type=format)
+            else:
+                categorized = selector.get_categorized_profiles()
+                if state != "all":
+                    state_key = ProfileCompatibilityState(state)
+                    categorized = {state_key: categorized[state_key]}
+
+                if format == "table":
+                    output = selector.format_table_report(categorized)
+                else:
+                    output = selector.format_text_report(categorized)
+
+            print(output)
 
     except ValueError as e:
         configure_logging(root_log_level="WARNING", aim_log_level="WARNING")
@@ -249,6 +279,142 @@ def list_profiles(state, format, skip_compatibility_check, verbose):
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         sys.exit(1)
+
+
+def _wait_for_service(service_url: str, timeout_seconds: int, poll_interval: float = 2.0) -> None:
+    deadline = time.time() + timeout_seconds
+    last_error = None
+
+    while time.time() < deadline:
+        try:
+            with urlopen(Request(f"{service_url}/v1/models"), timeout=5) as response:
+                if response.status == 200:
+                    return
+                last_error = f"status {response.status}"
+        except HTTPError as exc:
+            last_error = f"status {exc.code}"
+        except URLError as exc:
+            last_error = str(exc)
+
+        time.sleep(poll_interval)
+
+    raise RuntimeError(
+        f"Service not ready at {service_url} after {timeout_seconds}s" + (f": {last_error}" if last_error else "")
+    )
+
+
+def _start_server_in_background(config: AIMConfig) -> subprocess.Popen:
+    runtime = AIMRuntime(config)
+    logger.info("Selecting profile for benchmark server...")
+    profile = runtime.profile_selector.find_profile()
+    logger.info(f"Selected profile: {profile.profile_handling.path}")
+
+    command_list, env_vars = runtime.command_generator.generate_execution_params(profile)
+    env = os.environ.copy()
+    env.update({key: str(value) for key, value in env_vars.items()})
+
+    logger.info(f"Starting benchmark server: {' '.join(command_list)}")
+    return subprocess.Popen(command_list, env=env)
+
+
+@cli.command(name="benchmark")
+@click.option(
+    "--service-url",
+    type=str,
+    required=False,
+    help="AIM service URL including port (e.g. http://localhost:8000).",
+)
+@click.option(
+    "--timeout-seconds",
+    type=int,
+    default=30,
+    show_default=True,
+    help="Timeout in seconds for service requests.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    type=str,
+    default=None,
+    help="Path to benchmark config YAML (defaults to built-in config).",
+)
+@click.option(
+    "--output-dir",
+    type=str,
+    default=".",
+    show_default=True,
+    help="Directory to write benchmark results.",
+)
+@click.option(
+    "--startup-timeout",
+    type=int,
+    default=120,
+    show_default=True,
+    help="Seconds to wait for the server to become ready.",
+)
+def benchmark(service_url, timeout_seconds, config_file, output_dir, startup_timeout):
+    """Run the benchmark suite against a running AIM service."""
+    server_process = None
+    try:
+        configure_logging(
+            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
+            aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
+        )
+
+        # If no service URL is provided, start the server and use the local address
+        if not service_url:
+            config = AIMConfig.from_environment()
+            server_process = _start_server_in_background(config)
+
+            service_url = f"http://localhost:{config.port}"
+
+            logger.info(f"Waiting for server readiness at {service_url}...")
+            _wait_for_service(service_url, startup_timeout)
+
+        # Lazy import: avoid loading benchmarking dependencies for non-benchmark commands
+        from aim_runtime.benchmarking import AIMBenchmark
+
+        # Initialize benchmark runner
+        benchmark_runner = AIMBenchmark(
+            service_url=service_url,
+            timeout_seconds=timeout_seconds,
+            config_file=config_file,
+        )
+
+        # Run benchmark suite
+        results = benchmark_runner.run_benchmark_suite()
+
+        # Export results
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        benchmark_runner.export_results(results, output_dir=str(output_path))
+
+        # Exit with appropriate code
+        if results.get("overall_success"):
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    except Exception as e:
+        logger.error(f"Benchmarking failed: {e}")
+        sys.exit(1)
+    finally:
+        if server_process:
+            logger.info("Stopping benchmark server...")
+            if server_process.poll() is None:
+                try:
+                    server_process.send_signal(signal.SIGINT)
+                    server_process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    logger.warning("Benchmark server did not exit after SIGINT; sending SIGTERM.")
+                    server_process.terminate()
+                    try:
+                        server_process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("Benchmark server did not exit cleanly; killing it.")
+                        server_process.kill()
+                except OSError:
+                    pass  # Process already exited between poll() and send_signal()
 
 
 def main():

@@ -1,0 +1,21 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: meta-llama/Llama-3.1-8B-Instruct
+model_id: meta-llama/Llama-3.1-8B-Instruct
+metadata:
+  engine: "vllm"
+  gpu: "MI325X"
+  precision: "fp16"
+  gpu_count: 1
+  metric: "latency"
+  manual_selection_only: true
+  type: "unoptimized"
+
+engine_args:
+  dtype: "float16"
+  tensor-parallel-size: 1
+
+env_vars:
+  VLLM_DO_NOT_TRACK: "1"

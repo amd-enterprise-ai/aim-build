@@ -13,7 +13,7 @@ def test_model_mapping_and_normalization():
     assert d._normalize_device_id("74a1") == "0x74a1"
     assert d._normalize_device_id("0x74a1") == "0x74a1"
     assert d.get_gpu_model("0x74a1") == "MI300X"
-    assert d.get_gpu_model("0x7000") == "UNKNOWN"
+    assert d.get_gpu_model("0x7000") is None
 
 
 def test_library_path_idle(monkeypatch):

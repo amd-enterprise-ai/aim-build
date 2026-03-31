@@ -1,0 +1,74 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "235B parameter MoE language model with 22B active parameters and dual thinking modes."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-235B-A22B"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "conversational"
+        source: "https://huggingface.co/Qwen/Qwen3-235B-A22B"
+        variants:
+        - "Qwen/Qwen3-235B-A22B"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-235B-A22B is a 235 billion total parameter mixture-of-experts (MoE) causal language model from the Qwen series by the Qwen Team at Alibaba Group, with 22 billion active parameters per token. It features 94 layers, 128 experts with 8 activated per token, and Grouped-Query Attention (GQA, 64 Q heads and 4 KV heads). The model supports seamless switching between thinking mode (for complex logical reasoning, math, and coding) and non-thinking mode (for efficient general-purpose dialogue). It provides tool calling and agentic capabilities, supports over 100 languages and dialects. Trained through pretraining and post-training stages."
+      title: "Qwen3 235B A22B"

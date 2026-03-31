@@ -6,55 +6,61 @@
 
 import os
 import stat
-import sys
 import tempfile
-from enum import Enum
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-# TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-
-    class StrEnum(str, Enum):
-        """Minimal StrEnum for Python <3.11."""
-
-
-from aim_common import Engine, GPUModel, Metric, Precision
+from aim_common import Engine, Metric, Precision
 from aim_runtime import ProfileRegistry
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import AIMConfig
+from aim_runtime.engine_config import EngineConfig
 from aim_runtime.model_cache_resolver import ModelCacheResolver
 from aim_runtime.object_model import Profile
 from aim_runtime.profile_validator import ProfileValidator
 
 
 @pytest.fixture
-def command_generator(aim_config: AIMConfig) -> CommandGenerator:
+def vllm_engine_config() -> EngineConfig:
+    """Create a vLLM EngineConfig for testing."""
+    return EngineConfig(
+        launch="python -m vllm.entrypoints.openai.api_server",
+        model_arg="--model",
+        validator="vllm",
+    )
+
+
+@pytest.fixture
+def command_generator(aim_config: AIMConfig, vllm_engine_config: EngineConfig) -> CommandGenerator:
     """Create a CommandGenerator instance."""
-    return CommandGenerator(aim_config)
+    return CommandGenerator(aim_config, vllm_engine_config)
 
 
 @pytest.fixture
 def command_generator_model_outside_profiles_path(
     general_aim_config: AIMConfig,
+    vllm_engine_config: EngineConfig,
 ) -> CommandGenerator:
     """Create a CommandGenerator instance without a model."""
-    return CommandGenerator(general_aim_config)
+    return CommandGenerator(general_aim_config, vllm_engine_config)
 
 
 @pytest.fixture
-def command_generator_no_model(faulty_aim_config_with_no_model: AIMConfig) -> CommandGenerator:
+def command_generator_no_model(
+    faulty_aim_config_with_no_model: AIMConfig,
+    vllm_engine_config: EngineConfig,
+) -> CommandGenerator:
     """Create a CommandGenerator instance without a model."""
-    return CommandGenerator(faulty_aim_config_with_no_model)
+    return CommandGenerator(faulty_aim_config_with_no_model, vllm_engine_config)
 
 
 @pytest.fixture
-def minimal_profile(profiles_path, profile_validator: ProfileValidator) -> Profile:
+def minimal_profile(assets_instinct_path, profile_validator: ProfileValidator) -> Profile:
     """Create a minimal profile for testing."""
-    registry = ProfileRegistry.discover_and_validate(search_paths=[profiles_path], validator=profile_validator)
+    profiles_path = Path(assets_instinct_path) / "test" / "model" / "profiles"
+    registry = ProfileRegistry.discover_and_validate(search_paths=[str(profiles_path)], validator=profile_validator)
     return registry.find_by_id("minimal_profile")
 
 
@@ -154,11 +160,12 @@ def test_build_command_list_with_model_in_profile(command_generator: CommandGene
 
 
 def test_build_command_list_with_quantized_model(
-    command_generator: CommandGenerator, profile_validator: ProfileValidator, profiles_path: str
+    command_generator: CommandGenerator, profile_validator: ProfileValidator, assets_instinct_path: str
 ) -> None:
     """Test command list building when model_id is different from aim_id (e.g., quantized model)."""
     # Load the quantized profile
-    registry = ProfileRegistry.discover_and_validate(search_paths=[profiles_path], validator=profile_validator)
+    profiles_path = Path(assets_instinct_path) / "meta-llama" / "Llama-3.1-8B-Instruct" / "profiles"
+    registry = ProfileRegistry.discover_and_validate(search_paths=[str(profiles_path)], validator=profile_validator)
     quantized_profile = registry.find_by_id("test_profile_quantized")
     command_list = command_generator._build_command_list(quantized_profile)
     assert "--model" in command_list
@@ -182,22 +189,6 @@ def test_build_command_list_no_model(
     """Test command list building when no model is specified."""
     with pytest.raises(ValueError, match="Model not specified"):
         command_generator_no_model._build_command_list(minimal_profile_no_model)
-
-
-def test_get_engine_module_vllm(command_generator: CommandGenerator) -> None:
-    """Test engine module resolution for vllm."""
-    module = command_generator._get_engine_module(Engine.VLLM)
-    assert module == "vllm.entrypoints.openai.api_server"
-
-
-def test_get_engine_module_unsupported(command_generator: CommandGenerator) -> None:
-    """Test engine module resolution for unsupported engine."""
-
-    class DummyEngine(StrEnum):
-        UNSUPPORTED = "unsupported"
-
-    with pytest.raises(ValueError, match=r"Unsupported engine: unsupported\. Supported engines: \['auto', 'vllm'\]"):
-        command_generator._get_engine_module(DummyEngine.UNSUPPORTED)
 
 
 def test_build_engine_args_comprehensive(command_generator: CommandGenerator, model_profile: Profile) -> None:
@@ -520,22 +511,22 @@ def test_build_command_list_with_local_dir_cache_no_aim_id(
 
 
 def test_build_command_list_with_local_dir_cache_different_aim_id(
-    model_profile: Profile, tmp_path, schemas_path: str, profiles_path: str
+    model_profile: Profile, tmp_path, assets_instinct_path: str, vllm_engine_config: EngineConfig
 ) -> None:
     """Test command list building with local dir cache where aim_id differs from model_id."""
     # Create config with different aim_id than model_id
+    profiles_path = Path(assets_instinct_path) / "custom" / "meta-llama" / "Llama-3.1-8B-Instruct" / "profiles"
     config = AIMConfig(
         aim_id="custom-aim-id",  # Different from model_id
         model_id=None,
-        schema_search_path=schemas_path,
-        profile_base_path=profiles_path,
+        profile_base_path=str(profiles_path),
         precision=Precision.FP16,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
         gpu_count="1",
-        gpu_model=GPUModel.NONE,
+        gpu_model=None,
     )
-    command_generator = CommandGenerator(config)
+    command_generator = CommandGenerator(config, vllm_engine_config)
 
     # Setup local directory cache
     cache_dir = tmp_path / "model-cache"
@@ -567,7 +558,9 @@ def test_build_command_list_with_local_dir_cache_different_aim_id(
 
 
 def test_build_command_list_general_profile_with_aim_id_fallback(
-    general_profiles_path: str, profile_validator: ProfileValidator, schemas_path: str
+    general_profiles_path: str,
+    profile_validator: ProfileValidator,
+    vllm_engine_config: EngineConfig,
 ) -> None:
     """Test that general profiles can use aim_id as model fallback in model-specific containers."""
     # Create config with aim_id but no model_id (model-specific container)
@@ -575,9 +568,8 @@ def test_build_command_list_general_profile_with_aim_id_fallback(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",  # Model-specific container
         model_id=None,  # No explicit model_id
         profile_base_path=general_profiles_path,
-        schema_search_path=schemas_path,
     )
-    command_generator = CommandGenerator(config)
+    command_generator = CommandGenerator(config, vllm_engine_config)
 
     # Load a general profile (no model_id in profile)
     registry = ProfileRegistry.discover_and_validate(search_paths=[general_profiles_path], validator=profile_validator)

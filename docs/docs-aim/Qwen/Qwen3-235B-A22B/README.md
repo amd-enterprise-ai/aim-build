@@ -26,7 +26,7 @@ easy to integrate with existing applications and services.
   * Profile selection is an automated process of choosing the best profile based on the user's input, hardware, and model.
     * It is possible to bypass automatic selection and specify a particular profile directly using an environment variable.
     * Custom profiles can be created by users to suit their specific needs.
-  * All published profiles are validated against the schema, tested on the target hardware, and optimized for throughput or latency.
+  * All published profiles are validated, tested on the target hardware, and optimized for throughput or latency.
 * **Models downloading and caching**
   * Models can be downloaded from Hugging Face.
   * Downloaded models can be cached in different ways to speed-up subsequent runs.
@@ -76,8 +76,8 @@ The following profiles are available for this model:
 |vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|optimized|False|
 |vllm-mi300x-fp8-tp4-latency|MI300X|fp8|vllm|4|latency|optimized|False|
 |vllm-mi300x-fp8-tp4-throughput|MI300X|fp8|vllm|4|throughput|optimized|False|
-|vllm-mi300x-fp8-tp8-latency|MI300X|fp8|vllm|8|latency|preview|False|
-|vllm-mi300x-fp8-tp8-throughput|MI300X|fp8|vllm|8|throughput|preview|False|
+|vllm-mi300x-fp8-tp8-latency|MI300X|fp8|vllm|8|latency|optimized|False|
+|vllm-mi300x-fp8-tp8-throughput|MI300X|fp8|vllm|8|throughput|optimized|False|
 |vllm-mi325x-fp16-tp4-latency|MI325X|fp16|vllm|4|latency|unoptimized|True|
 |vllm-mi325x-fp16-tp4-throughput|MI325X|fp16|vllm|4|throughput|unoptimized|True|
 |vllm-mi325x-fp16-tp8-latency|MI325X|fp16|vllm|8|latency|unoptimized|True|
@@ -90,32 +90,32 @@ The following profiles are available for this model:
 |vllm-mi325x-fp8-tp8-throughput|MI325X|fp8|vllm|8|throughput|unoptimized|True|
 |vllm-mi350x-fp16-tp2-latency|MI350X|fp16|vllm|2|latency|optimized|False|
 |vllm-mi350x-fp16-tp2-throughput|MI350X|fp16|vllm|2|throughput|optimized|False|
-|vllm-mi350x-fp16-tp4-latency|MI350X|fp16|vllm|4|latency|unoptimized|True|
-|vllm-mi350x-fp16-tp4-throughput|MI350X|fp16|vllm|4|throughput|unoptimized|True|
-|vllm-mi350x-fp16-tp8-latency|MI350X|fp16|vllm|8|latency|unoptimized|True|
-|vllm-mi350x-fp16-tp8-throughput|MI350X|fp16|vllm|8|throughput|unoptimized|True|
+|vllm-mi350x-fp16-tp4-latency|MI350X|fp16|vllm|4|latency|optimized|False|
+|vllm-mi350x-fp16-tp4-throughput|MI350X|fp16|vllm|4|throughput|preview|False|
+|vllm-mi350x-fp16-tp8-latency|MI350X|fp16|vllm|8|latency|optimized|False|
+|vllm-mi350x-fp16-tp8-throughput|MI350X|fp16|vllm|8|throughput|preview|False|
 |vllm-mi350x-fp8-tp1-latency|MI350X|fp8|vllm|1|latency|optimized|False|
 |vllm-mi350x-fp8-tp1-throughput|MI350X|fp8|vllm|1|throughput|optimized|False|
-|vllm-mi350x-fp8-tp2-latency|MI350X|fp8|vllm|2|latency|unoptimized|True|
-|vllm-mi350x-fp8-tp2-throughput|MI350X|fp8|vllm|2|throughput|unoptimized|True|
+|vllm-mi350x-fp8-tp2-latency|MI350X|fp8|vllm|2|latency|optimized|False|
+|vllm-mi350x-fp8-tp2-throughput|MI350X|fp8|vllm|2|throughput|preview|False|
 |vllm-mi350x-fp8-tp4-latency|MI350X|fp8|vllm|4|latency|unoptimized|True|
 |vllm-mi350x-fp8-tp4-throughput|MI350X|fp8|vllm|4|throughput|unoptimized|True|
-|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|preview|False|
-|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|unoptimized|True|
+|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|optimized|False|
+|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|optimized|False|
 |vllm-mi355x-fp16-tp2-latency|MI355X|fp16|vllm|2|latency|optimized|False|
 |vllm-mi355x-fp16-tp2-throughput|MI355X|fp16|vllm|2|throughput|optimized|False|
-|vllm-mi355x-fp16-tp4-latency|MI355X|fp16|vllm|4|latency|unoptimized|True|
-|vllm-mi355x-fp16-tp4-throughput|MI355X|fp16|vllm|4|throughput|unoptimized|True|
-|vllm-mi355x-fp16-tp8-latency|MI355X|fp16|vllm|8|latency|unoptimized|True|
+|vllm-mi355x-fp16-tp4-latency|MI355X|fp16|vllm|4|latency|preview|False|
+|vllm-mi355x-fp16-tp4-throughput|MI355X|fp16|vllm|4|throughput|preview|False|
+|vllm-mi355x-fp16-tp8-latency|MI355X|fp16|vllm|8|latency|optimized|False|
 |vllm-mi355x-fp16-tp8-throughput|MI355X|fp16|vllm|8|throughput|preview|False|
 |vllm-mi355x-fp8-tp1-latency|MI355X|fp8|vllm|1|latency|optimized|False|
 |vllm-mi355x-fp8-tp1-throughput|MI355X|fp8|vllm|1|throughput|optimized|False|
-|vllm-mi355x-fp8-tp2-latency|MI355X|fp8|vllm|2|latency|unoptimized|True|
-|vllm-mi355x-fp8-tp2-throughput|MI355X|fp8|vllm|2|throughput|unoptimized|True|
+|vllm-mi355x-fp8-tp2-latency|MI355X|fp8|vllm|2|latency|optimized|False|
+|vllm-mi355x-fp8-tp2-throughput|MI355X|fp8|vllm|2|throughput|preview|False|
 |vllm-mi355x-fp8-tp4-latency|MI355X|fp8|vllm|4|latency|unoptimized|True|
 |vllm-mi355x-fp8-tp4-throughput|MI355X|fp8|vllm|4|throughput|unoptimized|True|
-|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|preview|False|
-|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|unoptimized|True|
+|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|optimized|False|
+|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|optimized|False|
 |vllm-mi250x-fp16-tp1-latency|MI250X|fp16|vllm|1|latency|general|False|
 |vllm-mi250x-fp16-tp1-throughput|MI250X|fp16|vllm|1|throughput|general|False|
 |vllm-mi250x-fp16-tp2-latency|MI250X|fp16|vllm|2|latency|general|False|

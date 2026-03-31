@@ -4,7 +4,7 @@
 
 import pytest
 
-from aim_utils.dict_utils import delete_key, get_value, set_value
+from aim_utils.dict_utils import delete_key, get_value, rename_key, rename_keys, set_value, sort_dict_keys_in_list
 
 
 @pytest.fixture
@@ -134,3 +134,121 @@ class TestDeleteKey:
     def test_delete_key_none_value(self, sample_dict):
         updated = delete_key(sample_dict, "none_key")
         assert "none_key" not in updated
+
+
+class TestSortDictKeysInList:
+    def test_sort_dict_keys_in_list_single_dict(self):
+        input_list = [{"z": 1, "a": 2, "m": 3}]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["a", "m", "z"]
+        assert result[0] == {"a": 2, "m": 3, "z": 1}
+
+    def test_sort_dict_keys_in_list_multiple_dicts(self):
+        input_list = [
+            {"z": 1, "a": 2, "m": 3},
+            {"x": "first", "b": "second", "d": "third"},
+            {"y": True, "c": False, "e": None},
+        ]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["a", "m", "z"]
+        assert list(result[1].keys()) == ["b", "d", "x"]
+        assert list(result[2].keys()) == ["c", "e", "y"]
+
+    def test_sort_dict_keys_in_list_already_sorted(self):
+        input_list = [{"a": 1, "b": 2, "c": 3}]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["a", "b", "c"]
+        assert result[0] == {"a": 1, "b": 2, "c": 3}
+
+    def test_sort_dict_keys_in_list_empty_list(self):
+        result = sort_dict_keys_in_list([])
+        assert result == []
+
+    def test_sort_dict_keys_in_list_empty_dict(self):
+        input_list = [{}]
+        result = sort_dict_keys_in_list(input_list)
+        assert result == [{}]
+
+    def test_sort_dict_keys_in_list_nested_values(self):
+        input_list = [{"z": {"nested": "value"}, "a": [1, 2, 3], "m": {"another": "dict"}}]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["a", "m", "z"]
+        assert result[0]["z"] == {"nested": "value"}
+        assert result[0]["a"] == [1, 2, 3]
+        assert result[0]["m"] == {"another": "dict"}
+
+    def test_sort_dict_keys_in_list_preserves_values(self):
+        input_list = [
+            {"name": "Alice", "age": 30, "city": "NYC"},
+            {"name": "Bob", "age": 25, "city": "LA"},
+        ]
+        result = sort_dict_keys_in_list(input_list)
+        assert result[0] == {"age": 30, "city": "NYC", "name": "Alice"}
+        assert result[1] == {"age": 25, "city": "LA", "name": "Bob"}
+
+    def test_sort_dict_keys_in_list_mixed_types(self):
+        input_list = [{"z": 1, "a": "string", "m": True, "b": None, "y": [1, 2, 3]}]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["a", "b", "m", "y", "z"]
+        assert result[0]["z"] == 1
+        assert result[0]["a"] == "string"
+        assert result[0]["m"] is True
+        assert result[0]["b"] is None
+        assert result[0]["y"] == [1, 2, 3]
+
+    def test_sort_dict_keys_in_list_case_sensitive_sorting(self):
+        input_list = [{"Z": 1, "a": 2, "B": 3, "c": 4}]
+        result = sort_dict_keys_in_list(input_list)
+        # Python sorts uppercase before lowercase
+        assert list(result[0].keys()) == ["B", "Z", "a", "c"]
+
+    def test_sort_dict_keys_in_list_numeric_string_keys(self):
+        input_list = [{"3": "three", "1": "one", "2": "two"}]
+        result = sort_dict_keys_in_list(input_list)
+        assert list(result[0].keys()) == ["1", "2", "3"]
+        assert result[0] == {"1": "one", "2": "two", "3": "three"}
+
+    def test_sort_dict_keys_in_list_does_not_modify_original(self):
+        input_list = [{"z": 1, "a": 2, "m": 3}]
+        original_keys = list(input_list[0].keys())
+        result = sort_dict_keys_in_list(input_list)
+        # Original list should not be modified
+        assert list(input_list[0].keys()) == original_keys
+        # Result should have sorted keys
+        assert list(result[0].keys()) == ["a", "m", "z"]
+
+
+class TestRenameKey:
+    def test_rename_existing_top_level_key(self):
+        d = {"gpuModel": "MI300X", "count": 2}
+        result = rename_key(d, "gpuModel", "gpu")
+        assert result == {"gpu": "MI300X", "count": 2}
+        assert "gpuModel" not in result
+
+    def test_rename_missing_key_is_noop(self):
+        d = {"count": 2}
+        result = rename_key(d, "gpuModel", "gpu")
+        assert result == {"count": 2}
+
+    def test_rename_modifies_in_place(self):
+        d = {"gpuModel": "MI300X"}
+        updated = rename_key(d, "gpuModel", "gpu")
+        assert "gpu" in d
+        assert updated is d
+
+
+class TestRenameKeys:
+    def test_rename_multiple_keys(self):
+        d = {"gpuModel": "MI300X", "gpuCount": 4, "engine": "vllm"}
+        result = rename_keys(d, {"gpuModel": "gpu", "gpuCount": "gpu_count"})
+        assert result == {"gpu": "MI300X", "gpu_count": 4, "engine": "vllm"}
+
+    def test_rename_keys_empty_mapping(self):
+        d = {"gpuModel": "MI300X"}
+        result = rename_keys(d, {})
+        assert result == {"gpuModel": "MI300X"}
+
+    def test_rename_keys_skips_missing(self):
+        d = {"engine": "vllm"}
+        result = rename_keys(d, {"gpuModel": "gpu", "gpuCount": "gpu_count"})
+        assert result == {"engine": "vllm"}

@@ -10,7 +10,7 @@ SPDX-License-Identifier: MIT
 
 Pass additional engine arguments at runtime using the `AIM_ENGINE_ARGS` environment variable to customize inference behavior without modifying profiles.
 
-**Validation**: Arguments are validated against the engine's JSON schema to ensure correct types and formats. Direct execution via `os.execv()` makes command injection architecturally impossible.
+**Validation**: Arguments are validated against the engine's argument definitions to ensure correct types and formats. Direct execution via `os.execv()` makes command injection architecturally impossible.
 
 ## Usage
 
@@ -56,7 +56,7 @@ AIM_ENGINE_ARGS='{"gpu-memory-utilization": 0.85, "max-model-len": 4096}'
 
 ## Validation
 
-Arguments are validated against the engine's JSON schema (`schemas/vllm_engine_schema.json`):
+Arguments are validated using native vLLM `EngineArgs` parsing (with a Pydantic model fallback):
 - **Type checking**: integer, float, string, boolean, null
 - **Enum validation**: e.g., `dtype` must be "auto", "bfloat16", "float16", etc.
 - **Structure validation**: nested objects must match expected format

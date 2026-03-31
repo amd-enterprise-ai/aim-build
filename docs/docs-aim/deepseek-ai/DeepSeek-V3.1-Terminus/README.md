@@ -26,7 +26,7 @@ easy to integrate with existing applications and services.
   * Profile selection is an automated process of choosing the best profile based on the user's input, hardware, and model.
     * It is possible to bypass automatic selection and specify a particular profile directly using an environment variable.
     * Custom profiles can be created by users to suit their specific needs.
-  * All published profiles are validated against the schema, tested on the target hardware, and optimized for throughput or latency.
+  * All published profiles are validated, tested on the target hardware, and optimized for throughput or latency.
 * **Models downloading and caching**
   * Models can be downloaded from Hugging Face.
   * Downloaded models can be cached in different ways to speed-up subsequent runs.
@@ -71,10 +71,10 @@ The following profiles are available for this model:
 |vllm-mi300x-fp8-tp8-throughput|MI300X|fp8|vllm|8|throughput|optimized|False|
 |vllm-mi325x-fp8-tp8-latency|MI325X|fp8|vllm|8|latency|unoptimized|True|
 |vllm-mi325x-fp8-tp8-throughput|MI325X|fp8|vllm|8|throughput|unoptimized|True|
-|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|unoptimized|True|
-|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|unoptimized|True|
-|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|unoptimized|True|
-|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|unoptimized|True|
+|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|optimized|False|
+|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|optimized|False|
+|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|optimized|False|
+|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|optimized|False|
 |vllm-mi250x-fp16-tp1-latency|MI250X|fp16|vllm|1|latency|general|False|
 |vllm-mi250x-fp16-tp1-throughput|MI250X|fp16|vllm|1|throughput|general|False|
 |vllm-mi250x-fp16-tp2-latency|MI250X|fp16|vllm|2|latency|general|False|

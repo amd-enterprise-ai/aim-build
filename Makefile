@@ -5,18 +5,26 @@
 # ==============================================================================
 # Makefile for building AIM containers
 # ==============================================================================
-# This Makefile provides targets for building, tagging, and pushing AIM
-# container images. It supports both base images (with AIM runtime) and
-# model-specific images (with model profiles).
+# This Makefile builds AIM container images using the standard AIM conventions:
+#
+#   - Image naming: per-model repos  aim-{org}-{model}:{version}
+#   - Name sanitization: lowercase, non-alphanumeric → "-", collapse separators
+#   - Base image source: reads assets/{ACCELERATOR_TYPE}/{ORG}/{MODEL}/config.yaml
+#   - OCI labels: generated via aim_utils.generate_labels
+#
+# Local dev builds use a ".0-dev" version suffix (e.g. 0.10.0-dev) to
+# distinguish them from published releases which use full semver tags.
 #
 # Common targets:
-#   make build           - Build base and default model images
+#   make build           - Build base + default model image
+#   make build-model ORG=<org> MODEL=<model>  - Build a specific model image
 #   make all-models      - Build, tag, and push all model images
 #   make test            - Run unit tests
 #   make dev-setup       - Set up development environment
 #
-# Override variables:
+# Examples:
 #   make build-model ORG=meta-llama MODEL=Llama-3.1-70B-Instruct
+#   make build-model ORG=Qwen MODEL=Qwen3-32B
 # ==============================================================================
 
 # ==============================================================================
@@ -26,34 +34,95 @@
 # Import default configuration values
 -include makefile-defaults.mk
 
+# If zen5 flag is set, include zen5 makefile (must be before ACCELERATOR_TYPE
+# default and computed variables so overrides take effect)
+ifeq ($(BUILD_ZEN5), true)
+include makefile-zen5.mk
+endif
+
+# Accelerator type: instinct (GPU) or epyc
+ACCELERATOR_TYPE ?= instinct
+
 # ==============================================================================
 # Computed Variables
 # ==============================================================================
 
+BASE_REGISTRY_NAMESPACE   := $(shell python -m aim_utils.config_utils get base_image.registry_host --canonical_name base --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(BASE_REGISTRY_NAMESPACE))
+BASE_REPOSITORY := $(shell python -m aim_utils.config_utils get base_image.base_repository --canonical_name base --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(BASE_REPOSITORY))
+BASE_TAG        := $(shell python -m aim_utils.config_utils get base_image.base_tag --canonical_name base --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(BASE_TAG))
+
 # Dockerfile paths
-DOCKERFILE_BASE  = docker/Dockerfile.aim-base
+ifeq ($(ACCELERATOR_TYPE),epyc)
+  DOCKERFILE_BASE = docker/Dockerfile.aim-epyc-base
+  AIM_BASE_REPOSITORY = aim-epyc-base
+  AIM_REPOSITORY = aim-epyc
+else
+  DOCKERFILE_BASE = docker/Dockerfile.aim-base
+endif
 DOCKERFILE_MODEL = docker/Dockerfile.aim
 
-# Convert organization and model names to lowercase for Docker tag safety
-ORG_LOWER   = $(shell echo $(ORG) | tr '[:upper:]' '[:lower:]')
-MODEL_LOWER = $(shell echo $(MODEL) | tr '[:upper:]' '[:lower:]')
+# ==============================================================================
+# Name Sanitization
+# ==============================================================================
+# Docker-safe names: lowercase → replace non-[a-z0-9._-] with "-" → collapse → strip
+ORG_SANITIZED   = $(shell echo '$(ORG)' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g' | sed 's/[-_.][-._ ]*/-/g' | sed 's/^[-_.]//;s/[-_.]$$//')
+MODEL_SANITIZED = $(shell echo '$(MODEL)' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g' | sed 's/[-_.][-._ ]*/-/g' | sed 's/^[-_.]//;s/[-_.]$$//')
 
-# Base container version (semantic versioning)
-# Used for: aim-base:0.3
+# ==============================================================================
+# Base Image Version
+# ==============================================================================
+# Base container version from pyproject.toml (semantic versioning)
 AIM_BASE_IMAGE_TAG = $(shell python -c "import tomllib; f=open('pyproject.toml', 'rb'); print(tomllib.load(f)['project']['version'])")
 
 # Base image references
-# Example: aim-base:0.3
+# Example: aim-base:0.10
 LOCAL_BASE_IMAGE_REF  = $(AIM_BASE_REPOSITORY):$(AIM_BASE_IMAGE_TAG)
 REMOTE_BASE_IMAGE_REF = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_BASE_REPOSITORY):$(AIM_BASE_IMAGE_TAG)
 
-# Model-specific image references
-# Example: aim:0.3.0-meta-llama-llama-3.1-8b-instruct-v20251001
-MODEL_TAG              = $(AIM_BASE_IMAGE_TAG)-$(ORG_LOWER)-$(MODEL_LOWER)-$(DATE_VERSION)
-LOCAL_MODEL_IMAGE_REF  = $(AIM_REPOSITORY):$(MODEL_TAG)
-REMOTE_MODEL_IMAGE_REF = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(AIM_REPOSITORY):$(MODEL_TAG)
+# ==============================================================================
+# Model Image References
+# ==============================================================================
+# Per-model repositories: aim-{org_sanitized}-{name_sanitized}:{version}
+# Local dev builds use {base_version}.0-dev (no registry lookup needed)
+# Example: aim-meta-llama-llama-3-1-8b-instruct:0.10.0-dev
+MODEL_IMAGE_REPOSITORY = $(AIM_REPOSITORY)-$(ORG_SANITIZED)-$(MODEL_SANITIZED)
+MODEL_TAG              = $(AIM_BASE_IMAGE_TAG).0-dev
+LOCAL_MODEL_IMAGE_REF  = $(MODEL_IMAGE_REPOSITORY):$(MODEL_TAG)
+REMOTE_MODEL_IMAGE_REF = $(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/$(MODEL_IMAGE_REPOSITORY):$(MODEL_TAG)
 
+# ==============================================================================
+# Model Base Image (from assets config)
+# ==============================================================================
+# Base image info is read from assets/{ACCELERATOR_TYPE}/{ORG}/{MODEL}/config.yaml
+MODEL_BASE_REGISTRY   = $(shell python -m aim_utils.config_utils get base_image.registry_host --canonical_name $(ORG)/$(MODEL) --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(AIM_REGISTRY_HOSTNAME))
+MODEL_BASE_NAMESPACE  = $(shell python -m aim_utils.config_utils get base_image.base_registry_namespace --canonical_name $(ORG)/$(MODEL) --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(AIM_REGISTRY_NAMESPACE))
+MODEL_BASE_REPOSITORY = $(shell python -m aim_utils.config_utils get base_image.base_repository --canonical_name $(ORG)/$(MODEL) --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(AIM_BASE_REPOSITORY))
+MODEL_BASE_TAG        = $(shell python -m aim_utils.config_utils get base_image.base_tag --canonical_name $(ORG)/$(MODEL) --assets_path assets/$(ACCELERATOR_TYPE) 2>/dev/null || echo $(AIM_BASE_IMAGE_TAG))
 
+# ==============================================================================
+# OCI Metadata Labels (via aim_utils.generate_labels)
+# ==============================================================================
+# Generates OCI-standard --label flags for docker buildx build.
+# Uses LABELS_IS_DOCKER_FORMAT to output "--label key=value" format.
+LABELS_COMMON_ENV = \
+	LABELS_SERVER_URL=https://github.com \
+	LABELS_REPOSITORY=silogen/aim-build \
+	LABELS_SHA=$$(git rev-parse HEAD) \
+	LABELS_TIMESTAMP=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+	LABELS_UPDATED_AT=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+	LABELS_IS_DOCKER_FORMAT=true
+
+LABELS_BASE = $(shell $(LABELS_COMMON_ENV) \
+	LABELS_IS_BASE=true \
+	LABELS_VERSION_NUMBER=$(AIM_BASE_IMAGE_TAG) \
+	python -m aim_utils.generate_labels assets/$(ACCELERATOR_TYPE)/base/metadata.yaml)
+
+LABELS_MODEL = $(shell $(LABELS_COMMON_ENV) \
+	LABELS_IS_BASE=false \
+	LABELS_ORG=$(ORG) \
+	LABELS_MODEL_NAME=$(MODEL) \
+	LABELS_VERSION_NUMBER=$(MODEL_TAG) \
+	python -m aim_utils.generate_labels assets/$(ACCELERATOR_TYPE)/$(ORG)/$(MODEL)/metadata.yaml)
 
 # ==============================================================================
 # Targets
@@ -87,17 +156,22 @@ build-base:
 		--build-arg BASE_REGISTRY_NAMESPACE=$(BASE_REGISTRY_NAMESPACE) \
 		--build-arg BASE_REPOSITORY=$(BASE_REPOSITORY) \
 		--build-arg BASE_TAG=$(BASE_TAG) \
+		$(LABELS_BASE) \
 		-t $(LOCAL_BASE_IMAGE_REF) -f $(DOCKERFILE_BASE) .
 
 # Build the model-specific AIM container
+# Uses base image reference from assets/{ACCELERATOR_TYPE}/{ORG}/{MODEL}/config.yaml
 build-model: build-base tag-base
 	@echo ">>> Building model-specific image: $(LOCAL_MODEL_IMAGE_REF) for $(ORG)/$(MODEL)"
+	@echo "    Base image: $(MODEL_BASE_REGISTRY)/$(MODEL_BASE_NAMESPACE)/$(MODEL_BASE_REPOSITORY):$(MODEL_BASE_TAG)"
 	docker buildx build \
-		--build-arg BASE_REGISTRY_NAMESPACE=$(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE) \
-		--build-arg BASE_REPOSITORY=$(AIM_BASE_REPOSITORY) \
-		--build-arg BASE_TAG=$(AIM_BASE_IMAGE_TAG) \
+		--build-arg BASE_REGISTRY_NAMESPACE=$(MODEL_BASE_REGISTRY)/$(MODEL_BASE_NAMESPACE) \
+		--build-arg BASE_REPOSITORY=$(MODEL_BASE_REPOSITORY) \
+		--build-arg BASE_TAG=$(MODEL_BASE_TAG) \
 		--build-arg ORG=$(ORG) \
 		--build-arg MODEL=$(MODEL) \
+		--build-arg ACCELERATOR_TYPE=$(ACCELERATOR_TYPE) \
+		$(LABELS_MODEL) \
 		-t $(LOCAL_MODEL_IMAGE_REF) \
 		-f $(DOCKERFILE_MODEL) .
 
@@ -224,6 +298,12 @@ test-cov:
 	@echo ">>> Running unit tests with coverage (excluding integration tests)"
 	python3 -m pytest tests/ -v -m "not integration" --cov=src/aim_runtime --cov=src/aim_common --cov=src/aim_utils --cov-report=term --cov-report=html
 
+# Run CI tests with dedicated coverage report
+.PHONY: test-ci-cov
+test-ci-cov:
+	@echo ">>> Running CI tests with coverage (report in htmlcov-ci/)"
+	python3 -m pytest tests/ci/ -v --cov=ci --cov-config=.coveragerc-ci
+
 # Run integration tests (requires GPU environment)
 .PHONY: test-integration
 test-integration:
@@ -282,12 +362,8 @@ clean-all-models:
 			for model_dir in $$org_dir*/; do \
 				if [ -d "$$model_dir" ]; then \
 					model=$$(basename $$model_dir); \
-					org_lower=$$(echo $$org | tr '[:upper:]' '[:lower:]'); \
-					model_lower=$$(echo $$model | tr '[:upper:]' '[:lower:]'); \
-					local_image="aim:$(AIM_BASE_IMAGE_TAG)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
-					remote_image="$(AIM_REGISTRY_HOSTNAME)/$(AIM_REGISTRY_NAMESPACE)/aim:$(AIM_BASE_IMAGE_TAG)-$$org_lower-$$model_lower-$(DATE_VERSION)"; \
-					echo ">>> Removing $$local_image and $$remote_image"; \
-					docker image rm $$local_image $$remote_image || true; \
+					echo ">>> Removing images for $$org/$$model"; \
+					$(MAKE) clean ORG=$$org MODEL=$$model || true; \
 				fi; \
 			done; \
 		fi; \

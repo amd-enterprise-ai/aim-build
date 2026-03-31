@@ -11,9 +11,8 @@ profile selection, command generation, GPU detection, and configuration manageme
 
 from .aim_runtime import AIMRuntime
 from .command_generator import CommandGenerator
-from .config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, DEFAULT_SCHEMA_SEARCH_PATH, AIMConfig
+from .config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, AIMConfig
 from .gpu_detector import GPUDetector
-from .logging_config import configure_logging
 from .profile_registry import Profile, ProfileMetadata, ProfileRegistry
 from .profile_selector import ProfileCompatibilityResult, ProfileCompatibilityState, ProfileSelector
 
@@ -22,7 +21,6 @@ __all__ = [
     "AIMConfig",
     "DEFAULT_CACHE_PATH",
     "DEFAULT_PROFILE_BASE_PATH",
-    "DEFAULT_SCHEMA_SEARCH_PATH",
     "ProfileSelector",
     "ProfileRegistry",
     "Profile",
@@ -32,5 +30,4 @@ __all__ = [
     "CommandGenerator",
     "AIMRuntime",
     "GPUDetector",
-    "configure_logging",
 ]

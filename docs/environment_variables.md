@@ -53,7 +53,7 @@ docker run \
   aim-base:0.9
 ```
 
-Arguments are validated against the engine's schema and merged with values provided by a profile.
+Arguments are validated against the engine's argument definitions and merged with values provided by a profile.
 
 **See [Engine Arguments Override Documentation](docs/engine-args-override.md)** for complete usage guide, validation details, and examples.
 

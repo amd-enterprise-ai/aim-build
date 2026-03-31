@@ -15,9 +15,9 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from jsonschema import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 
-from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata, ProfileType
+from aim_common import ProfileMetadata
 
 from .object_model import Profile, ProfileHandling
 from .profile_validator import ProfileValidator
@@ -73,8 +73,8 @@ class ProfileRegistry:
                     else:
                         logger.debug(f"Profile {profile.profile_id} already found in higher precedence path, skipping")
 
-                except ValidationError as e:
-                    logger.warning(f"✗ Invalid profile: {profile_file} - Validation error: {e.message}")
+                except (PydanticValidationError, ValueError) as e:
+                    logger.warning(f"✗ Invalid profile: {profile_file} - Validation error: {e}")
                 except Exception as e:
                     logger.warning(f"Failed to process profile file {profile_file}: {e}")
 
@@ -119,16 +119,7 @@ class ProfileRegistry:
         # Validate the profile using the already-loaded data (this will raise ValidationError if invalid)
         validator.validate(profile_data, is_general_profile=is_general)
 
-        metadata_dict = profile_data["metadata"]
-        metadata = ProfileMetadata(
-            engine=Engine(metadata_dict["engine"].lower()),
-            gpu=GPUModel.from_string(metadata_dict["gpu"]),
-            precision=Precision(metadata_dict["precision"].lower()),
-            gpu_count=metadata_dict["gpu_count"],
-            metric=Metric(metadata_dict["metric"].lower()),
-            manual_selection_only=metadata_dict["manual_selection_only"],
-            type=ProfileType(metadata_dict["type"].lower()),
-        )
+        metadata = ProfileMetadata.from_dict(profile_data["metadata"])
 
         # Model-specific profiles have aim_id and model_id
         # General profiles don't have these fields

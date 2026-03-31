@@ -37,18 +37,17 @@ class TestGPUModelConfig:
             assert config.gpu_model == GPUModel.MI300X
 
     def test_invalid_gpu_model(self):
-        """Test that invalid GPU model logs warning and defaults to NONE."""
+        """Test that invalid GPU model logs warning and defaults to None."""
         env_vars = {
             "AIM_MODEL_ID": "test/model",
             "AIM_GPU_MODEL": "INVALID_GPU",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             config = AIMConfig.from_environment()
-            # _read_enum logs warning and uses default "NONE"
-            assert config.gpu_model == GPUModel.NONE
+            assert config.gpu_model is None
 
     def test_no_gpu_model(self):
-        """Test that missing GPU model defaults to NONE."""
+        """Test that missing GPU model defaults to None."""
         env_vars = {
             "AIM_MODEL_ID": "test/model",
         }
@@ -57,15 +56,11 @@ class TestGPUModelConfig:
         with patch.dict(os.environ, clean_env, clear=True):
             with patch.dict(os.environ, env_vars, clear=False):
                 config = AIMConfig.from_environment()
-                assert config.gpu_model == GPUModel.NONE
+                assert config.gpu_model is None
 
     def test_all_gpu_models_valid(self):
         """Test that all GPUModel enum values are valid."""
         for gpu_model in GPUModel:
-            # Skip UNKNOWN as it's a special case
-            if gpu_model == GPUModel.UNKNOWN:
-                continue
-
             env_vars = {
                 "AIM_MODEL_ID": "test/model",
                 "AIM_GPU_MODEL": gpu_model.value,
@@ -317,3 +312,106 @@ class TestAllowGeneralProfileFallbackConfig:
         config_dict = config.to_dict()
         assert "allow_general_profile_fallback" in config_dict
         assert config_dict["allow_general_profile_fallback"] is False
+
+
+class TestAllowUnoptimizedConfig:
+    """Tests for AIM_ALLOW_UNOPTIMIZED environment variable handling."""
+
+    def test_default_allow_unoptimized(self):
+        """Test that allow_unoptimized defaults to False."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+        }
+        clean_env = {k: v for k, v in os.environ.items() if k != "AIM_ALLOW_UNOPTIMIZED"}
+        with patch.dict(os.environ, clean_env, clear=True):
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = AIMConfig.from_environment()
+                assert config.allow_unoptimized is False
+
+    def test_allow_unoptimized_true(self):
+        """Test that AIM_ALLOW_UNOPTIMIZED=true is accepted."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "true",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is True
+
+    def test_allow_unoptimized_false(self):
+        """Test that AIM_ALLOW_UNOPTIMIZED=false is accepted."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "false",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is False
+
+    def test_allow_unoptimized_case_insensitive(self):
+        """Test that AIM_ALLOW_UNOPTIMIZED is case-insensitive."""
+        for value in ["TRUE", "True", "FALSE", "False"]:
+            env_vars = {
+                "AIM_MODEL_ID": "test/model",
+                "AIM_ALLOW_UNOPTIMIZED": value,
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = AIMConfig.from_environment()
+                assert config.allow_unoptimized == (value.lower() == "true")
+
+    def test_allow_unoptimized_yes_no(self):
+        """Test that AIM_ALLOW_UNOPTIMIZED accepts yes/no."""
+        env_vars_yes = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "yes",
+        }
+        with patch.dict(os.environ, env_vars_yes, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is True
+
+        env_vars_no = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "no",
+        }
+        with patch.dict(os.environ, env_vars_no, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is False
+
+    def test_allow_unoptimized_numeric(self):
+        """Test that AIM_ALLOW_UNOPTIMIZED accepts 1/0."""
+        env_vars_one = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "1",
+        }
+        with patch.dict(os.environ, env_vars_one, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is True
+
+        env_vars_zero = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "0",
+        }
+        with patch.dict(os.environ, env_vars_zero, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.allow_unoptimized is False
+
+    def test_allow_unoptimized_invalid_value(self):
+        """Test that invalid values default to False with a warning."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ALLOW_UNOPTIMIZED": "invalid",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            # Should default to False due to invalid value
+            assert config.allow_unoptimized is False
+
+    def test_allow_unoptimized_in_to_dict(self):
+        """Test that allow_unoptimized appears in to_dict output."""
+        config = AIMConfig(
+            aim_id="test/aim",
+            allow_unoptimized=True,
+        )
+        config_dict = config.to_dict()
+        assert "allow_unoptimized" in config_dict
+        assert config_dict["allow_unoptimized"] is True

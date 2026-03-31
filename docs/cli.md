@@ -240,6 +240,59 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   list-profiles --state gpu_mismatch --format table
 ```
 
+## Benchmark (`benchmark`)
+
+Runs a benchmark suite against an AIM inference service using `vllm bench serve`. If `--service-url` is omitted, the server is started automatically, benchmarked, and shut down on exit. Results are exported as JSON and CSV. Exit code is `0` on success, `1` on failure.
+
+**Options:**
+- `--service-url <url>`: URL of a running AIM service (e.g. `http://localhost:8000`). If omitted, the server is started automatically.
+- `--timeout-seconds <seconds>` (default: `30`): Timeout for individual service requests.
+- `--config <path>`: Path to benchmark config YAML. Defaults to the built-in config, which selects a suite based on GPU count.
+- `--output-dir <path>` (default: `.`): Directory for result files.
+- `--startup-timeout <seconds>` (default: `120`): How long to wait for auto-started server readiness.
+
+```bash
+# Automatic mode — starts server, benchmarks, then shuts down
+docker run --rm \
+  -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-base:0.9 \
+  benchmark --output-dir /workspace/results
+
+# External server mode — benchmark an already-running service
+docker run --rm \
+  aim-base:0.9 \
+  benchmark --service-url http://host.docker.internal:8000
+```
+
+### Benchmark Configuration
+
+The config YAML defines suites as lists of `[ISL, OSL, concurrency, num_prompts]` tuples. Suite selection priority: `ACTIVE_SUITE` env var > `gpu_count_suite_map` match > `active_config` fallback.
+
+```yaml
+active_config: "my_suite"
+gpu_count_suite_map:
+  1: "tp1_suite"
+  2: "tp2_suite"
+config_suites:
+  my_suite: [[256,256,8,80], [1024,1024,128,256]]
+settings:
+  timeout_seconds_per_config: 14400
+  ignore_eos: true
+  percentile_metrics: "ttft,tpot,itl,e2el"
+  metric_percentiles: "90,99"
+  dataset_name: "random"
+```
+
+**Environment variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `ACTIVE_SUITE` | Override automatic suite selection |
+| `VLLM_BENCH_EXTRA_ARGS` | Extra arguments passed to `vllm bench serve` |
+| `BENCHMARK_JSON_FILE` | Override JSON output filename |
+| `BENCHMARK_CSV_FILE` | Override CSV output filename |
+
 ## Download to cache (`download-to-cache`)
 
 Pre-downloads models to a local cache directory before running inference. This is useful for:

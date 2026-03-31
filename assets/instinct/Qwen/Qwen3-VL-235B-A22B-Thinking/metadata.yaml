@@ -1,0 +1,78 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "236B parameter MoE vision-language model with reasoning-enhanced thinking capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-VL-235B-A22B-Thinking"
+        tags:
+        - "image-to-text"
+        - "vision-language"
+        - "multimodal"
+        - "conversational"
+        - "reasoning"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen3-VL-235B-A22B-Thinking"
+        variants:
+        - "Qwen/Qwen3-VL-235B-A22B-Thinking"
+        - "Qwen/Qwen3-VL-235B-A22B-Thinking-FP8"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-VL-235B-A22B-Thinking is the reasoning-enhanced variant of the Qwen3-VL-235B-A22B vision-language model from the Qwen series by the Qwen Team at Alibaba Group, with 236 billion total parameters and approximately 22 billion active parameters per token. It builds on the same architecture as the Instruct variant, featuring Interleaved-MRoPE positional embeddings, DeepStack multi-level ViT feature fusion, and Text-Timestamp Alignment. This Thinking edition adds extended reasoning capabilities for complex logical, mathematical, and coding tasks while retaining all multimodal features: visual agent capabilities, visual coding, advanced spatial perception with 2D and 3D grounding, and OCR for 32 languages. It supports a native 256K token context length, expandable to 1M tokens. Suitable for complex multimodal reasoning, STEM tasks, visual analysis, and agentic visual workflows."
+      title: "Qwen3 VL 235B A22B Thinking"

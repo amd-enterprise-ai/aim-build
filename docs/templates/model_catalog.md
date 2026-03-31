@@ -18,6 +18,9 @@ SPDX-License-Identifier: MIT
 [{{ aim.model_name }}]({{ aim.artefact_url }}) ({{ aim.suffix_representation }})
 ^^^
 {{ aim.description }}
+
+[Technical specification](../docs-aim/{{ aim.model_name }}/README.md#model-specific-aim)
+
 +++
 
 ```bash

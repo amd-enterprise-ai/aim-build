@@ -2,30 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
-import sys
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, Optional
 
 # Import shared enums and ProfileMetadata from aim_common
 from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata
 
-# TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
-# Python 3.10 compatibility: define StrEnum if not available
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-
-    class StrEnum(str, Enum):
-        """Minimal StrEnum for Python <3.11."""
-
-
-EnumerationType = TypeVar("EnumerationType", bound=StrEnum)
-
-
-class EngineModule(StrEnum):
-    VLLM = "vllm.entrypoints.openai.api_server"
+__all__ = ["Engine", "GPUModel", "Metric", "Precision", "ProfileMetadata", "Profile", "ProfileHandling"]
 
 
 @dataclass(frozen=True)
@@ -83,26 +67,6 @@ class Profile:
         }
 
         return mapping.get((self.profile_handling.is_custom, self.profile_handling.is_general), profile_name)
-
-    def matches_gpu(self, gpu: GPUModel) -> bool:
-        """Check if this profile matches the given GPU."""
-        return self.metadata.gpu == gpu
-
-    def matches_gpu_count(self, gpu_count: int) -> bool:
-        """Check if this profile supports the given GPU count."""
-        return self.metadata.gpu_count == gpu_count
-
-    def matches_engine(self, engine: Engine) -> bool:
-        """Check if this profile matches the given engine."""
-        return self.metadata.engine == engine
-
-    def matches_metric(self, metric: Metric) -> bool:
-        """Check if this profile matches the given metric."""
-        return self.metadata.metric == metric
-
-    def matches_precision(self, precision: Precision) -> bool:
-        """Check if this profile matches the given precision."""
-        return self.metadata.precision == precision
 
     def matches_aim_id(self, aim_id: Optional[str]) -> bool:
         """Check if this profile matches the given AIM id.

@@ -6,7 +6,8 @@
 AIM Command Generator
 
 This module contains the CommandGenerator class for generating runtime commands
-from profile configurations.
+from profile configurations. Engine-specific details (launch command, model
+argument, validation) are configured via engines.yaml rather than hardcoded.
 """
 
 import json
@@ -16,14 +17,14 @@ import shlex
 import shutil
 import stat
 import tempfile
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from jsonschema import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 
 from .config import AIMConfig
+from .engine_config import VALIDATORS, EngineConfig
 from .model_cache_resolver import ModelCacheResolver
-from .object_model import Engine, EngineModule, Profile
+from .object_model import Profile
 from .profile_validator import ProfileValidator
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,23 @@ logger = logging.getLogger(__name__)
 class CommandGenerator:
     """Generates runtime commands from profile configurations."""
 
-    def __init__(self, config: AIMConfig):
-        """Initialize the command generator with configuration."""
+    def __init__(self, config: AIMConfig, engine_config: EngineConfig):
+        """Initialize the command generator with configuration.
+
+        Args:
+            config: AIM runtime configuration.
+            engine_config: Engine-specific configuration loaded from engines.yaml.
+        """
         self.config = config
+        self.engine_config = engine_config
         self.cache_resolver = ModelCacheResolver(config.cache_path)
-        self.profile_validator = ProfileValidator(config.schema_search_path)
+        self.profile_validator = ProfileValidator()
+
+        # Resolve engine arg validator
+        self._validator_fn = VALIDATORS.get(engine_config.validator)
+
+        if self._validator_fn:
+            logger.info(f"Using '{engine_config.validator}' validator for engine_args")
 
     def generate_execution_params(self, profile: Profile) -> tuple[List[str], Dict[str, str]]:
         """
@@ -120,13 +133,8 @@ class CommandGenerator:
         if self.config.aim_id and self.config.aim_id != model_id:
             served_model_name_list.append(self.config.aim_id)
 
-        # Determine engine and corresponding Python module
-        metadata = profile.metadata
-        engine = metadata.engine
-        engine_module = self._get_engine_module(engine)
-
         # Merge and validate engine arguments
-        engine_args = self._merge_and_validate_engine_args(profile, engine)
+        engine_args = self._merge_and_validate_engine_args(profile)
 
         # Add system overrides (always take precedence)
         engine_args["port"] = self.config.port
@@ -137,17 +145,19 @@ class CommandGenerator:
 
         args_list = self._build_engine_args(engine_args)
 
-        # Use python3 if python is not available
-        python_cmd = "python" if shutil.which("python") else "python3"
+        # Build launch command from engine config
+        launch = shlex.split(self.engine_config.launch)
+        if launch[0] == "python":
+            launch[0] = "python" if shutil.which("python") else "python3"
 
         # Construct the full command
-        command_list = [python_cmd, "-m", engine_module.value, "--model", model_path] + args_list
+        command_list = launch + [self.engine_config.model_arg, model_path] + args_list
 
         return command_list
 
-    def _merge_and_validate_engine_args(self, profile: Profile, engine: Engine) -> Dict[str, Any]:
+    def _merge_and_validate_engine_args(self, profile: Profile) -> Dict[str, Any]:
         """
-        Merge engine arguments from profile and user overrides, then validate using ProfileValidator.
+        Merge engine arguments from profile and user overrides, then validate.
 
         Merge precedence (lowest to highest):
         1. Profile defaults
@@ -160,13 +170,14 @@ class CommandGenerator:
 
         Args:
             profile: Profile containing base engine arguments
-            engine: Engine type for validation
 
         Returns:
             Merged and validated engine arguments dictionary
 
         Raises:
-            ValidationError: If arguments don't conform to profile schema
+            ValidationError: If arguments fail validation
+            ValueError: If native engine arg validation fails.
+            pydantic.ValidationError: If profile structure validation fails.
         """
         # Start with profile defaults
         engine_args = profile.engine_args.copy() if profile.engine_args else {}
@@ -185,35 +196,35 @@ class CommandGenerator:
             # Merge (user values win)
             engine_args.update(self.config.engine_args_override)
 
-            # Validate merged arguments by converting profile to dict and updating engine_args
+            # Validate merged arguments
             try:
-                # Convert profile dataclass to dict (handles nested dataclasses automatically)
-                profile_data = asdict(profile)
-
-                # Update with merged engine_args
-                profile_data["engine_args"] = engine_args
-
-                # Determine if general profile
-                is_general_profile = not profile.aim_id  # Empty string for general profiles
-
-                # Validate using ProfileValidator (which validates engine_args via schema)
+                # Validate profile structure (metadata, env_vars, aim_id, model_id)
+                profile_data = {
+                    "metadata": profile.metadata.to_dict(),
+                    "aim_id": profile.aim_id,
+                    "model_id": profile.model_id,
+                    "engine_args": engine_args,
+                    "env_vars": profile.env_vars or {},
+                }
+                is_general_profile = not profile.aim_id
                 self.profile_validator.validate(profile_data, is_general_profile=is_general_profile)
+
+                # Validate engine args via engine-specific validator
+                self._validate_engine_args(engine_args)
+
                 logger.debug(f"Successfully validated {len(engine_args)} merged engine arguments")
 
-            except ValidationError as e:
-                error_msg = f"Engine arguments validation failed: {e.message}"
+            except PydanticValidationError as e:
+                error_msg = f"Profile validation failed: {e}"
                 logger.error(error_msg)
-                logger.error(f"Path: {' -> '.join(str(p) for p in e.path) if e.path else 'root'}")
-                logger.error(f"Invalid arguments: {json.dumps(engine_args, indent=2)}")
-                raise ValidationError(f"{error_msg}\nPath: {e.path}\nInvalid value: {e.instance}")
+                raise
 
         return engine_args
 
-    def _get_engine_module(self, engine: Engine) -> EngineModule:
-        try:
-            return EngineModule[engine.name]
-        except KeyError:
-            raise ValueError(f"Unsupported engine: {engine}. Supported engines: {[engine.value for engine in Engine]}")
+    def _validate_engine_args(self, engine_args: Dict[str, Any]) -> None:
+        """Validate engine args using the configured validator."""
+        if self._validator_fn:
+            self._validator_fn(engine_args)
 
     def _build_engine_args(self, engine_args: Dict[str, Any]) -> List[str]:
         """Build engine arguments list from the engine_args dictionary."""
@@ -230,12 +241,11 @@ class CommandGenerator:
                 # Skip false boolean values
             elif isinstance(value, (list, tuple)):
                 # Multiple values - add flag once followed by all values
-                # This matches vLLM's nargs="+" behavior for --served-model-name
                 args_list.append(f"--{key}")
                 for item in value:
                     args_list.append(str(item))
             elif isinstance(value, dict):
-                # YAML objects (dictionaries in Python) - JSON string without quotes
+                # YAML objects (dictionaries in Python) - JSON string
                 # No quotes needed since we use os.execv() which passes args directly
                 args_list.extend([f"--{key}", json.dumps(value)])
             else:

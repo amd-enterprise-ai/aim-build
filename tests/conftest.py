@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from aim_runtime.profile_registry import ProfileRegistry
 from aim_runtime.profile_validator import ProfileValidator
 
 
+# Common fixtures
 @pytest.fixture
 def project_root() -> Path:
     """Get the project root directory."""
@@ -28,57 +28,44 @@ def test_root() -> Path:
     return Path(__file__).parent
 
 
+# aim_runtime fixtures
 @pytest.fixture
-def schemas_path(project_root: Path) -> str:
-    """Get the schemas directory path."""
-    return str(project_root / "schemas")
-
-
-@pytest.fixture
-def profiles_path(test_root: Path) -> str:
-    """Get the test profiles directory path."""
-    return str(test_root / "profiles")
+def profile_base_path(test_root: Path) -> Path:
+    return test_root / "workspace" / "profiles"
 
 
 @pytest.fixture
 def general_profiles_path(test_root: Path) -> str:
     """Get the test profiles directory path."""
-    return str(test_root / os.path.join("profiles", "general"))
+    return str(test_root / "workspace" / "profiles" / "general")
 
 
 @pytest.fixture
-def model_profiles_path(profiles_path: str) -> str:
-    return os.path.join(profiles_path, "meta-llama", "Llama-3.1-8B-Instruct")
+def custom_profiles_path(profile_base_path: Path) -> str:
+    return str(profile_base_path / "custom")
 
 
 @pytest.fixture
-def metadata_path(test_root: Path) -> str:
-    return str(test_root / "metadata")
-
-
-@pytest.fixture
-def aim_config(schemas_path: str, profiles_path: str) -> AIMConfig:
+def aim_config(profile_base_path: Path) -> AIMConfig:
     """Create a test configuration with known valid parameters."""
-    from aim_common import GPUModel
-
     return AIMConfig(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
-        schema_search_path=schemas_path,
-        profile_base_path=profiles_path,
+        profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
         gpu_count="1",
-        gpu_model=GPUModel.NONE,
+        gpu_model=None,
     )
 
 
 @pytest.fixture
-def general_aim_config(aim_config: AIMConfig) -> AIMConfig:
+def general_aim_config(aim_config: AIMConfig, profile_base_path: Path) -> AIMConfig:
     """Create a test configuration for general profiles."""
     config = deepcopy(aim_config)
     config.aim_id = ""  # Clear aim_id
     config.model_id = "meta-llama/Llama-3.1-8B-Instruct"  # Set model_id instead
+    config.profile_base_path = str(profile_base_path)
     return config
 
 
@@ -92,25 +79,20 @@ def faulty_aim_config_with_no_model(aim_config: AIMConfig) -> AIMConfig:
 
 
 @pytest.fixture
-def validator(schemas_path: str) -> ProfileValidator:
-    return ProfileValidator(schemas_path)
+def profile_validator() -> ProfileValidator:
+    """Create a profile validator for testing."""
+    return ProfileValidator()
 
 
 @pytest.fixture
-def no_op_profile_validator(schemas_path: str) -> ProfileValidator:
+def no_op_profile_validator() -> ProfileValidator:
     """Create a no-op profile validator for testing (skips validation)."""
 
     class NoOpProfileValidator(ProfileValidator):
         def validate(self, profile_data: dict[str, Any], is_general_profile: bool = False) -> None:
             return
 
-    return NoOpProfileValidator(schemas_path)
-
-
-@pytest.fixture
-def profile_validator(schemas_path: str) -> ProfileValidator:
-    """Create a profile validator for testing."""
-    return ProfileValidator(schemas_path)
+    return NoOpProfileValidator()
 
 
 @pytest.fixture
@@ -128,7 +110,26 @@ def general_profile(general_profiles_path: str, profile_validator: ProfileValida
 
 
 @pytest.fixture
-def complex_profile(profiles_path: str, no_op_profile_validator: ProfileValidator) -> Profile:
+def complex_profile(assets_instinct_path: Path, no_op_profile_validator: ProfileValidator) -> Profile:
     """Get a complex test profile with comprehensive test data."""
-    registry = ProfileRegistry.discover_and_validate(search_paths=[profiles_path], validator=no_op_profile_validator)
+    profiles_path = assets_instinct_path / "test" / "model" / "profiles"
+    registry = ProfileRegistry.discover_and_validate(
+        search_paths=[str(profiles_path)], validator=no_op_profile_validator
+    )
     return registry.find_by_id("complex_profile")
+
+
+# aim_utils fixtures
+@pytest.fixture
+def model_profiles_path(assets_instinct_path: Path) -> str:
+    return str(assets_instinct_path / "meta-llama" / "Llama-3.1-8B-Instruct" / "profiles")
+
+
+@pytest.fixture
+def assets_instinct_path(assets_path: Path) -> Path:
+    return assets_path / "instinct"
+
+
+@pytest.fixture
+def assets_path(test_root: Path) -> Path:
+    return test_root / "assets"

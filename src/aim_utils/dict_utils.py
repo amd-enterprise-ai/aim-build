@@ -3,12 +3,26 @@
 # SPDX-License-Identifier: MIT
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def get_value(dict_value: Dict[str, Any], key_path: str) -> Optional[Any]:
+def sort_dict_keys_in_list(list_of_dicts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Sort keys in each dictionary within a list for consistent comparison.
+
+    Args:
+        list_of_dicts: List of dictionaries to sort
+    Returns:
+        List of dictionaries with sorted keys
+    """
+    sorted_dicts = []
+    for dictionary in list_of_dicts:
+        sorted_dicts.append(dict(sorted(dictionary.items())))
+    return sorted_dicts
+
+
+def get_value(dict_value: Dict[str, Any], key_path: str, default: Optional[Any] = None) -> Any:
     """Retrieve a value from a nested dictionary using dot notation"""
     keys = key_path.split(".")
     current = dict_value
@@ -16,7 +30,7 @@ def get_value(dict_value: Dict[str, Any], key_path: str) -> Optional[Any]:
         if isinstance(current, dict) and k in current:
             current = current[k]
         else:
-            return None
+            return default
     return current
 
 
@@ -80,4 +94,37 @@ def delete_key(dict_value: Dict[str, Any], key: str) -> Dict[str, Any]:
                 logger.debug(f"Key '{key}' not found")
                 break
 
+    return dict_value
+
+
+def rename_key(dict_value: Dict[str, Any], old_key: str, new_key: str) -> Dict[str, Any]:
+    """
+    Rename a specific key in a nested dictionary.
+
+    Args:
+        dict_value: Dictionary with hierarchical keys
+        old_key: Dot notation path to the old key (e.g., "org.opencontainers.image.vendor")
+        new_key: Dot notation path to the new key (e.g., "org.opencontainers.image.author")
+    """
+    value = get_value(dict_value, old_key)
+    if value is not None:
+        dict_value = set_value(dict_value, new_key, value, add_if_missing=True)
+        dict_value = delete_key(dict_value, old_key)
+        logger.debug(f"Renamed key '{old_key}' to '{new_key}'")
+    else:
+        logger.debug(f"Key '{old_key}' not found; cannot rename to '{new_key}'")
+
+    return dict_value
+
+
+def rename_keys(dict_value: Dict[str, Any], key_mapping: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Rename multiple keys in a nested dictionary based on a mapping.
+
+    Args:
+        dict_value: Dictionary with hierarchical keys
+        key_mapping: Dictionary mapping old keys to new keys (e.g., {"org.opencontainers.image.vendor": "org.opencontainers.image.author"})
+    """
+    for old_key, new_key in key_mapping.items():
+        dict_value = rename_key(dict_value, old_key, new_key)
     return dict_value

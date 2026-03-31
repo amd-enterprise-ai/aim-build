@@ -77,10 +77,10 @@ repos:
   hooks:
   - id: mypy
     args: [ "--config-file=pyproject.toml" ]
+    exclude: ^(tests/|docker/)
     language_version: python3.12
     additional_dependencies:
     - types-PyYAML
-    - types-jsonschema
     - types-requests
 
 - repo: local
@@ -104,7 +104,7 @@ repos:
     types: [ yaml ]
     pass_filenames: true
     always_run: false
-    files: ^profiles/.*\.yaml$
+    files: ^assets/[^/]+/.*/profiles/.*\.yaml$
 
 - repo: local
   hooks:
@@ -116,7 +116,7 @@ repos:
     types: [ yaml ]
     pass_filenames: false
     always_run: false
-    files: ^profiles/.*\.yaml$
+    files: ^assets/[^/]+/.*/profiles/.*\.yaml$
 
 - repo: local
   hooks:
@@ -128,16 +128,40 @@ repos:
     types: [ yaml ]
     pass_filenames: false
     always_run: false
-    files: ^(profiles|metadata)/.*\.yaml$
+    files: ^assets/[^/]+/(.*/metadata\.yaml|.*/profiles/.*\.yaml)$
 
 - repo: local
   hooks:
   - id: metadata-validation
     name: "Metadata: validation"
-    description: Validate metadata YAML files against schema
+    description: Validate metadata YAML files
     entry: python3 -m aim_utils.metadata_utils validate
     language: system
     types: [ yaml ]
     pass_filenames: false
     always_run: false
-    files: ^metadata/.*\.yaml$
+    files: ^assets/[^/]+/.*/metadata\.yaml$
+
+- repo: local
+  hooks:
+  - id: validate-recommended-deployments-profile-ids
+    name: "Metadata: validate profile ids in recommended deployments"
+    description: Validate that profile ids in recommended deployments
+    entry: python3 -m aim_utils.metadata_utils validate-recommended-deployments-profile-ids
+    language: system
+    types: [ yaml ]
+    pass_filenames: false
+    always_run: false
+    files: ^assets/[^/]+/(.*/metadata\.yaml|.*/profiles/.*\.yaml)$
+
+- repo: local
+  hooks:
+  - id: validate-config
+    name: "Config: validate registry and version"
+    description: Validate config.yaml files against AIM versioning and registry conventions
+    entry: python3 -m aim_utils.config_utils validate
+    language: system
+    types: [ yaml ]
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*/config\.yaml$

@@ -10,26 +10,17 @@ based on model and hardware configuration.
 """
 
 import logging
-import sys
-from dataclasses import dataclass
-from enum import Enum
+from dataclasses import dataclass, replace
+from typing import Dict, List, Tuple
+
+import yaml
 
 from aim_common import ProfileType
-
-# TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-
-    class StrEnum(str, Enum):
-        """Minimal StrEnum for Python <3.11."""
-
-
-from typing import Dict, List, Tuple
+from aim_common.compat import StrEnum
 
 from .config import AIMConfig
 from .gpu_detector import GPUDetector
-from .object_model import Engine, GPUModel, Metric, Precision, ProfileMetadata
+from .object_model import Engine, Metric, Precision
 from .profile_registry import Profile, ProfileRegistry
 from .profile_validator import ProfileValidator
 
@@ -82,10 +73,10 @@ class ProfileSelector:
     def __init__(self, config: AIMConfig):
         """Initialize the profile selector with configuration."""
         self.config = config
-        self.profile_validator = ProfileValidator(config.schema_search_path)
+        self.profile_validator = ProfileValidator()
 
         # Check if GPU model is manually specified via environment variable
-        if config.gpu_model is not None and config.gpu_model not in (GPUModel.NONE, GPUModel.UNKNOWN):
+        if config.gpu_model is not None:
             logger.info(f"Using GPU model from AIM_GPU_MODEL: {config.gpu_model}")
             self.detected_gpu = config.gpu_model
 
@@ -105,13 +96,13 @@ class ProfileSelector:
                 logger.warning("Some GPUs are not idle! Check GPU usage.")
 
             if gpu_detector.has_gpus and gpu_detector.gpu_models:
-                self.detected_gpu = gpu_detector.gpu_models[0]
+                self.detected_gpu = gpu_detector.gpu_models[0]  # type: ignore[assignment]
                 if config.gpu_count == "auto":
                     self.detected_gpu_count = gpu_detector.gpu_count
                 else:
                     self.detected_gpu_count = int(config.gpu_count)
             else:
-                self.detected_gpu = GPUModel.NONE
+                self.detected_gpu = None  # type: ignore[assignment]
                 self.detected_gpu_count = 0
 
         logger.debug(f"Detected GPU: {self.detected_gpu}, GPU count: {self.detected_gpu_count}")
@@ -126,34 +117,17 @@ class ProfileSelector:
             logger.info("General profile fallback disabled - marking general profiles as manual-selection-only")
             self._mark_general_profiles_manual_only()
 
+        if self.config.allow_unoptimized:
+            logger.info("Unoptimized profile fallback enabled - unoptimized profiles may be auto-selected")
+
         self.registry.log_summary()
 
     def _mark_general_profiles_manual_only(self) -> None:
         """Mark all general profiles in the registry as manual-selection-only."""
         for i, profile in enumerate(self.registry.profiles):
             if profile.profile_handling.is_general and not profile.metadata.manual_selection_only:
-                # Create a new metadata object with manual_selection_only=True
-                # Since ProfileMetadata is frozen, we need to create a new Profile object
-                new_metadata = ProfileMetadata(
-                    engine=profile.metadata.engine,
-                    gpu=profile.metadata.gpu,
-                    precision=profile.metadata.precision,
-                    gpu_count=profile.metadata.gpu_count,
-                    metric=profile.metadata.metric,
-                    manual_selection_only=True,
-                    type=profile.metadata.type,
-                )
-                # Replace the profile in the registry with updated metadata
-                new_profile = Profile(
-                    profile_handling=profile.profile_handling,
-                    metadata=new_metadata,
-                    aim_id=profile.aim_id,
-                    model_id=profile.model_id,
-                    engine_args=profile.engine_args,
-                    env_vars=profile.env_vars,
-                )
-                # Update in the list
-                self.registry.profiles[i] = new_profile
+                new_metadata = profile.metadata.model_copy(update={"manual_selection_only": True})
+                self.registry.profiles[i] = replace(profile, metadata=new_metadata)
 
     def _build_search_paths(self) -> List[str]:
         """
@@ -206,9 +180,9 @@ class ProfileSelector:
             ProfileType.GENERAL: 4,
         }
 
-        if precision != Precision.AUTO:
+        if precision is not None:
             # If specific precision requested, filter for exact match first
-            exact_matches = [p for p in profiles if p.matches_precision(precision)]
+            exact_matches = [p for p in profiles if p.metadata.precision == precision]
             if exact_matches:
                 profiles = exact_matches
 
@@ -249,7 +223,8 @@ class ProfileSelector:
         results = self.assess_all_profiles()
         compatible_results = results[ProfileCompatibilityState.COMPATIBLE]
         logger.info(f"Found {len(compatible_results)} compatible profiles")
-        logger.info(compatible_results)
+        for r in compatible_results:
+            logger.info("  - %s", r.profile.profile_id)
         # Exclude profiles with metadata.manual_selection_only == True from automatic selection
         auto_compatible_results = [r for r in compatible_results if not r.profile.metadata.manual_selection_only]
         logger.info(f"{len(auto_compatible_results)} compatible profiles after excluding manual-selection-only")
@@ -258,6 +233,26 @@ class ProfileSelector:
         )
 
         if not auto_compatible_results:
+            # Pass 2: If allow_unoptimized is enabled, try including UNOPTIMIZED profiles
+            if self.config.allow_unoptimized:
+                unoptimized_fallback_results = [
+                    r
+                    for r in compatible_results
+                    if r.profile.metadata.manual_selection_only and r.profile.metadata.type == ProfileType.UNOPTIMIZED
+                ]
+                if unoptimized_fallback_results:
+                    ordered = self._order_profiles([r.profile for r in unoptimized_fallback_results])
+                    best = ordered[0]
+                    logger.warning(
+                        "\n" + "=" * 70 + "\n"
+                        "  UNOPTIMIZED PROFILE FALLBACK\n"
+                        "  No auto-selectable profiles matched the current hardware.\n"
+                        f"  Falling back to unoptimized profile: {best.profile_id}\n"
+                        "  This profile has not been performance-tuned for this GPU.\n"
+                        "  To disable this fallback, set AIM_ALLOW_UNOPTIMIZED=false\n" + "=" * 70
+                    )
+                    return best
+
             # Check if we have compatible profiles that are manual-only
             manual_only_profiles = [r for r in compatible_results if r.profile.metadata.manual_selection_only]
 
@@ -316,19 +311,16 @@ class ProfileSelector:
             logger.warning("No valid profiles found in registry")
             return categorized_results
 
-        # Resolve AUTO values once
-        resolved_engine, resolved_metric = self._resolve_auto_values()
-
-        logger.info(f"Assessing {len(candidates)} profiles with resolved config:")
-        logger.info(f"  Engine: {resolved_engine}")
+        logger.info(f"Assessing {len(candidates)} profiles with config:")
+        logger.info(f"  Engine: {self.config.engine}")
         logger.info(f"  Precision: {self.config.precision}")
         logger.info(f"  Detected GPU: {self.detected_gpu}")
         logger.info(f"  GPU Count: {self.detected_gpu_count}")
-        logger.info(f"  Metric: {resolved_metric}")
+        logger.info(f"  Metric: {self.config.metric}")
 
         # Assess each profile in a single pass
         for profile in candidates:
-            result = self._assess_profile_compatibility(profile, resolved_engine, resolved_metric)
+            result = self._assess_profile_compatibility(profile, self.config.engine, self.config.metric)
             categorized_results[result.state].append(result)
 
         # Order compatible profiles by priority and precision preference
@@ -351,18 +343,6 @@ class ProfileSelector:
 
         return categorized_results
 
-    def _resolve_auto_values(self) -> Tuple[Engine, Metric]:
-        """Resolve AUTO values to concrete preferences."""
-        engine = self.config.engine
-        if engine == Engine.AUTO:
-            engine = Engine.VLLM  # Prefer vllm for auto
-
-        metric = self.config.metric
-        if metric == Metric.AUTO:
-            metric = Metric.LATENCY  # Prefer latency for auto
-
-        return engine, metric
-
     def _assess_profile_compatibility(
         self, profile: Profile, resolved_engine: Engine, resolved_metric: Metric
     ) -> ProfileCompatibilityResult:
@@ -373,7 +353,7 @@ class ProfileSelector:
         incompatibility found, or COMPATIBLE if all checks pass.
         """
         # Check engine compatibility first (most basic requirement)
-        if not profile.matches_engine(resolved_engine):
+        if profile.metadata.engine != resolved_engine:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.ENGINE_MISMATCH,
@@ -381,7 +361,7 @@ class ProfileSelector:
             )
 
         # Check metric compatibility
-        if not profile.matches_metric(resolved_metric):
+        if profile.metadata.metric != resolved_metric:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.METRIC_MISMATCH,
@@ -397,14 +377,14 @@ class ProfileSelector:
             )
 
         # Check GPU compatibility (type and count)
-        if not profile.matches_gpu(self.detected_gpu):
+        if profile.metadata.gpu != self.detected_gpu:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.GPU_MISMATCH,
                 reason=f"Profile doesn't support GPU type {self.detected_gpu}",
             )
 
-        if not profile.matches_gpu_count(self.detected_gpu_count):
+        if profile.metadata.gpu_count != self.detected_gpu_count:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.GPU_MISMATCH,
@@ -412,7 +392,7 @@ class ProfileSelector:
             )
 
         # Check precision compatibility
-        if self.config.precision != Precision.AUTO and not profile.matches_precision(self.config.precision):
+        if self.config.precision is not None and profile.metadata.precision != self.config.precision:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.PRECISION_MISMATCH,
@@ -425,6 +405,54 @@ class ProfileSelector:
             state=ProfileCompatibilityState.COMPATIBLE,
             reason="Profile is compatible with current configuration",
         )
+
+    def _read_profile_yaml(self, profile: Profile) -> dict:
+        """Read raw YAML content from a profile's file on disk."""
+        with open(profile.profile_handling.path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def serialize_profiles(self, categorized: Dict[ProfileCompatibilityState, List[Profile]]) -> List[dict]:
+        """
+        Serialize categorized profiles into a flat list of wrapper dicts.
+
+        Each entry contains profile_id and compatibility alongside the raw
+        profile data read from disk, enabling clean extraction via
+        ``jq '.[].profile'``.
+
+        Returns:
+            List of dicts with keys: profile_id, compatibility, profile.
+        """
+        result: List[dict] = []
+        for state, profiles in categorized.items():
+            for profile in sorted(profiles, key=lambda p: (p.profile_handling.priority, p.profile_id)):
+                result.append(
+                    {
+                        "profile_id": profile.profile_id,
+                        "compatibility": state.value,
+                        "profile": self._read_profile_yaml(profile),
+                    }
+                )
+        return result
+
+    def serialize_all_profiles(self) -> List[dict]:
+        """
+        Serialize all discovered profiles without compatibility checks.
+
+        Returns:
+            List of dicts with keys: profile_id, compatibility ("unknown"), profile.
+        """
+        profiles = sorted(
+            self.registry.profiles,
+            key=lambda p: (p.profile_handling.priority, p.profile_id),
+        )
+        return [
+            {
+                "profile_id": profile.profile_id,
+                "compatibility": ProfileCompatibilityState.UNKNOWN.value,
+                "profile": self._read_profile_yaml(profile),
+            }
+            for profile in profiles
+        ]
 
     def format_text_report(self, categorized: Dict[ProfileCompatibilityState, List[Profile]]) -> str:
         """

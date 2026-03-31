@@ -4,61 +4,70 @@
 """Utilities for managing AIM profiles."""
 
 import logging
-import numbers
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type, Union
 
 import click
-import pandas as pd
 
 from aim_common.object_model import CanonicalName, GPUModel, ProfileType
 from aim_runtime.object_model import ProfileHandling
-from aim_utils.yaml_utils import FileType, get_yamls, read_yaml, resolve_paths, save_yaml, sort_yaml_file
+from aim_utils.asset_utils import AssetDescriptor, AssetManager
+from aim_utils.yaml_utils import FileType, get_yamls, read_yaml, save_yaml, sort_yaml_file
 
 logger = logging.getLogger(__name__)
 
 
-class BenchmarkFileValueResolver:
-    """Resolves gate values from benchmark Excel file."""
+COLUMN_NAMES_MAPPING = {
+    "Profile": "profile",
+    "Type": "type",
+    "type (manual)": "type",
+    "Unnamed 0": "aim",
+    "AIM": "aim",
+    "Docker_Image": "aim",
+}
+
+
+class ProfileFileValueResolver:
+    """Resolves profile type values from an Excel file."""
 
     def __init__(self, file_path: Path, sheet_name: Optional[str] = None):
-        """Load and parse gate values from an Excel file.
+        """Load and parse profile type values from an Excel file.
 
         Args:
-            file_path: Path to the Excel file containing benchmark data.
+            file_path: Path to the Excel file containing profile data.
             sheet_name: Optional; Name or index of the sheet to read from the Excel file. Defaults to the first sheet if not specified.
         """
 
-        def image_name_to_aim(name: str) -> str:
+        def drop_tag(name: str) -> str:
+            return name.split(":")[0]
+
+        def convert_to_repository_name(name: str) -> str:
             split_result = name.split("/")
             aim_with_version = split_result[-1]
-            aim, _ = aim_with_version.split(":")
-            return aim
+            return drop_tag(aim_with_version)
 
-        final_sheet_name: Union[str, int] = 0
-        if sheet_name is not None:
-            final_sheet_name = 0
-        columns_variants = [
-            ["Unnamed: 0", "profile", "gate value", "type (manual)"],
-            ["AIM", "profile", "gate value", "type (manual)"],
-        ]
-        for columns in columns_variants:
-            try:
-                df = pd.read_excel(file_path, sheet_name=final_sheet_name, usecols=columns)
-                if not df.empty:
-                    df = df.rename(columns={"Unnamed: 0": "aim", "AIM": "aim"})
+        import pandas as pd
+
+        final_sheet_name: Union[str, int] = sheet_name or 0
+        try:
+            df = pd.read_excel(file_path, sheet_name=final_sheet_name)
+            if not df.empty:
+                if "AIM" in df.columns:
+                    df = df.rename(columns={"AIM": "aim"})
                     df["aim"] = df["aim"].ffill()
-                    df["aim"] = df["aim"].apply(image_name_to_aim)
-                    self.df = df
-                    break
-            except ValueError:
-                continue
-        else:
-            raise ValueError(
-                f"Could not parse {file_path} with any of the expected column variants: {columns_variants}"
-            )
+                    df["aim"] = df["aim"].apply(convert_to_repository_name)
+
+                if "Docker_Image" in df.columns:
+                    df["Docker_Image"] = df["Docker_Image"].apply(convert_to_repository_name)
+
+                for old_name, new_name in COLUMN_NAMES_MAPPING.items():
+                    df = df.rename(columns={old_name: new_name} if old_name in df.columns else {})
+
+                self.df = df
+        except Exception as e:
+            logger.exception(e)
 
     def _get_value(
         self, profile_name: str, aim: str, column_name: str, value_type: Type
@@ -73,14 +82,9 @@ class BenchmarkFileValueResolver:
             return value
         return None
 
-    def get_gate_value(self, profile_name: str, aim: str) -> Optional[float]:
-        """Get gate value for a given profile and AIM."""
-        result = self._get_value(profile_name, aim, "gate value", numbers.Real)
-        return float(result) if isinstance(result, numbers.Real) else None
-
     def get_type_value(self, profile_name: str, aim: str) -> Optional[str]:
         """Get type value for a given profile and AIM."""
-        result = self._get_value(profile_name, aim, "type (manual)", str)
+        result = self._get_value(profile_name, aim, "type", str)
         return result if isinstance(result, str) else None
 
 
@@ -93,26 +97,13 @@ class ProfileTypeEvaluationResult:
 
 
 class ProfileTypeEvaluator:
-    """Evaluates profile optimization level based on performance metrics."""
+    """Reads and applies profile type from profile data file."""
 
     def __init__(
         self,
         profile_path: Path,
-        value_resolver: BenchmarkFileValueResolver,
-        preview_threshold: float,
-        optimized_threshold: float,
+        value_resolver: ProfileFileValueResolver,
     ):
-        """Initialize evaluator with profile data and value resolver.
-
-        Args:
-            profile_path: Path to the profile YAML file.
-            value_resolver: Instance of BenchmarkFileValueResolver to fetch values from benchmark file.
-            preview_threshold: Performance ratio threshold for classifying profile as "preview".
-            optimized_threshold: Performance ratio threshold for classifying profile as "optimized".
-        """
-        self.preview_threshold = preview_threshold
-        self.optimized_threshold = optimized_threshold
-
         profile_data = read_yaml(profile_path)
         profile_handling = ProfileHandling(str(profile_path), profile_path.name, 1)
         self.is_general = profile_handling.is_general
@@ -120,89 +111,25 @@ class ProfileTypeEvaluator:
 
         image_name = self._get_image_name()
 
-        self.aim_vs_nim = value_resolver.get_gate_value(profile_handling.profile_name, image_name)
-        # This value is always set to None in the current implementation
-        self.aim_vs_oob_vllm = None
-
         type_value = value_resolver.get_type_value(profile_handling.profile_name, image_name)
         self.profile_type = None
 
         if type_value is not None:
             try:
                 self.profile_type = ProfileType(type_value.lower())
-            except ValueError as e:
+            except ValueError:
                 logger.warning(f"Invalid profile type '{type_value}' for profile '{profile_handling.profile_name}'")
-                raise e
+                raise
 
     def _get_image_name(self) -> str:
-        """Get AIM image name based on profile type and ID."""
         if self.is_general:
             return "aim-base"
         if self.aim_id is not None:
-            sanitized_name = CanonicalName.from_string(self.aim_id).sanitize
+            sanitized_name = CanonicalName.from_string(self.aim_id).sanitize  # type: ignore[union-attr]
             return f"aim-{sanitized_name}"
         return "aim"
 
-    def is_optimized(self) -> bool:
-        if self.is_general:
-            return False
-
-        if self.aim_vs_nim is not None:
-            return self.aim_vs_nim > self.optimized_threshold
-
-        if self.aim_vs_oob_vllm is not None:
-            return self.aim_vs_oob_vllm > self.optimized_threshold
-
-        return False
-
-    def is_preview(self) -> bool:
-        """Check if profile is in preview (performance ratio between preview threshold and optimized threshold)."""
-        if self.is_general:
-            return False
-
-        if self.aim_vs_nim is not None:
-            return self.preview_threshold <= self.aim_vs_nim <= self.optimized_threshold
-
-        if self.aim_vs_oob_vllm is not None:
-            return self.preview_threshold <= self.aim_vs_oob_vllm <= self.optimized_threshold
-
-        return False
-
-    def is_unoptimized(self) -> bool:
-        """Check if profile is unoptimized (performance ratio < self.preview_threshold)."""
-        if self.is_general:
-            return False
-
-        if self.aim_vs_nim is not None:
-            return self.aim_vs_nim < self.preview_threshold
-
-        if self.aim_vs_oob_vllm is not None:
-            return self.aim_vs_oob_vllm < self.preview_threshold
-
-        return False
-
     def evaluate(self) -> ProfileTypeEvaluationResult:
-        calculated_profile_type = self._get_profile_type()
-        manually_specified_profile_type = self.profile_type
-
-        if (
-            calculated_profile_type is not None
-            and manually_specified_profile_type is not None
-            and calculated_profile_type != manually_specified_profile_type
-        ):
-            logger.warning(
-                f"Calculated profile type '{calculated_profile_type}' does not match manually specified type '{manually_specified_profile_type}'; aim_id: '{self.aim_id}''"
-            )
-
-        # Map final profile type based on presence of calculated and manually specified types
-        # Key: (calculated exists, manual exists)
-        final_profile_type_mapping = {
-            (False, False): None,
-            (False, True): manually_specified_profile_type,
-            (True, False): calculated_profile_type,
-            (True, True): manually_specified_profile_type,
-        }
-
         profile_type_manual_selection_mapping: Dict[Optional[ProfileType], bool] = {
             ProfileType.UNOPTIMIZED: True,
             ProfileType.GENERAL: False,
@@ -210,26 +137,51 @@ class ProfileTypeEvaluator:
             ProfileType.PREVIEW: False,
         }
 
-        final_profile_type = final_profile_type_mapping[
-            (calculated_profile_type is not None, manually_specified_profile_type is not None)
-        ]
-
         return ProfileTypeEvaluationResult(
-            profile_type=final_profile_type,
-            manual_selection_only=profile_type_manual_selection_mapping.get(final_profile_type, True),
+            profile_type=self.profile_type,
+            manual_selection_only=profile_type_manual_selection_mapping.get(self.profile_type, True),
         )
 
-    def _get_profile_type(self) -> Optional[ProfileType]:
-        """Determine profile type based on optimization metrics."""
-        if self.is_optimized():
-            return ProfileType.OPTIMIZED
-        elif self.is_preview():
-            return ProfileType.PREVIEW
-        elif self.is_unoptimized():
-            return ProfileType.UNOPTIMIZED
-        if self.is_general:
-            return ProfileType.GENERAL
-        return None
+
+class ProfileManager(AssetManager):
+
+    def __init__(
+        self,
+        assets_path: str = "assets/instinct",
+        skip_custom: bool = True,
+        skip_base: bool = False,
+        skip_model_specific: bool = False,
+    ) -> None:
+        super().__init__(assets_path)
+        self.skip_custom = skip_custom
+        self.skip_base = skip_base
+        self.skip_model_specific = skip_model_specific
+
+    def get_yamls(self, canonical_name: Optional[CanonicalName] = None) -> List[Path]:
+        """Find all profile YAML files in assets/{org}/{model}/profiles folders.
+
+        Args:
+            canonical_name: Optional CanonicalName to filter profiles by model (e.g., org/model)
+
+        Returns:
+            List of paths to profile YAML files
+        """
+
+        descriptors: List[AssetDescriptor] = self.get_descriptors(
+            canonical_name=canonical_name,
+            skip_custom=self.skip_custom,
+            skip_base=self.skip_base,
+            skip_model_specific=self.skip_model_specific,
+        )
+
+        profile_paths = []
+
+        for descriptor in descriptors:
+            resolved_path = descriptor.directory / "profiles"
+            if resolved_path.exists():
+                profile_paths.extend(get_yamls(resolved_path))
+
+        return profile_paths
 
 
 @click.group(invoke_without_command=True)
@@ -238,25 +190,28 @@ def cli(ctx):
     pass
 
 
-@cli.command("sync-profiles-with-benchmark")
-@click.argument("preview_threshold", type=float)
-@click.argument("optimized_threshold", type=float)
-@click.option("--profiles_path", type=str, default="profiles")
-@click.option("--benchmark_path", type=str, required=True)
+@cli.command("sync-profiles-with-file")
+@click.option(
+    "--assets_path",
+    type=click.Path(exists=True, dir_okay=True, file_okay=False),
+    default="assets/instinct",
+    help="Path to the root assets directory",
+)
+@click.option("--file_path", type=str, required=True)
 @click.option("--sheet_name", type=str, required=False, default=None)
-def sync_profiles_with_benchmark(
-    preview_threshold: float,
-    optimized_threshold: float,
-    profiles_path: str,
-    benchmark_path: str,
+@click.option("--canonical_name", type=str, required=False, default=None)
+def sync_profiles_with_file(
+    assets_path: str,
+    file_path: str,
     sheet_name: Optional[str] = None,
+    canonical_name: Optional[str] = None,
 ) -> None:
-    """Synchronize profile metadata with benchmark gate values."""
-    value_resolver = BenchmarkFileValueResolver(Path(benchmark_path), sheet_name=sheet_name)
+    """Synchronize profile metadata with type values from an Excel file."""
+    value_resolver = ProfileFileValueResolver(Path(file_path), sheet_name=sheet_name)
 
-    profiles = get_yamls(Path(profiles_path))
+    profiles = ProfileManager(assets_path=assets_path).get_yamls(canonical_name=canonical_name)  # type: ignore[arg-type]
     for profile in profiles:
-        evaluator = ProfileTypeEvaluator(profile, value_resolver, preview_threshold, optimized_threshold)
+        evaluator = ProfileTypeEvaluator(profile, value_resolver)
         evaluation_result = evaluator.evaluate()
 
         if evaluation_result.profile_type is not None:
@@ -281,9 +236,14 @@ class MetadataMismatch:
 
 
 @cli.command("check-metadata")
-@click.option("--profiles_path", type=str, default="profiles")
+@click.option(
+    "--assets_path",
+    type=click.Path(exists=True, dir_okay=True, file_okay=False),
+    default="assets/instinct",
+    help="Path to the root assets directory",
+)
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def check_profile_metadata(profiles_path: str = "profiles", canonical_name: Optional[str] = None) -> None:
+def check_profile_metadata(assets_path: str = "assets/instinct", canonical_name: Optional[str] = None) -> None:
     """Check that profile metadata matches profile filenames."""
 
     def check_value(
@@ -309,7 +269,7 @@ def check_profile_metadata(profiles_path: str = "profiles", canonical_name: Opti
         if item is not None:
             list_obj.append(item)
 
-    profiles = resolve_paths(directory=profiles_path, canonical_name=canonical_name)
+    profiles = ProfileManager(assets_path=assets_path).get_yamls(canonical_name=canonical_name)  # type: ignore[arg-type]
 
     mismatches: List[MetadataMismatch] = []
     for profile in profiles:
@@ -337,22 +297,21 @@ def check_profile_metadata(profiles_path: str = "profiles", canonical_name: Opti
 
 
 @cli.command("clone-profiles-gpu-name")
-@click.option("--profile_path", type=str, default="profiles", help="The directory to scan for profiles.")
+@click.option(
+    "--assets_path",
+    type=click.Path(exists=True, dir_okay=True, file_okay=False),
+    default="assets/instinct",
+    help="Path to the root assets directory",
+)
 @click.option("--old-gpu-name", type=str, required=True, help="The old GPU name to replace (e.g., MI300X).")
 @click.option(
     "--new-gpu-name", type=str, required=True, help="The new GPU name to use for the cloned profile (e.g., MI325X)."
 )
-def clone_profiles(profile_path: str, old_gpu_name: str, new_gpu_name: str):
+def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
     """
-    Clone GPU profiles by updating the GPU name.
-
     Recursively scans a directory for YAML files with old_gpu_name in their name,
     updates the GPU profile from old_gpu_name to new_gpu_name, and saves a new file.
     """
-    root_path = Path(profile_path)
-    if not root_path.is_dir():
-        logging.error(f"Directory '{profile_path}' not found.")
-        return
 
     try:
         GPUModel.from_string(old_gpu_name)
@@ -361,9 +320,7 @@ def clone_profiles(profile_path: str, old_gpu_name: str, new_gpu_name: str):
         logging.error(f"Invalid GPU name: {e}")
         return
 
-    logging.info(f"Scanning directory: '{profile_path}'...")
-
-    yamls = get_yamls(root_path)
+    yamls = ProfileManager(assets_path=assets_path).get_yamls()
 
     for filepath in yamls:
         # Process only YAML files containing old_gpu_name
@@ -401,7 +358,10 @@ def clone_profiles(profile_path: str, old_gpu_name: str, new_gpu_name: str):
 @click.argument("files", nargs=-1, type=str)
 def sort_profile_keys(files: List[str]):
 
-    yaml_paths = resolve_paths(files, "profiles")
+    if files:
+        yaml_paths = [Path(f) for f in files]
+    else:
+        yaml_paths = ProfileManager(assets_path="assets/instinct").get_yamls()
 
     modified_count = 0
     error_count = 0
@@ -416,7 +376,7 @@ def sort_profile_keys(files: List[str]):
 
     if modified_count > 0 or error_count > 0:
         if modified_count > 0:
-            logger.info(f"✅ {modified_count}/{len(files)} files were sorted")
+            logger.info(f"✅ {modified_count}/{len(yaml_paths)} files were sorted")
         if error_count > 0:
             logger.error(f"❌ Encountered {error_count} errors")
         sys.exit(1)

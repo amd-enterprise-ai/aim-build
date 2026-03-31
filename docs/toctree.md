@@ -17,4 +17,5 @@ KServe Deployment <aims/kserve_deployment.md>
 Docker Deployment <aims/docker_deployment.md>
 AIMs Catalog <aims/catalog/models.md>
 Custom Profiles <aims/custom_profiles.md>
+Supported GPU Models <aims/gpu_support.md>
 ```

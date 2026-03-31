@@ -2,16 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-from pathlib import Path
-
 import pytest
 
 from aim_utils.file_utils import (
     KeyValueFileReader,
     TomlFileReader,
-    extract_model_info,
-    get_leaf_dirs,
-    is_leaf_directory,
 )
 
 
@@ -67,99 +62,6 @@ value = "nested-value"
 """
     file_path.write_text(content)
     return file_path
-
-
-class TestIsLeafDirectory:
-    def test_is_leaf_directory_true(self, temp_dir_structure):
-        leaf_dir = temp_dir_structure / "org1" / "model1"
-        assert is_leaf_directory(leaf_dir) is True
-
-    def test_is_leaf_directory_false(self, temp_dir_structure):
-        non_leaf_dir = temp_dir_structure / "org3"
-        assert is_leaf_directory(non_leaf_dir) is False
-
-    def test_is_leaf_directory_with_file(self, tmp_path):
-        file_path = tmp_path / "file.txt"
-        file_path.write_text("content")
-        assert is_leaf_directory(file_path) is False
-
-    def test_is_leaf_directory_empty(self, tmp_path):
-        empty_dir = tmp_path / "empty"
-        empty_dir.mkdir()
-        assert is_leaf_directory(empty_dir) is True
-
-    def test_is_leaf_directory_with_files_only(self, tmp_path):
-        dir_with_files = tmp_path / "dir_with_files"
-        dir_with_files.mkdir()
-        (dir_with_files / "file1.txt").write_text("content1")
-        (dir_with_files / "file2.txt").write_text("content2")
-        assert is_leaf_directory(dir_with_files) is True
-
-
-class TestGetLeafDirs:
-    def test_get_leaf_dirs(self, temp_dir_structure):
-        leaf_dirs = get_leaf_dirs(temp_dir_structure)
-        leaf_names = {d.name for d in leaf_dirs}
-        assert "model1" in leaf_names
-        assert "model2" in leaf_names
-        assert "subdir" in leaf_names
-        assert "base" in leaf_names
-        assert "general" in leaf_names
-
-    def test_get_leaf_dirs_empty(self, tmp_path):
-        leaf_dirs = get_leaf_dirs(tmp_path)
-        assert leaf_dirs == []
-
-    def test_get_leaf_dirs_single_leaf(self, tmp_path):
-        single_leaf = tmp_path / "single"
-        single_leaf.mkdir()
-        leaf_dirs = get_leaf_dirs(tmp_path)
-        assert len(leaf_dirs) == 1
-        assert leaf_dirs[0].name == "single"
-
-
-class TestExtractModelInfo:
-    def test_extract_model_info_valid_path(self):
-        path = Path("profiles") / "meta-llama" / "Llama-2-7b"
-        org, model, is_general = extract_model_info(path)
-        assert org == "meta-llama"
-        assert model == "Llama-2-7b"
-        assert is_general is False
-
-    def test_extract_model_info_base_path(self):
-        path = Path("profiles") / "base"
-        org, model, is_general = extract_model_info(path)
-        assert org is None
-        assert model is None
-        assert is_general is True
-
-    def test_extract_model_info_general_path(self):
-        path = Path("profiles") / "general"
-        org, model, is_general = extract_model_info(path)
-        assert org is None
-        assert model is None
-        assert is_general is True
-
-    def test_extract_model_info_empty_path(self):
-        path = Path("")
-        org, model, is_general = extract_model_info(path)
-        assert org is None
-        assert model is None
-        assert is_general is False
-
-    def test_extract_model_info_single_part(self):
-        path = Path("single")
-        org, model, is_general = extract_model_info(path)
-        assert org is None
-        assert model is None
-        assert is_general is False
-
-    def test_extract_model_info_too_many_parts(self):
-        path = Path("a") / "b" / "c" / "d"
-        org, model, is_general = extract_model_info(path)
-        assert org is None
-        assert model is None
-        assert is_general is False
 
 
 class TestKeyValueFileReader:

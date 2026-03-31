@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-Coder-Next
+model_id: Qwen/Qwen3-Coder-Next-FP8
+metadata:
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 1
+  manual_selection_only: true
+  metric: throughput
+  precision: fp8
+  type: unoptimized
+engine_args:
+  disable-uvicorn-access-log: null
+  dtype: auto
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.95
+  kv-cache-dtype: auto
+  max-model-len: -1
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  tensor-parallel-size: 1
+  tool-call-parser: qwen3_coder
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_V1_USE_PREFILL_DECODE_ATTENTION: '1'

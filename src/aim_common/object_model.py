@@ -1,29 +1,49 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 #
 # SPDX-License-Identifier: MIT
+import logging
+import os
 import re
-import sys
 from dataclasses import dataclass
-from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, Optional, TypeVar
 
-# TODO: Remove this compatibility workaround once the ROCm base image is updated to Python 3.12
-# Python 3.10 compatibility: define StrEnum if not available
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-    class StrEnum(str, Enum):
-        """Minimal StrEnum for Python <3.11."""
+from aim_common.compat import StrEnum
 
+logger = logging.getLogger(__name__)
 
 EnumerationType = TypeVar("EnumerationType", bound=StrEnum)
+
+
+def _discover_engines() -> dict[str, str]:
+    """Discover available engines from engines.yaml.
+
+    Uses AIM_CONFIG_PATH environment variable to locate engines.yaml.
+    Falls back to {"VLLM": "vllm"} if AIM_CONFIG_PATH is not set or
+    engines.yaml cannot be read.
+    """
+    fallback = {"VLLM": "vllm"}
+    config_path = os.environ.get("AIM_CONFIG_PATH")
+    if not config_path:
+        logger.warning("AIM_CONFIG_PATH not set, using default Engine enum (vllm only)")
+        return fallback
+    try:
+        with open(Path(config_path) / "engines.yaml") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, dict):
+            return {k.upper(): k for k in data.keys()}
+    except (FileNotFoundError, OSError, AttributeError) as e:
+        logger.warning("Failed to read engines.yaml from AIM_CONFIG_PATH=%s: %s", config_path, e)
+    logger.warning("Falling back to default Engine enum (vllm only)")
+    return fallback
 
 
 class Precision(StrEnum):
     """Supported precision types."""
 
-    AUTO = "auto"
     FP4 = "fp4"
     FP8 = "fp8"
     FP16 = "fp16"
@@ -33,17 +53,12 @@ class Precision(StrEnum):
     INT8 = "int8"
 
 
-class Engine(StrEnum):
-    """Supported engine types."""
-
-    AUTO = "auto"
-    VLLM = "vllm"
+Engine = StrEnum("Engine", _discover_engines())  # type: ignore[misc]
 
 
 class Metric(StrEnum):
     """Supported metric types."""
 
-    AUTO = "auto"
     LATENCY = "latency"
     THROUGHPUT = "throughput"
     # Add more metrics here if needed
@@ -88,9 +103,6 @@ class GPUModel(StrEnum):
     RX7900 = "RX7900"  # 0x744c (RX 7900 XT / 7900 XTX / 7900 GRE / 7900M)
     RX6900 = "RX6900"  # 0x73af
     RX6800 = "RX6800"  # 0x73bf (RX 6800 / 6800 XT / 6900 XT)
-    # other
-    UNKNOWN = "UNKNOWN"
-    NONE = "NONE"
 
     @classmethod
     def _all_device_ids(cls) -> Dict[str, "GPUModel"]:
@@ -151,74 +163,87 @@ class GPUModel(StrEnum):
         return getattr(cls, cache_attribute_name)
 
     @classmethod
-    def from_string_with_default(cls, value: Optional[str], default: Optional["GPUModel"] = None) -> "GPUModel":
-        """Parse a GPU model from a string, returning a default instead of raising. This is a convenience wrapper around
-        "from_string". It attempts to resolve "value" using the same rules as "from_string", but will return a default
-        value instead of propagating "ValueError". The "value" parameter may be provided in one of the following formats:
-        * A GPU model name (case-insensitive string), e.g. "MI300X" or "rx7900".
-        * A GPU PCI device ID string with a "0x" prefix, e.g. "0x73bf".
+    def from_string_with_default(
+        cls, value: Optional[str], default: Optional["GPUModel"] = None
+    ) -> Optional["GPUModel"]:
+        """Parse a GPU model from a string, returning a default instead of raising.
+
         Args:
-            value: GPU model identifier to parse, either a model name or a device ID string with a "0x" prefix.
-            default: Value to return if parsing fails. If "None" (the default), "GPUModel.UNKNOWN" is returned when the
-            value cannot be resolved.
+            value: GPU model identifier to parse (model name or "0x"-prefixed device ID).
+            default: Value to return if parsing fails. Defaults to None.
         Returns:
-            A "GPUModel" instance corresponding to "value", or the provided "default" or "GPUModel.UNKNOWN" when parsing
-            fails.
+            A GPUModel instance, or the default when parsing fails.
         """
         try:
             return cls.from_string(value)
         except ValueError:
-            if default is not None:
-                return default
-
-            return cls.UNKNOWN
+            return default
 
     @classmethod
-    def from_string(cls, value: Optional[str]) -> "GPUModel":
-        """
-        Create a GPUModel from a string. This method accepts two kinds of inputs:
-        - GPU model names (case-insensitive), e.g. "MI300X" or "mi300x". These are matched against the enum member values.
-        - GPU device IDs as strings with a "0x" prefix (case-insensitive), e.g. "0x740c". These are looked up via
-        _all_device_ids method.
-        Notes
-        -----
-        - If value is None, "GPUModel.NONE" is returned.
-        - Device IDs must include the "0x" prefix. Passing a bare hex value such as "740c" will not be recognized as a
-        device ID and will result in a "ValueError" unless it also matches a GPU model name.
-        - If value does not correspond to any known GPU model name or device ID, a "ValueError" is raised.
-        """
-        gpu_model_mapping = cls._all_device_ids()
+    def from_string(cls, value: Optional[str]) -> Optional["GPUModel"]:
+        """Create a GPUModel from a string (model name or "0x"-prefixed device ID).
 
+        Returns None if value is None. Raises ValueError if value is unrecognized.
+        """
         if value is None:
-            return cls.NONE
+            return None
 
+        gpu_model_mapping = cls._all_device_ids()
         name_value = value.upper()
         try:
             return cls(name_value)
         except ValueError:
             device_value = value.lower()
-            # Try to map from device ID
             if device_value in gpu_model_mapping:
                 return gpu_model_mapping[device_value]
-
             raise
 
 
-@dataclass(frozen=True)
-class ProfileMetadata:
+class ProfileMetadata(BaseModel):
     """Metadata information from a profile."""
+
+    model_config = ConfigDict(frozen=True, use_enum_values=False)
 
     engine: Engine
     gpu: GPUModel
     precision: Precision
-    gpu_count: int
+    gpu_count: int = Field(ge=0, le=8)
     metric: Metric
     manual_selection_only: bool
     type: ProfileType
 
+    @field_validator("engine", "precision", "metric", "type", mode="before")
+    @classmethod
+    def _case_insensitive_enum(cls, v, info):
+        """Parse enum values case-insensitively."""
+        if isinstance(v, str):
+            enum_map = {"engine": Engine, "precision": Precision, "metric": Metric, "type": ProfileType}
+            enum_class = enum_map[info.field_name]
+            try:
+                return enum_class(v)
+            except ValueError:
+                for member in enum_class:
+                    if member.value.lower() == v.lower():
+                        return member
+                raise
+        return v
+
+    @field_validator("gpu", mode="before")
+    @classmethod
+    def _parse_gpu(cls, v):
+        """Parse GPU values using GPUModel.from_string for device ID support."""
+        if isinstance(v, str):
+            return GPUModel.from_string(v)
+        return v
+
     def __str__(self) -> str:
         """Generate the profile ID string."""
         return self.profile_id
+
+    def __hash__(self) -> int:
+        return hash(
+            (self.engine, self.gpu, self.precision, self.gpu_count, self.metric, self.manual_selection_only, self.type)
+        )
 
     @property
     def profile_id(self) -> str:
@@ -226,43 +251,27 @@ class ProfileMetadata:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the profile metadata to a dictionary for serialization."""
-        return {
-            "engine": self.engine.value,
-            "gpu": self.gpu.value,
-            "precision": self.precision.value,
-            "gpu_count": self.gpu_count,
-            "metric": self.metric.value,
-            "manual_selection_only": self.manual_selection_only,
-            "type": self.type.value,
-        }
+        return self.model_dump(mode="json")
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProfileMetadata":
         """Create a ProfileMetadata instance from a dictionary."""
+        return cls.model_validate(data)
 
-        # Helper function for case-insensitive enum conversion
-        def to_enum(enum_class, value):
-            if isinstance(value, str):
-                try:
-                    return enum_class(value)
-                except ValueError:
-                    # Try case-insensitive match
-                    for member in enum_class:
-                        if member.value.lower() == value.lower():
-                            return member
-                    raise
 
-            return value
+class ProfileData(BaseModel):
+    """Pydantic model for general AIM profile YAML files."""
 
-        return cls(
-            engine=to_enum(Engine, data["engine"]),
-            gpu=GPUModel.from_string(data["gpu"]),
-            precision=to_enum(Precision, data["precision"]),
-            gpu_count=data.get("gpu_count", 1),
-            metric=to_enum(Metric, data["metric"]),
-            manual_selection_only=bool(data.get("manual_selection_only", False)),
-            type=to_enum(ProfileType, data.get("type", "general")),
-        )
+    metadata: ProfileMetadata
+    env_vars: Dict[str, str]
+    engine_args: Dict[str, Any]
+
+
+class ModelProfileData(ProfileData):
+    """Pydantic model for model-specific AIM profile YAML files."""
+
+    aim_id: str
+    model_id: str
 
 
 @dataclass(frozen=True)

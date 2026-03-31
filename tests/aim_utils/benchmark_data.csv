@@ -1,9 +1,0 @@
-,profile,gate value,type (manual)
-ghcr.io/silogen/aim-qwen-qwen3-32b:0.8.3-preview,vllm-mi300x-fp16-tp1-latency,0.95,optimized
-ghcr.io/silogen/aim-qwen-qwen3-32b:0.8.3-preview,vllm-mi300x-fp8-tp1-latency,0.92,optimized
-ghcr.io/silogen/aim-meta-llama-llama-3-1-8b-instruct:0.8.3-preview,vllm-mi300x-fp16-tp1-latency,0.88,preview
-ghcr.io/silogen/aim-meta-llama-llama-3-1-8b-instruct:0.8.3-preview,vllm-mi300x-fp8-tp1-latency,0.75,preview
-ghcr.io/silogen/aim-meta-llama-llama-3-2-1b-instruct:0.8.3-preview,vllm-mi300x-fp16-tp1-latency,0.65,preview
-ghcr.io/silogen/aim-meta-llama-llama-3-2-1b-instruct:0.8.3-preview,vllm-mi300x-fp8-tp1-latency,0.55,unoptimized
-ghcr.io/silogen/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.3-preview,vllm-mi300x-fp16-tp1-latency,0.91,optimized
-ghcr.io/silogen/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.3-preview,vllm-mi300x-fp8-tp1-latency,0.78,preview

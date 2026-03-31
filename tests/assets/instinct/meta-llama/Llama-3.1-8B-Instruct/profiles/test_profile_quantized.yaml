@@ -1,0 +1,32 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: meta-llama/Llama-3.1-8B-Instruct
+model_id: amd/Llama-3.1-8B-Instruct-FP8-KV
+metadata:
+  engine: "vllm"
+  gpu: "MI300X"
+  precision: "fp8"
+  gpu_count: 1
+  metric: "latency"
+  manual_selection_only: false
+  type: "unoptimized"
+
+engine_args:
+  dtype: "float16"
+  tensor-parallel-size: 1
+  gpu-memory-utilization: 0.95
+  no-enable-chunked-prefill: null
+  enable-eplb: true
+
+env_vars:
+  VLLM_DO_NOT_TRACK: "1"
+  VLLM_USE_V1: "0"
+  VLLM_USE_TRITON_FLASH_ATTN: "0"
+  HIP_FORCE_DEV_KERNARG: "1"
+  NCCL_MIN_NCHANNELS: "112"
+  TORCH_BLAS_PREFER_HIPBLASLT: "1"
+  PYTORCH_TUNABLEOP_ENABLED: "1"
+  PYTORCH_TUNABLEOP_VERBOSE: "1"
+  PYTORCH_TUNABLEOP_TUNING: "0"

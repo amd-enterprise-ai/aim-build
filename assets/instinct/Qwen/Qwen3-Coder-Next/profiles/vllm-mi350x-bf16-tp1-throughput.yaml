@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-Coder-Next
+model_id: Qwen/Qwen3-Coder-Next
+metadata:
+  engine: vllm
+  gpu: MI350X
+  gpu_count: 1
+  manual_selection_only: true
+  metric: throughput
+  precision: bf16
+  type: unoptimized
+engine_args:
+  disable-uvicorn-access-log: null
+  dtype: bfloat16
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.95
+  max-model-len: -1
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  tensor-parallel-size: 1
+  tool-call-parser: qwen3_coder
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MHA: '1'
+  VLLM_V1_USE_PREFILL_DECODE_ATTENTION: '1'

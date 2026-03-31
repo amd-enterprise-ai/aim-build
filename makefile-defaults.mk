@@ -32,9 +32,9 @@ DATE_VERSION = v$(shell date +%Y%m%d)
 # Base Image Source
 # ==============================================================================
 # Upstream base image to build from (e.g., ROCm runtime image)
-BASE_REGISTRY_NAMESPACE = rocm
-BASE_REPOSITORY         = vllm
-BASE_TAG                = rocm7.0.0_vllm_0.11.2_20251210
+BASE_REGISTRY_NAMESPACE = vllm
+BASE_REPOSITORY         = vllm-openai-rocm
+BASE_TAG                = v0.16.0
 
 # ==============================================================================
 # Container Image Names
@@ -50,5 +50,5 @@ AIM_REPOSITORY = aim
 # ==============================================================================
 # Default organization and model for model-specific builds
 # These values are used when ORG and MODEL are not specified
-ORG   = meta-llama
-MODEL = Llama-3.1-8B-Instruct
+ORG   ?= meta-llama
+MODEL ?= Llama-3.1-8B-Instruct

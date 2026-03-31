@@ -18,7 +18,9 @@ from aim_common.object_model import (
     EnumerationType,
     GPUModel,
     Metric,
+    ModelProfileData,
     Precision,
+    ProfileData,
     ProfileMetadata,
     ProfileType,
 )
@@ -28,7 +30,9 @@ __all__ = [
     "EnumerationType",
     "GPUModel",
     "Metric",
+    "ModelProfileData",
     "Precision",
+    "ProfileData",
     "ProfileMetadata",
     "ProfileType",
 ]

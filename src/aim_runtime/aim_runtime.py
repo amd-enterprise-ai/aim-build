@@ -12,12 +12,15 @@ AIM runtime workflow including profile selection and command generation.
 import logging
 import os
 import shutil
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 
 from .command_generator import CommandGenerator
 from .config import AIMConfig
+from .engine_config import load_engine_config
+from .gpu_detector import get_gfx_arch
 from .model_storage import StorageBackendRegistry
 from .profile_selector import ProfileSelector
 
@@ -70,6 +73,54 @@ def _add_storage_estimates(models: List[Dict[str, Any]], storage_registry: Stora
             model_info["size_gb"] = size_gb
 
 
+def _install_aiter_prebuilt_kernels(gpu_model: str) -> None:
+    """Copy pre-built AITER kernels into the system AITER JIT directory.
+
+    Instead of redirecting AITER_JIT_DIR (which requires symlinking all
+    52 system modules into each arch directory), this copies only the
+    pre-built attention kernels into AITER's default JIT directory.
+    AITER then finds both pre-built and system modules in one place.
+
+    This approach is robust against /workspace volume mounts, symlink
+    breakage on overlayfs, and AITER package path changes.
+
+    Args:
+        gpu_model: GPU model from profile.metadata.gpu (e.g., "MI300X")
+    """
+    gfx_arch = get_gfx_arch(gpu_model)
+    if not gfx_arch:
+        return
+
+    prebuilt_dir = Path(f"/workspace/aiter-jit-prebuilt/{gfx_arch}")
+    if not prebuilt_dir.is_dir():
+        return
+
+    try:
+        import aiter
+
+        jit_dir = Path(aiter.__file__).parent / "jit"
+    except ImportError:
+        logger.debug("AITER package not available, skipping kernel installation")
+        return
+
+    if not jit_dir.is_dir():
+        logger.warning(f"AITER JIT directory not found at {jit_dir}")
+        return
+
+    installed = 0
+    for so_file in prebuilt_dir.glob("*.so"):
+        dest = jit_dir / so_file.name
+        if not dest.exists():
+            try:
+                shutil.copy2(so_file, dest)
+                installed += 1
+            except OSError as e:
+                logger.warning(f"Failed to install pre-built kernel {so_file.name}: {e}")
+
+    if installed:
+        logger.info(f"Installed {installed} pre-built AITER kernel(s) for {gpu_model} ({gfx_arch}) into {jit_dir}")
+
+
 class AIMRuntime:
     """Main orchestrator for AIM runtime operations."""
 
@@ -77,7 +128,8 @@ class AIMRuntime:
         """Initialize the AIM runtime with configuration."""
         self.config = config
         self.profile_selector = ProfileSelector(config)
-        self.command_generator = CommandGenerator(config)
+        engine_config = load_engine_config(config.engine, config.config_path)
+        self.command_generator = CommandGenerator(config, engine_config)
         self.storage_registry = StorageBackendRegistry()
 
     @staticmethod
@@ -216,6 +268,10 @@ class AIMRuntime:
 
         if not model_id:
             raise ValueError("Model not specified in profile or configuration")
+
+        # Install pre-built AITER kernels for the target GPU architecture
+        if profile.metadata and profile.metadata.gpu:
+            _install_aiter_prebuilt_kernels(profile.metadata.gpu)
 
         # Step 3: Generate execution parameters
         logger.info("Generating execution parameters...")

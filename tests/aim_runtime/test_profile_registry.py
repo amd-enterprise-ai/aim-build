@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-import os
+from pathlib import Path
 
 import pytest
 
@@ -11,23 +11,25 @@ from aim_runtime.profile_registry import ProfileRegistry
 
 
 @pytest.fixture
-def custom_profiles_path(profiles_path: str) -> str:
-    return os.path.join(profiles_path, "custom")
+def custom_profiles_path(assets_instinct_path: str) -> str:
+    return str(Path(assets_instinct_path) / "custom")
 
 
 @pytest.fixture
-def model_profiles_path(profiles_path: str) -> str:
-    return os.path.join(profiles_path, "meta-llama", "Llama-3.1-8B-Instruct")
+def model_profiles_path(assets_instinct_path: str) -> str:
+    return str(Path(assets_instinct_path) / "meta-llama" / "Llama-3.1-8B-Instruct" / "profiles")
 
 
-def test_discover_and_validate_precedence(custom_profiles_path, model_profiles_path, general_profiles_path, validator):
+def test_discover_and_validate_precedence(
+    custom_profiles_path, model_profiles_path, general_profiles_path, profile_validator
+):
     """Test discovering and validating profiles."""
     registry = ProfileRegistry.discover_and_validate(
-        [custom_profiles_path, model_profiles_path, general_profiles_path], validator
+        [custom_profiles_path, model_profiles_path, general_profiles_path], profile_validator
     )
 
-    assert registry.total_discovered == 6
-    assert len(registry.profiles) == 6
+    assert registry.total_discovered == 7
+    assert len(registry.profiles) == 7
 
     # Verify the search path is set correctly
     assert registry.search_path == " -> ".join([custom_profiles_path, model_profiles_path, general_profiles_path])

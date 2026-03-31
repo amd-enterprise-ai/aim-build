@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # AIM Container Technical Architecture
 >
-> **Version**: 0.10
+> **Version**: 0.11
 >
 > **Scope**: This document describes the internal technical architecture of AIM *containers*. It deliberately excludes higher‑level orchestration (Kubernetes, Helm, Operators) to focus on what ships inside and immediately around a single container instance.
 
@@ -141,12 +141,12 @@ available:
 
 Setting `AIM_MODEL_ID` for model-specific container is not supported because it is resolved internally.
 
-### 3.3 Schema & Integrity
+### 3.3 Validation & Integrity
 
-The schema (JSON file in `schemas/` ) enforces structural correctness: required fields (metadata section with engine/GPU/precision/gpu_count/metric, engine sections, args). Schema validation ensures at least:
+Pydantic models (in `src/aim_common/`) enforce structural correctness: required fields (metadata section with engine/GPU/precision/gpu_count/metric, engine sections, args). Validation ensures at least:
 * Valid YAML structure
 * Presence of complete metadata section with all required fields
-* Engine argument validation
+* Engine argument validation (via native vLLM `EngineArgs` with Pydantic model fallback)
 * GPU count validation (1, 2, 4, 8 for tensor parallelism)
 
 Optional checks:
@@ -169,7 +169,8 @@ The profile selector executes these stages:
    - `manual-selection-only` flag (profiles with this flag are excluded from automatic selection)
 5. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
 6. **Type ordering** - Sort remaining profiles by type in the order of: `optimized`, `preview`, `unoptimized`, `general`.
-7. **Profile Selection** – Return the best-matched profile from the ordered list
+7. **Unoptimized Profile Fallback** – If no auto-selectable profile was found and `AIM_ALLOW_UNOPTIMIZED=true`, attempt to select a compatible unoptimized profile (emits a warning)
+8. **Profile Selection** – Return the best-matched profile from the ordered list
 
 The selection algorithm leverages the structured metadata section to efficiently filter and rank profiles based on the runtime environment and user preferences. This metadata-driven approach ensures optimal profile selection while maintaining deterministic fallback behavior.
 
@@ -250,6 +251,8 @@ Users can influence profile selection through the following environment variable
 - `AIM_PROFILE_ID`: Explicitly specify a profile filename (skips heuristic selection)
 - `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: When set to "false", general profiles become marked as `manual_selection_only: true`
 and are not considered for automatic selection
+- `AIM_ALLOW_UNOPTIMIZED`: When set to "true", allows automatic selection of unoptimized profiles as a fallback when no
+optimized or preview profiles are auto-selectable for the current hardware (default: "false")
 
 Profiles can be of different types (see Section 3.2 for details):
 * `optimized`
@@ -260,9 +263,9 @@ Profiles can be of different types (see Section 3.2 for details):
 Profiles of types `optimized` and `preview` are participating in automatic profile selection by default, and therefore can be
 selected without any intervention from the user. `General` profiles can be selected automatically if base container is
 used (see Section 12.2). `General` profiles can be automatically selected for model-specific containers as well, but
-only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". Unoptimized profiles are usually
-excluded from automatic selection, however, any profile with the `manual_selection_only` field set to `true` can be
-excluded as well.
+only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". Unoptimized profiles are excluded from automatic selection by default. When `AIM_ALLOW_UNOPTIMIZED` is set to "true",
+they can be automatically selected as a fallback if no optimized or preview profiles match the current hardware.
+Any profile with the `manual_selection_only` field set to `true` can also be excluded from automatic selection.
 
 It is still possible to select profiles with `manual_selection_only=true` for runtime. This is achieved by setting the
 environment variable `AIM_PROFILE_ID` with the desired profile identifier. Profile identifier is the filename of the
@@ -365,7 +368,7 @@ For detailed implementation including pre-population strategies, volume mounting
 ## 8. Security & Isolation Considerations
 
 * **Minimal Environment Variables** – Profile selection uses configuration over environment variable sprawl, reducing attack surface
-* **Least Privilege Volumes** – Mount read-only where feasible (profiles, schemas) and writable only where required (cache)
+* **Least Privilege Volumes** – Mount read-only where feasible (profiles) and writable only where required (cache)
 * **Non-Root Execution** – Container runs as non-root user (`aim` with UID 1000) to limit host resource access; GPU access requires `--group-add video` at runtime
 * **Process Isolation** – Direct execution via `os.execv()` (not shell) prevents command injection vulnerabilities
 
@@ -461,6 +464,7 @@ Recommended environment variables:
 | AIM_METRIC | Optional metric to optimize for (e.g., `latency`, `throughput` ). |
 | AIM_PROFILE_ID | Optional explicit profile selection (skips heuristic). |
 | AIM_ALLOW_GENERAL_PROFILE_FALLBACK | Allow automatic selection of general profiles (true/false, default: true for base containers, false for model-specific containers). When false, general profiles are still loaded but marked as manual-selection-only. |
+| AIM_ALLOW_UNOPTIMIZED | Allow automatic fallback to unoptimized profiles when no optimized or preview profiles are auto-selectable (true/false, default: false). |
 | AIM_CACHE_PATH | Override default cache root. |
 | AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: WARNING). |
 | AIM_LOG_LEVEL | Log level for AIM runtime packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |
@@ -498,9 +502,8 @@ COPY pyproject.toml /workspace/aim-runtime/
 COPY src/entrypoint.py /workspace/entrypoint.py
 RUN chmod +x /workspace/entrypoint.py
 
-# Copy general profiles and schemas
+# Copy general profiles
 COPY profiles/general /workspace/aim-runtime/profiles/general
-COPY schemas /workspace/aim-runtime/schemas
 
 # Install AIM Runtime in production mode
 RUN cd /workspace/aim-runtime && \

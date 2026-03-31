@@ -35,7 +35,7 @@ supported by AIM but are compatible with supported engines.
 
 ## Creating Custom Profiles
 
-A profile can be defined as a YAML file. The file should adhere to the AIM profile schema. Please refer to the
+A profile can be defined as a YAML file. The file should adhere to the AIM profile structure. Please refer to the
 [existing profiles](https://github.com/amd-enterprise-ai/aim-build/tree/main/profiles) for more examples.
 
 ## Using Custom Profiles
@@ -89,7 +89,7 @@ directory to map is in the current working directory and is named `custom-profil
         └── profile.yaml
 ```
 
-All profiles, including the custom ones, are validated against the [AIM profile schema](https://github.com/amd-enterprise-ai/aim-build/tree/main/schemas) at runtime.
+All profiles, including the custom ones, are validated using Pydantic models at runtime.
 
 #### Running base image with custom general profile
 

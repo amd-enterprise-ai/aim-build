@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: meta-llama/Llama-3.1-405B-Instruct
+model_id: amd/Llama-3.1-405B-Instruct-MXFP4-Preview
+metadata:
+  engine: vllm
+  gpu: MI350X
+  gpu_count: 8
+  manual_selection_only: false
+  metric: latency
+  precision: fp4
+  type: preview
+engine_args:
+  disable-uvicorn-access-log: null
+  dtype: auto
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: auto
+  max-model-len: 32768
+  max-num-batched-tokens: 2048
+  max-num-seqs: 1024
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  swap-space: 64
+  tensor-parallel-size: 8
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER_MHA: '1'
+  VLLM_ROCM_USE_AITER_TRITON_BF16_GEMM: '0'
+  VLLM_TRITON_FP4_GEMM_USE_ASM: '1'

@@ -4,16 +4,14 @@ Copyright © Advanced Micro Devices, Inc., or its affiliates.
 SPDX-License-Identifier: MIT
 -->
 
-# AIM Build: AMD Inference Microservice Containers
+# AIM: AMD Inference Microservice Containers
 
-This repository contains the implementation of AMD Inference Microservice (AIM), profiles, and build tools. AIM provides
-a standardized, production-ready framework for serving AI models on AMD Instinct™ GPUs. High-level AIM's overview can be
-found [here](docs/overview.md).
+AIM provides standardized, production-ready inference microservices for serving AI models on AMD Instinct™ GPUs and AMD Radeon™ Pro GPUs. High-level AIM's overview can be found [here](docs/overview.md).
 
 ## What It Does
 
-* **Standardized Containers**: Builds portable inference microservices for AMD GPUs.
-* **Validated Profiles**: Uses YAML profiles to configure models for specific hardware, ensuring optimal performance for different precision formats (FP16, BF16, FP8, etc.) and tensor parallel layouts.
+* **Standardized Containers**: Portable inference microservices for AMD GPUs.
+* **Validated Profiles**: YAML profiles configure models for specific hardware, ensuring optimal performance for different precision formats (FP16, BF16, FP8, etc.) and tensor parallel layouts.
 * **Intelligent Configuration**: Automatically detects hardware and selects the best profile for the given GPU count and precision.
 * **Multiple Engines**: Supports multiple inference engines, starting with vLLM.
 * **Model Caching**: Integrates with external caches to accelerate model loading and reduce network usage.
@@ -30,7 +28,7 @@ The core of AIM is a **profile-driven system**.
 Profiles are chosen automatically based on the provided parameters such as:
 * Model ID (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
 * Engine (e.g., `vllm`)
-* GPU model (e.g., `MI300X`)
+* GPU model (e.g., `MI300X`, `R9700`, `W7900`)
 * GPU count (e.g., `1`, `2`, `4`, `8`)
 * Metric (e.g., `latency`, `throughput`)
 * Precision (e.g., `fp16`, `bf16`, `fp8`)
@@ -38,54 +36,58 @@ Profiles are chosen automatically based on the provided parameters such as:
 It is possible to bypass automatic selection and specify a particular profile directly using `AIM_PROFILE_ID`
 environment variable.
 
-## Container Build Patterns
+## Container Types
 
-AIM uses a two-tiered approach to building images:
+AIM uses a two-tiered approach:
 
-1.  **Generic Base Container (`aim-base`)**: A single, universal image that can run any supported model. The model is chosen at runtime. This provides maximum flexibility for deploying different models.
-2.  **Model-Specific Container (`aim`)**: An extension of the base image that includes optimized profiles for a particular model. This ensures the best possible performance.
+1.  **Generic Base Container (`aim-base` for Instinct, `aim-epyc-base` / `aim-radeon-base` for other accelerators)**: A single, universal image that can run any supported model for the selected accelerator. The model is chosen at runtime. This provides maximum flexibility for deploying different models.
+2.  **Model-Specific Container (`aim-<org>-<model>` for Instinct, `aim-<accelerator_family>-<org>-<model>` for other accelerators)**: An extension of the base image that includes optimized profiles for a particular model. This ensures the best possible performance.
+
+See the [latest AIMs](docs/latest_aims.md) page for a list of all available pre-built containers.
 
 ## Quick Start
 
 ### Prerequisites
 
-*   AMD GPU with ROCm support (e.g., MI300X).
+*   AMD GPU with ROCm support (e.g., MI300X for Instinct, W7900 or R9700 for Radeon Pro).
 *   Docker installed and running.
 
-### Build the Base Container
+### Pull a Pre-Built Container
 
 ```bash
-make build-base
-```
-
-### Build a Model-Specific Container
-
-To build a container for a specific model, such as `meta-llama/Llama-3.1-8B-Instruct` , use the following command:
-
-```bash
-make build-model ORG=meta-llama MODEL=Llama-3.1-8B-Instruct
+docker pull amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 ### Run the Container
-
-The following command runs the model-specific container with GPU support and port mapping. It does set any environment
-variables and relies on their default values:
 
 ```bash
 docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 Sharing GPU with container is needed to run the models on GPU. Also, the port mapping is needed to access the inference
 service. Sharing GPU is achieved by adding the following flags to `docker run` command: `--device=/dev/kfd --device=/dev/dri`.
-Alternatively, it can be done by adding `--runtime=amd –gpus 1` but it will require very recent [Docker version and AMD Conatiner Toolkit installed](https://instinct.docs.amd.com/projects/container-toolkit/en/latest/container-runtime/quick-start-guide.html#using-gpus-flag-with-docker-28-x).
+Alternatively, it can be done by adding `--runtime=amd --gpus 1` but it will require very recent [Docker version and AMD Container Toolkit installed](https://instinct.docs.amd.com/projects/container-toolkit/en/latest/container-runtime/quick-start-guide.html#using-gpus-flag-with-docker-28-x).
+
+### Using the Base Container with Any Model
+
+```bash
+docker pull amdenterpriseai/aim-base:0.11
+
+docker run \
+  -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+  --device=/dev/kfd --device=/dev/dri \
+  -p 8000:8000 \
+  amdenterpriseai/aim-base:0.11
+```
 
 For more examples on how to run AIMs on Docker see the [Docker Deployment](docs/docker_deployment.md) documentation.
 
-### Other deployment scenarios
+### Other Deployment Scenarios
 
 For more options on deploying AIMs please refer to the [Deployment Overview](docs/deployment_overview.md),
 [Kubernetes Deployment](docs/kubernetes_deployment.md), and [KServe Deployment](docs/kserve_deployment.md) documentation.
@@ -96,7 +98,7 @@ AIM containers support the following environment variables:
 
 ### Required
 
-* `AIM_MODEL_ID`: **Required for base container (`aim-base`) only.** The Hugging Face model identifier to deploy (e.g., `meta-llama/Llama-3.1-8B-Instruct`).
+* `AIM_MODEL_ID`: **Required for base containers such as `aim-base`, `aim-epyc-base`, or `aim-radeon-base`.** The Hugging Face model identifier to deploy (e.g., `meta-llama/Llama-3.1-8B-Instruct`).
 
 ### Optional
 
@@ -168,111 +170,10 @@ The AIM runtime provides a command-line interface with the following subcommands
 | `serve` (default)   | Performs profile selection and starts the inference server. This is the default behavior when no subcommand is specified.                                                                                       |
 | `dry-run`           | Performs profile selection and displays the selected profile without starting the server. Supports two output formats: YAML and JSON.                                                                           |
 | `list-profiles`     | Lists and categorizes all available profiles by their compatibility with the current configuration. This helps you understand which profiles are available and why certain profiles may or may not be selected. |
+| `detect-hardware`   | Detects hardware accelerators (GPU/CPU) and reports identifiers as a list of dicts. Supports `--type gpu|cpu|all`, `--format json|yaml`, and `--verbose`.                                                      |
 | `download-to-cache` | Pre-downloads models to a local cache directory before running inference.                                                                                                                                       |
 
 See more details in the [AIM Runtime CLI Documentation](docs/cli.md).
-
-## Development
-
-### Setup Development Environment
-
-```bash
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install development dependencies
-make dev-setup
-```
-
-### Running Tests
-
-```bash
-# Run unit tests only (default)
-make test
-
-# Run integration tests (requires GPU/ROCm environment)
-make test-integration
-
-# Run all tests (unit + integration)
-make test-all
-
-# Run tests with coverage report
-make test-cov
-
-# Run tests with coverage and open HTML report
-make test-cov-open
-
-# Run pre-commit hooks (linting, formatting, etc.)
-make lint
-```
-
-#### Test Types
-
-* **Unit Tests**: Fast tests that run without hardware dependencies (default)
-* **Integration Tests**: Tests that require AMD GPU hardware and ROCm drivers
-  + Marked with `@pytest.mark.integration`
-  + Automatically skipped unless running in GPU environment
-  + Use `make test-integration` or `pytest -m integration` to run explicitly
-
-### Test Configuration
-
-The project uses pytest with the following features:
-* **Coverage reporting**: Generates HTML and XML coverage reports
-* **Test markers**: Use `@pytest.mark.slow` for slow tests,  `@pytest.mark.integration` for integration tests
-* **Pre-commit integration**: Tests run automatically on git commits
-* **Configuration**: See `pyproject.toml` for pytest settings
-
-### Available Make Targets
-
-#### Container Build & Management
-- `make build` - Build both base and model-specific containers
-- `make build-base` - Build the base AIM container
-- `make build-model` - Build model-specific container (requires ORG and MODEL variables)
-- `make tag` - Tag containers for registry push
-- `make push` - Push containers to registry
-- `make clean` - Clean up Docker images and containers
-
-#### Testing & Quality
-- `make test` - Run unit tests only (fast, no GPU required)
-- `make test-integration` - Run integration tests (requires GPU/ROCm environment)
-- `make test-all` - Run all tests (unit + integration)
-- `make test-cov` - Run unit tests with coverage reporting
-- `make test-cov-open` - Run tests and open coverage report in browser
-- `make lint` - Run pre-commit hooks (formatting, linting, etc.)
-
-#### Development Setup
-- `make dev-setup` - Install development dependencies and pre-commit hooks
-
-### Versioning
-
-Versioning for containers and for the codebase is tied together. Versioning for model-specific containers follows partial
-semantic versioning. It is partial because `rc` and `preview` versions do not follow alphabetical order and this should
-be considered when comparing versions. Base images use MAJOR.MINOR (e.g., `0.4`), while model-specific images use
-MAJOR.MINOR.PATCH (e.g., `0.4.2`). The versioning is based on the `pyproject.toml` file which contains only MAJOR.MINOR.
-Patch versions for model-specific images are automatically determined from the registry. Version suffixes indicate the
-release stage:
-
-1. `x.y-rcN` or `x.y.z-rcN` - Release Candidate (N auto-increments with each push)
-2. `x.y-preview` or `x.y.z-preview` - Preview Release (default for PRs to main)
-3. `x.y` or `x.y.z` - Official Release (requires source branch starting with `release/`)
-
-**Version bumping guidelines:**
-
-Update the version in `pyproject.toml` (MAJOR.MINOR only) when making changes to:
-- Base image (vLLM version updates)
-- Runtime code (src/aim_runtime/)
-- General profiles (profiles/general/)
-- Breaking API or architectural changes
-
-Do NOT bump the version for model-specific profile changes - patch versions auto-increment per model.
-
-**CI Workflow:**
-- Feature branches: Each push creates a new `-rcN` version (N auto-increments)
-- PR to main: Creates a `-preview` version by default
-- PR from `release/` branch to main: Creates official version (no suffix)
-
-If the target version already exists in the registry, the build will fail and you must bump the version in `pyproject.toml`.
 
 ## Documentation
 

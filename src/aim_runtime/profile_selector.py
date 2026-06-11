@@ -11,16 +11,16 @@ based on model and hardware configuration.
 
 import logging
 from dataclasses import dataclass, replace
-from typing import Dict, List, Tuple
-
-import yaml
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from aim_common import ProfileType
 from aim_common.compat import StrEnum
+from aim_runtime.utils import read_yaml
 
+from .accelerator_detector import AcceleratorDetectionResult, AcceleratorDetector
 from .config import AIMConfig
-from .gpu_detector import GPUDetector
-from .object_model import Engine, Metric, Precision
+from .object_model import AcceleratorModel, Engine, Metric, Precision
 from .profile_registry import Profile, ProfileRegistry
 from .profile_validator import ProfileValidator
 
@@ -37,7 +37,7 @@ class ProfileCompatibilityState(StrEnum):
     """State categories for profile compatibility."""
 
     COMPATIBLE = "compatible"
-    GPU_MISMATCH = "gpu_mismatch"
+    ACCELERATOR_MISMATCH = "accelerator_mismatch"
     PRECISION_MISMATCH = "precision_mismatch"
     MODEL_MISMATCH = "model_mismatch"
     ENGINE_MISMATCH = "engine_mismatch"
@@ -48,7 +48,7 @@ class ProfileCompatibilityState(StrEnum):
 # Initialize ANSI color codes using enum directly as keys
 PROFILE_STATE_COLORS = {
     ProfileCompatibilityState.COMPATIBLE: "\033[92m",  # Green
-    ProfileCompatibilityState.GPU_MISMATCH: "\033[93m",  # Yellow
+    ProfileCompatibilityState.ACCELERATOR_MISMATCH: "\033[93m",  # Yellow
     ProfileCompatibilityState.PRECISION_MISMATCH: "\033[94m",  # Blue
     ProfileCompatibilityState.MODEL_MISMATCH: "\033[95m",  # Magenta
     ProfileCompatibilityState.ENGINE_MISMATCH: "\033[96m",  # Cyan
@@ -75,37 +75,13 @@ class ProfileSelector:
         self.config = config
         self.profile_validator = ProfileValidator()
 
-        # Check if GPU model is manually specified via environment variable
-        if config.gpu_model is not None:
-            logger.info(f"Using GPU model from AIM_GPU_MODEL: {config.gpu_model}")
-            self.detected_gpu = config.gpu_model
+        # Hardware detection results — set by _detect_hardware()
+        self.detected_accelerator: Optional[AcceleratorModel] = None
+        self.detected_accelerator_count: int = 0
+        self.detected_cpu_cores: int = 0
+        self._detection_result: Optional[AcceleratorDetectionResult] = None
 
-            # Determine GPU count
-            if config.gpu_count == "auto":
-                logger.warning(
-                    "AIM_GPU_MODEL is set but AIM_GPU_COUNT is 'auto'. "
-                    "Defaulting to 1 GPU. Set AIM_GPU_COUNT explicitly if needed."
-                )
-                self.detected_gpu_count = 1
-            else:
-                self.detected_gpu_count = int(config.gpu_count)
-        else:
-            # Use GPU auto-detection
-            gpu_detector = GPUDetector()
-            if not gpu_detector.all_gpus_idle:
-                logger.warning("Some GPUs are not idle! Check GPU usage.")
-
-            if gpu_detector.has_gpus and gpu_detector.gpu_models:
-                self.detected_gpu = gpu_detector.gpu_models[0]  # type: ignore[assignment]
-                if config.gpu_count == "auto":
-                    self.detected_gpu_count = gpu_detector.gpu_count
-                else:
-                    self.detected_gpu_count = int(config.gpu_count)
-            else:
-                self.detected_gpu = None  # type: ignore[assignment]
-                self.detected_gpu_count = 0
-
-        logger.debug(f"Detected GPU: {self.detected_gpu}, GPU count: {self.detected_gpu_count}")
+        self._detect_hardware()
 
         # Build registry at construction
         logger.info("Loading and validating all profiles...")
@@ -121,6 +97,28 @@ class ProfileSelector:
             logger.info("Unoptimized profile fallback enabled - unoptimized profiles may be auto-selected")
 
         self.registry.log_summary()
+
+    @property
+    def cpuset_bind(self) -> Optional[str]:
+        """Raw cpuset bind string from accelerator detection, or None if unavailable."""
+        return self._detection_result.cpuset_bind if self._detection_result else None
+
+    def _detect_hardware(self) -> None:
+        """Run unified accelerator detection and store results."""
+        detector = AcceleratorDetector()
+        result = detector.detect(
+            accelerator_type=self.config.accelerator_type,
+            accelerator_family=self.config.accelerator_family,
+            accelerator_model_override=self.config.accelerator_model,
+            accelerator_count_override=self.config.accelerator_count,
+        )
+        self._detection_result = result
+
+        self.detected_accelerator = result.accelerator_model
+        self.detected_accelerator_count = result.accelerator_count
+        self.detected_cpu_cores = result.cpu_cores
+
+        logger.debug(f"Detected accelerator: {self.detected_accelerator}, count: {self.detected_accelerator_count}")
 
     def _mark_general_profiles_manual_only(self) -> None:
         """Mark all general profiles in the registry as manual-selection-only."""
@@ -314,8 +312,8 @@ class ProfileSelector:
         logger.info(f"Assessing {len(candidates)} profiles with config:")
         logger.info(f"  Engine: {self.config.engine}")
         logger.info(f"  Precision: {self.config.precision}")
-        logger.info(f"  Detected GPU: {self.detected_gpu}")
-        logger.info(f"  GPU Count: {self.detected_gpu_count}")
+        logger.info(f"  Detected Accelerator: {self.detected_accelerator}")
+        logger.info(f"  Accelerator Count: {self.detected_accelerator_count}")
         logger.info(f"  Metric: {self.config.metric}")
 
         # Assess each profile in a single pass
@@ -376,19 +374,19 @@ class ProfileSelector:
                 reason=f"Profile doesn't support AIM ID {self.config.aim_id}",
             )
 
-        # Check GPU compatibility (type and count)
-        if profile.metadata.gpu != self.detected_gpu:
+        # Check accelerator compatibility (type and count)
+        if profile.metadata.accelerator_model != self.detected_accelerator:
             return ProfileCompatibilityResult(
                 profile=profile,
-                state=ProfileCompatibilityState.GPU_MISMATCH,
-                reason=f"Profile doesn't support GPU type {self.detected_gpu}",
+                state=ProfileCompatibilityState.ACCELERATOR_MISMATCH,
+                reason=f"Profile accelerator {profile.metadata.accelerator_model} != detected {self.detected_accelerator}",
             )
 
-        if profile.metadata.gpu_count != self.detected_gpu_count:
+        if profile.metadata.accelerator_count != self.detected_accelerator_count:
             return ProfileCompatibilityResult(
                 profile=profile,
-                state=ProfileCompatibilityState.GPU_MISMATCH,
-                reason=f"Profile doesn't support {self.detected_gpu_count} GPUs",
+                state=ProfileCompatibilityState.ACCELERATOR_MISMATCH,
+                reason=f"Profile accelerator count {profile.metadata.accelerator_count} != detected {self.detected_accelerator_count}",
             )
 
         # Check precision compatibility
@@ -408,8 +406,7 @@ class ProfileSelector:
 
     def _read_profile_yaml(self, profile: Profile) -> dict:
         """Read raw YAML content from a profile's file on disk."""
-        with open(profile.profile_handling.path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+        return read_yaml(Path(profile.profile_handling.path))
 
     def serialize_profiles(self, categorized: Dict[ProfileCompatibilityState, List[Profile]]) -> List[dict]:
         """
@@ -472,8 +469,8 @@ class ProfileSelector:
         lines.append(f"Precision: {self.config.precision}")
         lines.append(f"Engine: {self.config.engine}")
         lines.append(f"Metric: {self.config.metric}")
-        lines.append(f"GPU Count: {self.config.gpu_count}")
-        lines.append(f"GPU Model: {self.detected_gpu}")
+        lines.append(f"Accelerator Count: {self.config.accelerator_count}")
+        lines.append(f"Accelerator Model: {self.detected_accelerator}")
         lines.append("")
 
         total_profiles = sum(len(profiles) for profiles in categorized.values())
@@ -490,7 +487,7 @@ class ProfileSelector:
             for profile in profiles:
                 manual_flag = " [manual-only]" if profile.metadata.manual_selection_only else ""
                 lines.append(f"  • {profile.profile_id}{manual_flag}")
-                lines.append(f"    GPU: {profile.metadata.gpu}")
+                lines.append(f"    Accelerator: {profile.metadata.accelerator_model}")
                 lines.append(f"    Precision: {profile.metadata.precision}")
                 lines.append(f"    Engine: {profile.metadata.engine}")
                 lines.append(f"    Type: {profile.metadata.type}")
@@ -517,7 +514,7 @@ class ProfileSelector:
         # Table headers - reordered with State at the end
         headers = [
             "Profile",
-            "GPU",
+            "Accelerator",
             "Precision",
             "Engine",
             "TP",
@@ -536,10 +533,13 @@ class ProfileSelector:
             profile_id = profile.profile_id
             manual_only_display = "Yes" if profile.metadata.manual_selection_only else "No"
             col_widths[0] = max(col_widths[0], len(profile_id))
-            col_widths[1] = max(col_widths[1], len(profile.metadata.gpu.value))
+            col_widths[1] = max(
+                col_widths[1],
+                len(profile.metadata.accelerator_model.value if profile.metadata.accelerator_model else "none"),
+            )
             col_widths[2] = max(col_widths[2], len(profile.metadata.precision.value))
             col_widths[3] = max(col_widths[3], len(profile.metadata.engine.value))
-            col_widths[4] = max(col_widths[4], len(str(profile.metadata.gpu_count)))
+            col_widths[4] = max(col_widths[4], len(str(profile.metadata.accelerator_count)))
             col_widths[5] = max(col_widths[5], len(profile.metadata.metric.value))
             col_widths[6] = max(col_widths[6], len(profile.metadata.type.value))
             col_widths[7] = max(col_widths[7], len(str(profile.profile_handling.priority)))
@@ -554,10 +554,10 @@ class ProfileSelector:
         # Print table rows with colors
         for profile, state in profiles_with_states:
             profile_id = profile.profile_id
-            gpu = profile.metadata.gpu.value
+            accelerator = profile.metadata.accelerator_model.value if profile.metadata.accelerator_model else "none"
             precision = profile.metadata.precision.value
             engine = profile.metadata.engine.value
-            tp_size = str(profile.metadata.gpu_count)
+            tp_size = str(profile.metadata.accelerator_count)
             metric = profile.metadata.metric.value
             profile_type = profile.metadata.type.value
             priority = str(profile.profile_handling.priority)
@@ -570,7 +570,7 @@ class ProfileSelector:
 
             row_data = [
                 profile_id,
-                gpu,
+                accelerator,
                 precision,
                 engine,
                 tp_size,
@@ -613,7 +613,7 @@ class ProfileSelector:
         lines.append(f"AIM ID: {self.config.aim_id}")
         lines.append(f"Model ID: {self.config.model_id}")
         lines.append(
-            f"GPU Count: {self.config.gpu_count} | GPU Model: {self.detected_gpu} | "
+            f"Accelerator Count: {self.config.accelerator_count} | Accelerator Model: {self.detected_accelerator} | "
             f"Precision: {self.config.precision} | Engine: {self.config.engine} | Metric: {self.config.metric}"
         )
         lines.append("")
@@ -640,7 +640,7 @@ class ProfileSelector:
 
     def format_all_profiles_report(self, format_type: str = "text") -> str:
         """
-        Format a report of all profiles without GPU detection or compatibility checks.
+        Format a report of all profiles without hardware detection or compatibility checks.
 
         Args:
             format_type: Output format ("text" or "table")
@@ -675,7 +675,7 @@ class ProfileSelector:
             return "\n".join(lines)
 
         else:
-            # Text format (grouped by GPU model)
+            # Text format (grouped by accelerator model)
             from collections import defaultdict
 
             lines = []
@@ -686,21 +686,21 @@ class ProfileSelector:
             lines.append(f"Total profiles discovered: {len(profiles)}")
             lines.append("")
 
-            profiles_by_gpu = defaultdict(list)
+            profiles_by_accelerator = defaultdict(list)
             for profile in profiles:
-                profiles_by_gpu[profile.metadata.gpu].append(profile)
+                profiles_by_accelerator[profile.metadata.accelerator_model].append(profile)
 
-            for gpu_model in sorted(profiles_by_gpu.keys(), key=str):
-                gpu_profiles = sorted(profiles_by_gpu[gpu_model], key=lambda p: p.profile_id)
-                lines.append(f"{gpu_model} ({len(gpu_profiles)} profiles):")
+            for accelerator_model in sorted(profiles_by_accelerator.keys(), key=str):
+                accelerator_profiles = sorted(profiles_by_accelerator[accelerator_model], key=lambda p: p.profile_id)
+                lines.append(f"{accelerator_model} ({len(accelerator_profiles)} profiles):")
                 lines.append("-" * 40)
 
-                for profile in gpu_profiles:
+                for profile in accelerator_profiles:
                     manual_flag = " [manual-only]" if profile.metadata.manual_selection_only else ""
                     lines.append(f"  • {profile.profile_id}{manual_flag}")
                     lines.append(f"    Precision: {profile.metadata.precision}")
                     lines.append(f"    Engine: {profile.metadata.engine}")
-                    lines.append(f"    TP: {profile.metadata.gpu_count}")
+                    lines.append(f"    TP: {profile.metadata.accelerator_count}")
                     lines.append(f"    Metric: {profile.metadata.metric}")
                     lines.append(f"    Type: {profile.metadata.type}")
                     lines.append(f"    Priority: {profile.profile_handling.priority}")

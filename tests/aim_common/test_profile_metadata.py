@@ -14,10 +14,12 @@ sys.path.insert(0, str(ci_dir))
 sys.path.insert(0, str(src_dir))
 
 from aim_common.object_model import (  # noqa: E402
+    AcceleratorModel,
+    AcceleratorType,
     Engine,
-    GPUModel,
     Metric,
     Precision,
+    ProfileCapabilities,
     ProfileMetadata,
     ProfileType,
 )
@@ -30,9 +32,9 @@ class TestProfileMetadata:
         """Test that ProfileMetadata generates correct string representation."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
@@ -43,9 +45,9 @@ class TestProfileMetadata:
         """Test that profile_id property returns the same as str()."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI325X,
+            accelerator_model=AcceleratorModel.MI325X,
             precision=Precision.FP8,
-            gpu_count=2,
+            accelerator_count=2,
             metric=Metric.LATENCY,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
@@ -53,13 +55,27 @@ class TestProfileMetadata:
         assert profile.profile_id == str(profile)
         assert profile.profile_id == "vllm-mi325x-fp8-tp2-latency"
 
+    def test_profile_id_none_accelerator(self):
+        """Test profile_id when accelerator is None (e.g. CPU-only profile)."""
+        profile = ProfileMetadata(
+            engine=Engine.VLLM,
+            accelerator_model=None,
+            precision=Precision.BF16,
+            accelerator_count=0,
+            metric=Metric.LATENCY,
+            manual_selection_only=False,
+            type=ProfileType.GENERAL,
+        )
+        assert profile.profile_id == "vllm-none-bf16-tp0-latency"
+
     def test_profile_to_dict(self):
         """Test ProfileMetadata serialization to dictionary."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_type=AcceleratorType.GPU,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
@@ -67,9 +83,10 @@ class TestProfileMetadata:
         result = profile.to_dict()
         assert result == {
             "engine": "vllm",
-            "gpu": "MI300X",
+            "accelerator_type": "gpu",
+            "accelerator_model": "MI300X",
             "precision": "fp16",
-            "gpu_count": 1,
+            "accelerator_count": 1,
             "metric": "throughput",
             "manual_selection_only": False,
             "type": "general",
@@ -79,38 +96,87 @@ class TestProfileMetadata:
         """Test ProfileMetadata deserialization from dictionary."""
         data = {
             "engine": "vllm",
-            "gpu": "mi325x",
+            "accelerator_model": "mi325x",
             "precision": "fp8",
-            "gpu_count": 2,
+            "accelerator_count": 2,
             "metric": "latency",
             "manual_selection_only": False,
             "type": "general",
         }
         profile = ProfileMetadata.from_dict(data)
         assert profile.engine == Engine.VLLM
-        assert profile.gpu == GPUModel.MI325X
+        assert profile.accelerator_model == AcceleratorModel.MI325X
         assert profile.precision == Precision.FP8
-        assert profile.gpu_count == 2
+        assert profile.accelerator_count == 2
         assert profile.metric == Metric.LATENCY
         assert profile.manual_selection_only is False
         assert profile.type == ProfileType.GENERAL
+
+    def test_profile_to_dict_includes_capabilities_when_any_enabled(self):
+        """Test that capabilities is serialized only when at least one flag is enabled."""
+        profile = ProfileMetadata(
+            engine=Engine.VLLM,
+            accelerator_model=AcceleratorModel.MI300X,
+            precision=Precision.FP16,
+            accelerator_count=1,
+            metric=Metric.THROUGHPUT,
+            manual_selection_only=False,
+            type=ProfileType.GENERAL,
+            capabilities=ProfileCapabilities(reasoning=True),
+        )
+
+        dumped = profile.to_dict()
+        assert dumped["capabilities"] == {
+            "tool_calling": False,
+            "structured_outputs": False,
+            "reasoning": True,
+        }
+
+    def test_profile_from_dict_with_old_field_names(self):
+        """Test that old YAML field names (gpu, gpu_count) still parse correctly."""
+        data = {
+            "engine": "vllm",
+            "gpu": "MI300X",
+            "precision": "fp16",
+            "gpu_count": 1,
+            "metric": "throughput",
+            "manual_selection_only": False,
+            "type": "general",
+        }
+        profile = ProfileMetadata.from_dict(data)
+        assert profile.accelerator_model == AcceleratorModel.MI300X
+        assert profile.accelerator_count == 1
+
+    def test_profile_from_dict_with_none_sentinel(self):
+        """Test that legacy 'NONE' sentinel value in YAML parses as Python None."""
+        data = {
+            "engine": "vllm",
+            "gpu": "NONE",
+            "precision": "bf16",
+            "gpu_count": 0,
+            "metric": "latency",
+            "manual_selection_only": False,
+            "type": "general",
+        }
+        profile = ProfileMetadata.from_dict(data)
+        assert profile.accelerator_model is None
 
     def test_profile_equality(self):
         """Test that Profiles with same values are equal."""
         profile1 = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         profile2 = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
@@ -121,18 +187,18 @@ class TestProfileMetadata:
         """Test that Profiles with different values are not equal."""
         profile1 = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         profile2 = ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=2,
+            accelerator_count=2,
             metric=Metric.THROUGHPUT,
             manual_selection_only=False,
             type=ProfileType.GENERAL,

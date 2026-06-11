@@ -5,6 +5,9 @@
 aim_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI300X
   gpu_count: 1

@@ -5,12 +5,16 @@
 aim_id: meta-llama/Llama-3.2-3B-Instruct
 model_id: meta-llama/Llama-3.2-3B-Instruct
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI300X
   gpu_count: 1
   manual_selection_only: false
   metric: latency
   precision: fp16
+  primary: false
   type: preview
 engine_args:
   disable-uvicorn-access-log: null

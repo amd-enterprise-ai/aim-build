@@ -31,26 +31,23 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-import yaml
+from aim_utils.yaml_utils import read_yaml
 
 logger = logging.getLogger(__name__)
 
 
+def _to_string(value: Any) -> str:
+    if isinstance(value, list):
+        if value and isinstance(value[0], dict):
+            return str(value)
+        return ", ".join(map(str, value))
+    return str(value)
+
+
 def get_all_key_values(yaml_path: Path) -> Dict[str, str]:
     """Recursively extract all key-value pairs from a YAML file, using dot-separated keys."""
-
-    def to_string(value: Any) -> str:
-        if isinstance(value, list):
-            if value:
-                if isinstance(value[0], dict):
-                    return str(value)
-            return ", ".join(map(str, value))
-
-        return str(value)
-
     try:
-        with open(yaml_path, "r") as file:
-            yaml_data = yaml.safe_load(file)
+        yaml_data = read_yaml(yaml_path)
 
         if not yaml_data or not isinstance(yaml_data, dict):
             logger.warning(f"File {yaml_path} does not contain a valid YAML dictionary")
@@ -65,7 +62,7 @@ def get_all_key_values(yaml_path: Path) -> Dict[str, str]:
                     if isinstance(value, dict) and value:
                         traverse(value, new_prefix)
                     else:
-                        key_values[new_prefix] = to_string(value)
+                        key_values[new_prefix] = _to_string(value)
 
         traverse(yaml_data)
         return key_values

@@ -38,7 +38,7 @@ def test_discover_and_validate_precedence(
     general_profiles = registry.get_general_profiles()
     assert len(general_profiles) == 2
     assert general_profiles[0].profile_handling.is_general
-    assert general_profiles[0].metadata.gpu == GPUModel.MI300X
+    assert general_profiles[0].metadata.accelerator_model == GPUModel.MI300X
 
     model_profile = registry.find_by_id("custom/meta-llama/Llama-3.1-8B-Instruct/test_profile_correct")
-    assert model_profile.metadata.gpu == GPUModel.MI355X
+    assert model_profile.metadata.accelerator_model == GPUModel.MI355X

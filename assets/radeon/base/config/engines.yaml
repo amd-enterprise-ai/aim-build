@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Engine definitions for AIM runtime.
+#
+# Adding a new engine: add an entry here with launch command and model argument.
+#
+# Fields:
+#   launch:             Command prefix (split by spaces for argv).
+#                       "python" auto-resolves to python/python3.
+#   model_arg:          CLI flag for the model path (e.g. --model, -m).
+#   validator:          (optional) Registered Python validator name for native
+#                       engine arg validation. Omit for no native validation.
+
+vllm:
+  launch: python -m vllm.entrypoints.openai.api_server
+  model_arg: --model
+  validator: vllm

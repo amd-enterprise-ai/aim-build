@@ -56,6 +56,7 @@ EXCLUDED_EXTENSIONS = {
     ".tsv",
     ".webp",
     ".xml",
+    ".xlsx",
     ".zip",
 }
 

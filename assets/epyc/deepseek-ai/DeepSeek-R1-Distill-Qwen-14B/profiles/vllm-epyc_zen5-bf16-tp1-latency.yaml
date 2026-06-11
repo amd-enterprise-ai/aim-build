@@ -1,0 +1,23 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+metadata:
+  accelerator_count: 1
+  accelerator_model: EPYC_ZEN5
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: true
+  metric: latency
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  dtype: bfloat16
+env_vars:
+  OMP_NUM_THREADS: '128'
+  VLLM_CPU_KVCACHE_SPACE: '60'
+  VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNNL_MATMUL_ALGO: '1'

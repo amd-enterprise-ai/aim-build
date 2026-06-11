@@ -6,7 +6,7 @@ com:
   amd:
     aim:
       description:
-        full: "DeepSeek-R1-0528 is an updated version of DeepSeek-R1 from DeepSeek AI, a 671 billion total parameter mixture-of-experts (MoE) reasoning model with 37 billion active parameters. This version introduces increased computational resources and algorithmic optimization during post-training for deeper reasoning. It features reduced hallucination rate, function calling support, system prompt support, and a maximum generation length of 64K tokens with a 128K token context length. The model uses the DeepSeek-V3 architecture and is trained via reinforcement learning to develop chain-of-thought reasoning capabilities. Licensed under MIT with support for commercial use and distillation."
+        full: "DeepSeek-R1-0528 is an updated version of DeepSeek-R1 from DeepSeek AI, a 671 billion total parameter mixture-of-experts (MoE) reasoning model with 37 billion active parameters. This version introduces increased computational resources and algorithmic optimization during post-training for deeper reasoning. It features reduced hallucination rate, function calling support, system prompt support. The model uses the DeepSeek-V3 architecture and is trained via reinforcement learning to develop chain-of-thought reasoning capabilities. Licensed under MIT with support for commercial use and distillation."
       hfToken:
         required: false
       model:

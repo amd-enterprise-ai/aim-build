@@ -1,0 +1,8 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Minimal scratch image to cache pre-built AITER JIT kernels in GHCR.
+# Built by the base-image-pipeline when the kernel cache misses.
+FROM scratch
+COPY kernels/ /kernels/

@@ -5,5 +5,5 @@
 base_image:
   base_registry_namespace: silogen
   base_repository: aim-base
-  base_tag: "0.10"
+  base_tag: "0.11-rc21"
   registry_host: ghcr.io

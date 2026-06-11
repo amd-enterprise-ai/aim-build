@@ -56,7 +56,7 @@ AIM_ENGINE_ARGS='{"gpu-memory-utilization": 0.85, "max-model-len": 4096}'
 
 ## Validation
 
-Arguments are validated using native vLLM `EngineArgs` parsing (with a Pydantic model fallback):
+Validation is engine-specific. For vLLM profiles, arguments are validated using native vLLM `EngineArgs` parsing (with a Pydantic model fallback):
 - **Type checking**: integer, float, string, boolean, null
 - **Enum validation**: e.g., `dtype` must be "auto", "bfloat16", "float16", etc.
 - **Structure validation**: nested objects must match expected format
@@ -148,13 +148,13 @@ AIM_ENGINE_ARGS='{"max-model-len": "4096"}'  # String instead of int
 
 **Enable debug logging**:
 ```bash
-AIM_DEBUG=true aim-runtime serve
+AIM_LOG_LEVEL=DEBUG ./entrypoint.py serve
 # Shows: parsed args, merge process, validation, final command
 ```
 
 **Preview without execution**:
 ```bash
-aim-runtime dry-run --format=json
+./entrypoint.py dry-run --format=json
 # Displays: selected profile + final merged arguments
 ```
 

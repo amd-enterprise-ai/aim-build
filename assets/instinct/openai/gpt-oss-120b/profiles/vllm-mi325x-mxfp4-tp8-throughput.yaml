@@ -5,12 +5,16 @@
 aim_id: openai/gpt-oss-120b
 model_id: openai/gpt-oss-120b
 metadata:
+  accelerator_count: 8
+  accelerator_model: MI325X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI325X
   gpu_count: 8
   manual_selection_only: true
   metric: throughput
   precision: fp4
+  primary: false
   type: unoptimized
 engine_args:
   async-scheduling: null
@@ -30,6 +34,7 @@ env_vars:
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
   VLLM_DO_NOT_TRACK: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_USE_AITER: '1'
   VLLM_ROCM_USE_AITER_MHA: '0'
   VLLM_ROCM_USE_AITER_UNIFIED_ATTENTION: '1'

@@ -1,0 +1,75 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MiniMax-M2.5-Open, MIT"
+      description: "228B parameter mixture-of-experts language model with reasoning, tool calling, and coding capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "MiniMaxAI/MiniMax-M2.5"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "tool-use"
+        source: "https://huggingface.co/MiniMaxAI/MiniMax-M2.5"
+        variants:
+        - "MiniMaxAI/MiniMax-M2.5"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp8 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp8 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp8 precision"
+        publisher: "MiniMax"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "MiniMax-M2.5 is a 228 billion parameter mixture-of-experts language model from MiniMax, trained with reinforcement learning across real-world environments. The model supports reasoning, tool calling, coding, and agentic search tasks with a 196K token maximum context length per sequence. Model weights are distributed in FP8 format. Requires trust-remote-code for deployment."
+      title: "MiniMax M2.5"

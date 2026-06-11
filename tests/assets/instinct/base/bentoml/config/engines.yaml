@@ -1,0 +1,8 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Test engine definitions for unit tests — BentoML base image.
+
+bentoml:
+  launch: python -m bentoml serve --working-dir /workspace/model

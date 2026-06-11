@@ -5,12 +5,16 @@
 aim_id: meta-llama/Llama-3.1-405B-Instruct
 model_id: amd/Llama-3.1-405B-Instruct-FP8-KV
 metadata:
+  accelerator_count: 4
+  accelerator_model: MI325X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI325X
   gpu_count: 4
   manual_selection_only: true
   metric: latency
   precision: fp8
+  primary: true
   type: unoptimized
 engine_args:
   disable-uvicorn-access-log: null

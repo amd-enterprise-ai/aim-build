@@ -1,0 +1,44 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: MiniMaxAI/MiniMax-M2.5
+model_id: MiniMaxAI/MiniMax-M2.5
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: vllm
+  gpu: MI355X
+  gpu_count: 1
+  manual_selection_only: false
+  metric: throughput
+  precision: fp8
+  primary: true
+  type: optimized
+engine_args:
+  attention-backend: ROCM_AITER_FA
+  compilation-config: '{"mode":3}'
+  disable-uvicorn-access-log: null
+  dtype: auto
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.95
+  kv-cache-dtype: auto
+  max-model-len: 16384
+  max-num-batched-tokens: 1024
+  max-num-seqs: 512
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  reasoning-parser: minimax_m2_append_think
+  tensor-parallel-size: 1
+  tool-call-parser: minimax_m2
+  trust-remote-code: null
+env_vars:
+  SAFETENSORS_FAST_GPU: '1'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_SHUFFLE_KV_CACHE_LAYOUT: '1'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '1'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

@@ -1,0 +1,20 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  accelerator_count: 1
+  accelerator_model: EPYC_ZEN5
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: false
+  metric: latency
+  precision: bf16
+  type: general
+engine_args:
+  dtype: bfloat16
+env_vars:
+  OMP_NUM_THREADS: '128'
+  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNN_MATMUL_ALGO: FP32:4,BF16:0

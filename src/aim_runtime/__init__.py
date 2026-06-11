@@ -9,6 +9,7 @@ This package provides classes and utilities for AIM runtime operations including
 profile selection, command generation, GPU detection, and configuration management.
 """
 
+from .accelerator_detector import AcceleratorDetectionResult, AcceleratorDetector
 from .aim_runtime import AIMRuntime
 from .command_generator import CommandGenerator
 from .config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, AIMConfig
@@ -18,6 +19,8 @@ from .profile_selector import ProfileCompatibilityResult, ProfileCompatibilitySt
 
 __version__ = "0.1.0"
 __all__ = [
+    "AcceleratorDetectionResult",
+    "AcceleratorDetector",
     "AIMConfig",
     "DEFAULT_CACHE_PATH",
     "DEFAULT_PROFILE_BASE_PATH",

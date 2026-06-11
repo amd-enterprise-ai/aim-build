@@ -5,13 +5,17 @@
 aim_id: openai/gpt-oss-120b
 model_id: openai/gpt-oss-120b
 metadata:
+  accelerator_count: 4
+  accelerator_model: MI355X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI355X
   gpu_count: 4
   manual_selection_only: false
   metric: throughput
   precision: fp4
-  type: preview
+  primary: false
+  type: optimized
 engine_args:
   async-scheduling: null
   compilation-config:
@@ -20,7 +24,7 @@ engine_args:
   enable-log-requests: false
   gpu-memory-utilization: 0.95
   max-model-len: 32768
-  max-num-batched-tokens: 8192
+  max-num-batched-tokens: 1024
   max-num-seqs: 512
   no-enable-prefix-caching: null
   reasoning-parser: openai_gptoss
@@ -30,6 +34,7 @@ env_vars:
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
   VLLM_DO_NOT_TRACK: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
   VLLM_ROCM_USE_AITER: '1'
   VLLM_ROCM_USE_AITER_MHA: '0'

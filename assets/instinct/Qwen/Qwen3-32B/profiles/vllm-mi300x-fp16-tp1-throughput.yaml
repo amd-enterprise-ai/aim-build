@@ -5,12 +5,16 @@
 aim_id: Qwen/Qwen3-32B
 model_id: Qwen/Qwen3-32B
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI300X
   gpu_count: 1
   manual_selection_only: false
   metric: throughput
   precision: fp16
+  primary: true
   type: optimized
 engine_args:
   async-scheduling: null
@@ -33,6 +37,7 @@ env_vars:
   HSA_NO_SCRATCH_RECLAIM: '1'
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_USE_AITER: '1'
   VLLM_ROCM_USE_AITER_MHA: '1'
   VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

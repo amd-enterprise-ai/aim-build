@@ -6,8 +6,8 @@ SPDX-License-Identifier: MIT
 
 # Environment Variables
 
-Alongside with profiles, environment variables are a key mechanism to configure AIM containers at runtime. They allow
-you to specify model IDs, authentication tokens, engine parameters, and more.
+Along with profiles, environment variables are a key mechanism to configure AIM containers at runtime. They allow
+you to specify model IDs, authentication tokens, engine parameters, and more. The examples below use `aim-base` (Instinct); for Radeon Pro use `aim-radeon-base`, and for EPYC use `aim-epyc-base`.
 
 ## Gated models support (`HF_TOKEN`)
 
@@ -30,7 +30,7 @@ For a model-specific container:
 ```bash
 docker run -e HF_TOKEN=your_token_here \
   --device=/dev/kfd --device=/dev/dri \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 ### Security Note
@@ -55,7 +55,7 @@ docker run \
 
 Arguments are validated against the engine's argument definitions and merged with values provided by a profile.
 
-**See [Engine Arguments Override Documentation](docs/engine-args-override.md)** for complete usage guide, validation details, and examples.
+**See [Engine Arguments Override Documentation](./engine-args-override.md)** for complete usage guide, validation details, and examples.
 
 ## GPU Model Override (`AIM_GPU_MODEL`)
 
@@ -103,4 +103,4 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   aim-base:0.9
 ```
 
-For more details on model caching, see [Model Caching Documentation](docs/model_caching.md).
+For more details on model caching, see [Model Caching Documentation](./model_caching.md).

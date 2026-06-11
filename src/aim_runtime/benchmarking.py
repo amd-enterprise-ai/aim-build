@@ -24,7 +24,7 @@ from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-import yaml
+from aim_runtime.utils import read_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +41,22 @@ METRIC_PATTERNS = {
     "total_tok_throughput": re.compile(r"Total Token throughput.*?:\s*([\d.]+)"),
     "mean_ttft": re.compile(r"Mean TTFT.*?:\s*([\d.]+)"),
     "median_ttft": re.compile(r"Median TTFT.*?:\s*([\d.]+)"),
+    "p75_ttft": re.compile(r"P75 TTFT.*?:\s*([\d.]+)"),
     "p90_ttft": re.compile(r"P90 TTFT.*?:\s*([\d.]+)"),
     "p99_ttft": re.compile(r"P99 TTFT.*?:\s*([\d.]+)"),
     "mean_tpot": re.compile(r"Mean TPOT.*?:\s*([\d.]+)"),
     "median_tpot": re.compile(r"Median TPOT.*?:\s*([\d.]+)"),
+    "p75_tpot": re.compile(r"P75 TPOT.*?:\s*([\d.]+)"),
     "p90_tpot": re.compile(r"P90 TPOT.*?:\s*([\d.]+)"),
     "p99_tpot": re.compile(r"P99 TPOT.*?:\s*([\d.]+)"),
     "mean_itl": re.compile(r"Mean ITL.*?:\s*([\d.]+)"),
     "median_itl": re.compile(r"Median ITL.*?:\s*([\d.]+)"),
+    "p75_itl": re.compile(r"P75 ITL.*?:\s*([\d.]+)"),
     "p90_itl": re.compile(r"P90 ITL.*?:\s*([\d.]+)"),
     "p99_itl": re.compile(r"P99 ITL.*?:\s*([\d.]+)"),
     "mean_e2el": re.compile(r"Mean E2EL.*?:\s*([\d.]+)"),
     "median_e2el": re.compile(r"Median E2EL.*?:\s*([\d.]+)"),
+    "p75_e2el": re.compile(r"P75 E2EL.*?:\s*([\d.]+)"),
     "p90_e2el": re.compile(r"P90 E2EL.*?:\s*([\d.]+)"),
     "p99_e2el": re.compile(r"P99 E2EL.*?:\s*([\d.]+)"),
 }
@@ -68,6 +72,7 @@ CSV_HEADER = [
     "num_prompts",
     "successful_reqs",
     "duration",
+    "manual_time_durations",
     "total_input_tokens",
     "total_generated_tokens",
     "req_throughput",
@@ -76,18 +81,22 @@ CSV_HEADER = [
     "tok_per_user_per_second",
     "mean_ttft",
     "median_ttft",
+    "p75_ttft",
     "p90_ttft",
     "p99_ttft",
     "mean_tpot",
     "median_tpot",
+    "p75_tpot",
     "p90_tpot",
     "p99_tpot",
     "mean_itl",
     "median_itl",
+    "p75_itl",
     "p90_itl",
     "p99_itl",
     "mean_e2el",
     "median_e2el",
+    "p75_e2el",
     "p90_e2el",
     "p99_e2el",
 ]
@@ -99,10 +108,10 @@ class AIMBenchmark:
     def __init__(self, service_url: str, timeout_seconds: int = 30, config_file: str = None):
         self.timeout_seconds = timeout_seconds
         self.profile_id = os.getenv("AIM_PROFILE_ID") or os.getenv("PROFILE_ID")
-        self.gpu_count = None
+        self.accelerator_count = None
         if self.profile_id:
             match = re.search(r"-tp(\d+)-", self.profile_id)
-            self.gpu_count = int(match.group(1)) if match else None
+            self.accelerator_count = int(match.group(1)) if match else None
         self.config = self._load_config(config_file)
 
         parsed_url = urlparse(service_url)
@@ -134,8 +143,7 @@ class AIMBenchmark:
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        with open(config_path, "r") as f:
-            raw_config = yaml.safe_load(f)
+        raw_config = read_yaml(config_path)
 
         logger.info(f"Loaded benchmark config from {config_path}")
 
@@ -143,24 +151,26 @@ class AIMBenchmark:
         # Allow environment variable to override active_config from YAML
         active_config = os.getenv("ACTIVE_SUITE")
 
-        # If active_config is empty or not provided, auto-select based on GPU count from profile
+        # If active_config is empty or not provided, auto-select based on accelerator count from profile
         if not active_config:
-            gpu_count_suite_map = raw_config.get("gpu_count_suite_map", {})
+            acc_count_suite_map = raw_config.get("accelerator_count_suite_map", {})
 
-            if self.gpu_count and gpu_count_suite_map:
-                active_config = gpu_count_suite_map.get(self.gpu_count)
+            if self.accelerator_count and acc_count_suite_map:
+                active_config = acc_count_suite_map.get(self.accelerator_count)
                 if active_config:
                     logger.info(
-                        "Auto-selected suite '%s' based on GPU count %s",
+                        "Auto-selected suite '%s' based on accelerator count %s",
                         active_config,
-                        self.gpu_count,
+                        self.accelerator_count,
                     )
                 else:
-                    logger.warning("No suite mapping found for GPU count %s, using default", self.gpu_count)
+                    logger.warning(
+                        "No suite mapping found for accelerator count %s, using default", self.accelerator_count
+                    )
 
             # Fall back to active_config from YAML if auto-selection didn't work
             if not active_config:
-                active_config = raw_config.get("active_config", "default_dev")
+                active_config = raw_config.get("active_config", "default_opt")
                 logger.info(f"Using default suite from config: '{active_config}'")
         else:
             logger.info(f"Using explicitly provided suite: '{active_config}'")
@@ -280,7 +290,7 @@ class AIMBenchmark:
             "--percentile-metrics",
             settings.get("percentile_metrics", "ttft,tpot,itl,e2el"),
             "--metric-percentiles",
-            settings.get("metric_percentiles", "90,99"),
+            settings.get("metric_percentiles", "75,90,99"),
             "--host",
             host,
             "--port",
@@ -296,7 +306,7 @@ class AIMBenchmark:
             cmd.extend(shlex.split(extra_args))
             logger.info(f"Added extra vllm bench args: {extra_args}")
 
-        logger.info(f"Running command: {' '.join(cmd)}")
+        logger.info(f"Running command: {shlex.join(cmd)}")
 
         start_time = time.time()
         try:
@@ -309,14 +319,14 @@ class AIMBenchmark:
 
             if result.returncode != 0:
                 logger.error(f"vLLM benchmark failed with return code {result.returncode}")
-                logger.error(f"Failed command: {' '.join(cmd)}")
+                logger.error(f"Failed command: {shlex.join(cmd)}")
                 logger.error(f"stderr: {result.stderr}")
-                return {"success": False, "error": result.stderr, "manual_duration": manual_duration}
+                return {"success": False, "error": result.stderr, "manual_time_durations": manual_duration}
 
             # Parse the output
             metrics = self._parse_benchmark_output(result.stdout)
             metrics["success"] = True
-            metrics["manual_duration"] = manual_duration
+            metrics["manual_time_durations"] = manual_duration
             metrics["config_name"] = config["name"]
 
             # Calculate per-user throughput
@@ -331,10 +341,10 @@ class AIMBenchmark:
 
         except subprocess.TimeoutExpired:
             logger.error(f"Benchmark timed out after {settings.get('timeout_seconds_per_config', 300)}s")
-            return {"success": False, "error": "Timeout", "manual_duration": time.time() - start_time}
+            return {"success": False, "error": "Timeout", "manual_time_durations": time.time() - start_time}
         except Exception as e:
             logger.error(f"Benchmark failed: {e}")
-            return {"success": False, "error": str(e), "manual_duration": time.time() - start_time}
+            return {"success": False, "error": str(e), "manual_time_durations": time.time() - start_time}
 
     def run_benchmark_suite(self) -> Dict[str, Any]:
         """Run the complete benchmark suite."""

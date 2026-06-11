@@ -5,18 +5,21 @@
 aim_id: mistralai/Ministral-3-14B-Instruct-2512
 model_id: mistralai/Ministral-3-14B-Instruct-2512
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI355X
   gpu_count: 1
   manual_selection_only: false
   metric: latency
   precision: fp8
+  primary: true
   type: optimized
 engine_args:
   async-scheduling: null
   config-format: mistral
   disable-uvicorn-access-log: null
-  distributed_executor_backend: mp
   dtype: auto
   enable-auto-tool-choice: null
   gpu-memory-utilization: 0.92
@@ -36,6 +39,7 @@ env_vars:
   HSA_NO_SCRATCH_RECLAIM: '1'
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_USE_AITER: '1'
   VLLM_ROCM_USE_AITER_UNIFIED_ATTENTION: '1'
   VLLM_V1_USE_PREFILL_DECODE_ATTENTION: '0'

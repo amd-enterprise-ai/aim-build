@@ -21,7 +21,7 @@ from highest to lowest):
 * Built-in general profiles
 
 Custom profiles follow the same YAML structure as standard profiles but are placed in the
-`/workspace/aim-runtime/profiles/custom/` directory within the container. On the users' side, custom profiles can be
+`/workspace/aim-runtime/profiles/custom/` directory within the container. The examples below use Instinct hardware (MI300X); for Radeon Pro, substitute the appropriate GPU model (e.g., `R9700`, `W7900`) and use the `aim-radeon-base` image instead of `aim-base`. On the users' side, custom profiles can be
 placed in a folder that must be mounted to the container at the path specified above. When AIM starts, it scans the
 custom profiles directory first, so custom profiles take precedence over built-in profiles.
 
@@ -101,7 +101,7 @@ docker run \
   -e AIM_GPU_MODEL=MI300X \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   --device=/dev/kfd --device=/dev/dri \
-  amdenterpriseai/aim-base:0.10 list-profiles
+  amdenterpriseai/aim-base:0.11 list-profiles
 ```
 
 As a result, a custom general profile will be selected if it is present in the mounted directory. If there is no custom
@@ -117,7 +117,7 @@ docker run \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.10
+  amdenterpriseai/aim-base:0.11
 ```
 
 As a result, a custom model-specific profile will be selected if it is present in the mounted directory. If there is no
@@ -162,7 +162,7 @@ spec:
     spec:
       containers:
         - name: aim-custom-profile
-          image: "amdenterpriseai/aim-base:0.10"
+          image: "amdenterpriseai/aim-base:0.11"
           imagePullPolicy: Always
           env:
             - name: AIM_ID

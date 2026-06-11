@@ -1,0 +1,40 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "apache-2.0, MIT"
+      description: "7B parameter coding and instruction-following model optimized for CPU inference on AMD EPYC."
+      documentation: ""
+      source: "https://github.com/silogen/aim-build"
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen2.5-Coder-7B-Instruct"
+        tags:
+        - "text-generation"
+        - "code-generation"
+        - "code-completion"
+        - "instruction-following"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct"
+        variants:
+        - "Qwen/Qwen2.5-Coder-7B-Instruct"
+        publisher: "Qwen"
+
+      hfToken:
+        required: false
+
+      release:
+        notes: ""
+
+      description:
+        full: "Qwen2.5-Coder-7B-Instruct is a 7 billion parameter instruction-tuned coding model from the Qwen2.5 series designed for code generation, reasoning, debugging, and software development workflows. The model supports long-context understanding, multilingual programming tasks, and conversational coding assistance. It is optimized for developer productivity, instruction-following behavior, and CPU inference on AMD EPYC systems."
+
+      title: "Qwen2.5 Coder 7B Instruct"

@@ -5,17 +5,18 @@
 aim_id: meta-llama/Llama-3.1-8B-Instruct
 model_id: meta-llama/Llama-3.1-8B-Instruct
 metadata:
-  engine: "vllm"
-  gpu: "MI325X"
-  precision: "fp16"
-  gpu_count: 1
-  metric: "latency"
+  accelerator_type: gpu
+  engine: vllm
+  accelerator_model: MI325X
+  precision: fp16
+  accelerator_count: 1
+  metric: latency
   manual_selection_only: true
-  type: "unoptimized"
-
+  type: unoptimized
+  gpu_count: 1
+  gpu: MI325X
 engine_args:
-  dtype: "float16"
+  dtype: float16
   tensor-parallel-size: 1
-
 env_vars:
-  VLLM_DO_NOT_TRACK: "1"
+  VLLM_DO_NOT_TRACK: '1'

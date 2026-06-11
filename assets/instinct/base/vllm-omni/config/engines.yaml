@@ -1,0 +1,10 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Engine definitions for AIM runtime — vLLM-Omni base image.
+
+vllm_omni:
+  launch: vllm serve --omni
+  model_arg: --model
+  validator: vllm_omni

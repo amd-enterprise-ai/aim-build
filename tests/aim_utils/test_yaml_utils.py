@@ -5,8 +5,9 @@
 
 import pytest
 import yaml
+from pydantic import BaseModel, ValidationError
 
-from aim_utils.yaml_utils import get_yamls, read_yaml, save_yaml
+from aim_utils.yaml_utils import dump_yaml, get_yamls, load_yaml_string, read_yaml, save_yaml
 
 
 @pytest.fixture
@@ -117,3 +118,89 @@ class TestGetYamls:
         result = get_yamls(temp_yaml_dir)
 
         assert result == []
+
+
+class TestDumpYaml:
+    def test_dump_yaml_basic(self, sample_yaml_data):
+        result = dump_yaml(sample_yaml_data)
+        loaded = yaml.safe_load(result)
+        assert loaded == sample_yaml_data
+
+    def test_dump_yaml_preserves_key_order(self):
+        data = {"zebra": 1, "apple": 2, "mango": 3}
+        result = dump_yaml(data)
+        lines = [line for line in result.strip().split("\n") if line]
+        assert lines[0].startswith("zebra:")
+        assert lines[1].startswith("apple:")
+        assert lines[2].startswith("mango:")
+
+    def test_dump_yaml_returns_string(self, sample_yaml_data):
+        result = dump_yaml(sample_yaml_data)
+        assert isinstance(result, str)
+
+    def test_dump_yaml_empty_dict(self):
+        result = dump_yaml({})
+        assert result.strip() == "{}"
+
+
+class TestLoadYamlString:
+    def test_load_yaml_string_basic(self):
+        yaml_str = "key1: value1\nkey2: value2\n"
+        result = load_yaml_string(yaml_str)
+        assert result == {"key1": "value1", "key2": "value2"}
+
+    def test_load_yaml_string_nested(self):
+        yaml_str = "parent:\n  child: value\n"
+        result = load_yaml_string(yaml_str)
+        assert result == {"parent": {"child": "value"}}
+
+    def test_load_yaml_string_empty(self):
+        result = load_yaml_string("")
+        assert result is None
+
+    def test_load_yaml_string_list(self):
+        yaml_str = "- item1\n- item2\n"
+        result = load_yaml_string(yaml_str)
+        assert result == ["item1", "item2"]
+
+
+class _SampleModel(BaseModel):
+    name: str
+    count: int
+
+
+class TestReadYamlWithModel:
+    def test_read_yaml_with_model_valid(self, temp_yaml_dir):
+        yaml_path = temp_yaml_dir / "model_test.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump({"name": "test", "count": 42}, f)
+
+        result = read_yaml(yaml_path, model=_SampleModel)
+        assert isinstance(result, _SampleModel)
+        assert result.name == "test"
+        assert result.count == 42
+
+    def test_read_yaml_with_model_invalid(self, temp_yaml_dir):
+        yaml_path = temp_yaml_dir / "bad_model.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump({"name": "test", "count": "not_a_number"}, f)
+
+        with pytest.raises(ValidationError):
+            read_yaml(yaml_path, model=_SampleModel)
+
+    def test_read_yaml_with_model_missing_field(self, temp_yaml_dir):
+        yaml_path = temp_yaml_dir / "missing_field.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump({"name": "test"}, f)
+
+        with pytest.raises(ValidationError):
+            read_yaml(yaml_path, model=_SampleModel)
+
+    def test_read_yaml_without_model_unchanged(self, temp_yaml_dir, sample_yaml_data):
+        yaml_path = temp_yaml_dir / "dict_test.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(sample_yaml_data, f)
+
+        result = read_yaml(yaml_path)
+        assert isinstance(result, dict)
+        assert result == sample_yaml_data

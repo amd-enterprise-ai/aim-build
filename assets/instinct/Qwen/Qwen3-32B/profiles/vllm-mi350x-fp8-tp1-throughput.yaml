@@ -1,0 +1,43 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-32B
+model_id: Qwen/Qwen3-32B-FP8
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI350X
+  accelerator_type: gpu
+  engine: vllm
+  gpu: MI350X
+  gpu_count: 1
+  manual_selection_only: false
+  metric: throughput
+  precision: fp8
+  primary: true
+  type: preview
+engine_args:
+  async-scheduling: null
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: fp8
+  max-model-len: 32768
+  max-num-batched-tokens: 1024
+  max-num-seqs: 512
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  reasoning-parser: qwen3
+  swap-space: 64
+  tensor-parallel-size: 1
+  tool-call-parser: hermes
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MHA: '0'
+  VLLM_ROCM_USE_AITER_UNIFIED_ATTENTION: '1'

@@ -1,0 +1,8 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+base_image:
+  base_registry_namespace: hyoon11
+  base_repository: vllm-dev
+  base_tag: "20260317_81_py3.12_torch2.9_triton3.5_navi_upstream_89a77b1_ubuntu24.04"

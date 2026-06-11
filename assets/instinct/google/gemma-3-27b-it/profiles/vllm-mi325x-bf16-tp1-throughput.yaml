@@ -5,12 +5,16 @@
 aim_id: google/gemma-3-27b-it
 model_id: google/gemma-3-27b-it
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI325X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI325X
   gpu_count: 1
   manual_selection_only: true
   metric: throughput
   precision: bf16
+  primary: true
   type: unoptimized
 engine_args:
   disable-uvicorn-access-log: null

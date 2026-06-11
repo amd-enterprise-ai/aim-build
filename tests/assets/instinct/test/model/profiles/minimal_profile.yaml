@@ -6,12 +6,15 @@ aim_id: test/model
 model_id: test/model
 metadata:
   engine: vllm
-  gpu: MI300X
   precision: fp16
-  gpu_count: 1
   metric: latency
   manual_selection_only: false
-  type: "unoptimized"
+  type: unoptimized
+  accelerator_type: gpu
+  accelerator_model: MI300X
+  accelerator_count: 1
+  gpu_count: 1
+  gpu: MI300X
 env_vars:
   DUMMY_VAR: dummy_value
 engine_args:

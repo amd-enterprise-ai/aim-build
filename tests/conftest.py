@@ -54,8 +54,8 @@ def aim_config(profile_base_path: Path) -> AIMConfig:
         precision=Precision.FP16,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
-        gpu_count="1",
-        gpu_model=None,
+        accelerator_count="1",
+        accelerator_model=None,
     )
 
 
@@ -128,6 +128,17 @@ def model_profiles_path(assets_instinct_path: Path) -> str:
 @pytest.fixture
 def assets_instinct_path(assets_path: Path) -> Path:
     return assets_path / "instinct"
+
+
+@pytest.fixture
+def assets_radeon_path(assets_path: Path) -> Path:
+    return assets_path / "radeon"
+
+
+@pytest.fixture
+def assets_accelerator_path(request, assets_path: Path) -> Path:
+    accelerator = getattr(request, "param", "instinct")
+    return assets_path / accelerator
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ com:
   amd:
     aim:
       description:
-        full: "DeepSeek-R1 is a 671 billion total parameter mixture-of-experts (MoE) reasoning model from DeepSeek AI, with 37 billion active parameters. Built on DeepSeek-V3-Base, it was trained via large-scale reinforcement learning (RL) directly on the base model to develop chain-of-thought (CoT) reasoning capabilities, followed by supervised fine-tuning (SFT) stages for reasoning and non-reasoning abilities, and preference alignment. The model features self-verification, reflection, and long chain-of-thought generation. It supports a 128K token context length with a maximum generation length of 32,768 tokens. Licensed under MIT with support for commercial use and distillation."
+        full: "DeepSeek-R1 is a 671 billion total parameter mixture-of-experts (MoE) reasoning model from DeepSeek AI, with 37 billion active parameters. Built on DeepSeek-V3-Base, it was trained via large-scale reinforcement learning (RL) directly on the base model to develop chain-of-thought (CoT) reasoning capabilities, followed by supervised fine-tuning (SFT) stages for reasoning and non-reasoning abilities, and preference alignment. The model features self-verification, reflection, and long chain-of-thought generation. Licensed under MIT with support for commercial use and distillation."
       hfToken:
         required: false
       model:
@@ -67,7 +67,7 @@ org:
   opencontainers:
     image:
       authors: ""
-      description: "671B parameter MoE reasoning model with 37B active parameters and 128K context length."
+      description: "671B parameter MoE reasoning model with 37B active parameters."
       documentation: ""
       licenses: "MIT"
       source: "https://github.com/amd-enterprise-ai/aim-build"

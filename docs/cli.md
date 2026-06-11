@@ -17,13 +17,13 @@ Performs profile selection and starts the inference server. This is the default 
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.9
+  aim-base:0.11
 
 # Or explicitly specify serve
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.9 \
+  aim-base:0.11 \
   serve
 ```
 
@@ -48,12 +48,12 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -e AIM_GPU_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_ENGINE=vllm \
-  aim-base:0.9 \
+  aim-base:0.11 \
   dry-run
 
 # Or explicitly specify --format yaml
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.9 \
+  aim-base:0.11 \
   dry-run --format yaml
 ```
 
@@ -104,7 +104,7 @@ Performs profile selection and displays the selected profile without starting th
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.9 \
+  aim-base:0.11 \
   dry-run --format json
 ```
 
@@ -177,7 +177,7 @@ This is useful for:
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.9 \
+  aim-base:0.11 \
   list-profiles
 ```
 
@@ -219,7 +219,7 @@ METRIC_MISMATCH (4 profiles):
 
 ```bash
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.9 \
+  aim-base:0.11 \
   list-profiles --format table
 ```
 
@@ -230,13 +230,13 @@ Displays all profiles in a colored table showing their compatibility state at a 
 ```bash
 # Show only compatible profiles
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
-  aim-base:0.9 \
+  aim-base:0.11 \
   list-profiles --state compatible
 
 # Show profiles with GPU mismatch
 docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -e AIM_GPU_MODEL=MI325X \
-  aim-base:0.9 \
+  aim-base:0.11 \
   list-profiles --state gpu_mismatch --format table
 ```
 
@@ -247,7 +247,7 @@ Runs a benchmark suite against an AIM inference service using `vllm bench serve`
 **Options:**
 - `--service-url <url>`: URL of a running AIM service (e.g. `http://localhost:8000`). If omitted, the server is started automatically.
 - `--timeout-seconds <seconds>` (default: `30`): Timeout for individual service requests.
-- `--config <path>`: Path to benchmark config YAML. Defaults to the built-in config, which selects a suite based on GPU count.
+- `--config <path>`: Path to benchmark config YAML. Defaults to the built-in config, which selects a suite based on accelerator count.
 - `--output-dir <path>` (default: `.`): Directory for result files.
 - `--startup-timeout <seconds>` (default: `120`): How long to wait for auto-started server readiness.
 
@@ -256,22 +256,22 @@ Runs a benchmark suite against an AIM inference service using `vllm bench serve`
 docker run --rm \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   --device=/dev/kfd --device=/dev/dri \
-  aim-base:0.9 \
+  aim-base:0.11 \
   benchmark --output-dir /workspace/results
 
 # External server mode — benchmark an already-running service
 docker run --rm \
-  aim-base:0.9 \
+  aim-base:0.11 \
   benchmark --service-url http://host.docker.internal:8000
 ```
 
 ### Benchmark Configuration
 
-The config YAML defines suites as lists of `[ISL, OSL, concurrency, num_prompts]` tuples. Suite selection priority: `ACTIVE_SUITE` env var > `gpu_count_suite_map` match > `active_config` fallback.
+The config YAML defines suites as lists of `[ISL, OSL, concurrency, num_prompts]` tuples. Suite selection priority: `ACTIVE_SUITE` env var > `accelerator_count_suite_map` match > `active_config` fallback.
 
 ```yaml
 active_config: "my_suite"
-gpu_count_suite_map:
+accelerator_count_suite_map:
   1: "tp1_suite"
   2: "tp2_suite"
 config_suites:
@@ -280,7 +280,7 @@ settings:
   timeout_seconds_per_config: 14400
   ignore_eos: true
   percentile_metrics: "ttft,tpot,itl,e2el"
-  metric_percentiles: "90,99"
+  metric_percentiles: "75,90,99"
   dataset_name: "random"
 ```
 
@@ -292,6 +292,76 @@ settings:
 | `VLLM_BENCH_EXTRA_ARGS` | Extra arguments passed to `vllm bench serve` |
 | `BENCHMARK_JSON_FILE` | Override JSON output filename |
 | `BENCHMARK_CSV_FILE` | Override CSV output filename |
+
+## Detect hardware (`detect-hardware`)
+
+Detects hardware accelerators (GPU and/or CPU) and reports identifiers. Runs each detector independently and returns the accumulated results as a list of dicts.
+
+**Options:**
+- `--type <type>`: Which accelerator types to detect
+  - `all` (default): Run both GPU and CPU detectors
+  - `gpu`: Run GPU detection only
+  - `cpu`: Run CPU detection only
+- `--format <format>`: Output format
+  - `json` (default): JSON output
+  - `yaml`: YAML output
+- `--verbose` / `-v`: Show full detection details (GPUInfo, CPUInfo)
+
+This is useful for:
+- Verifying what hardware aim-runtime detects before running inference
+- Node labelling in Kubernetes (the output format matches the node-labelling interface)
+- Debugging hardware detection issues
+
+```bash
+# Detect all hardware (GPU + CPU)
+docker run --rm \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-base:0.11 \
+  detect-hardware
+
+# GPU only, YAML output
+docker run --rm \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-base:0.11 \
+  detect-hardware --type gpu --format yaml
+
+# Full details including VRAM, utilization, core counts
+docker run --rm \
+  --device=/dev/kfd --device=/dev/dri \
+  aim-base:0.11 \
+  detect-hardware --verbose
+```
+
+**Example output (default):**
+```json
+[
+  {"accelerator_type": "GPU", "accelerator_model": "MI300X", "accelerator_count": 8},
+  {"accelerator_type": "CPU", "accelerator_model": "EPYC_9965", "accelerator_count": 192}
+]
+```
+
+**Example output (verbose, GPU only):**
+```json
+[
+  {
+    "accelerator_type": "gpu",
+    "accelerator_model": "MI300X",
+    "accelerator_count": 8,
+    "gpu_info": [
+      {
+        "device_id": "0x74a1",
+        "model": "MI300X",
+        "vram_total": 65536,
+        "vram_used": 0,
+        "vram_free": 65536,
+        "gfx_utilization": 0,
+        "mem_utilization": 0,
+        "is_idle": true
+      }
+    ]
+  }
+]
+```
 
 ## Download to cache (`download-to-cache`)
 
@@ -312,7 +382,7 @@ Pre-downloads models to a local cache directory before running inference. This i
 docker run --rm \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.9 \
+  aim-base:0.11 \
   download-to-cache
 
 # Result: /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
@@ -326,7 +396,7 @@ Override profile selection by specifying the model ID directly with protocol:
 # Download a Hugging Face model directly (local-dir mode)
 docker run --rm \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.9 \
+  aim-base:0.11 \
   download-to-cache --model-id hf://mistralai/Mistral-7B-v0.1
 
 # Result: /workspace/model-cache/mistralai/Mistral-7B-v0.1/
@@ -340,7 +410,7 @@ Use `--use-hf-cache` flag to download using Hugging Face's standard cache struct
 docker run --rm \
   -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.9 \
+  aim-base:0.11 \
   download-to-cache --use-hf-cache
 
 # Result: /workspace/model-cache/models--meta-llama--Llama-3.1-8B-Instruct/
@@ -355,7 +425,7 @@ docker run --rm \
   -e AIM_GPU_MODEL=MI300X \
   -e HF_TOKEN=your_token \
   -v /host/model-cache:/workspace/model-cache \
-  aim-base:0.9 \
+  aim-base:0.11 \
   download-to-cache
 
 # Step 2: Serve with pre-cached model
@@ -364,7 +434,7 @@ docker run \
   -v /host/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  aim-base:0.9
+  aim-base:0.11
 ```
 
 **Note:** The actual model downloaded may differ from `AIM_MODEL_ID` if the selected profile specifies a quantized variant.

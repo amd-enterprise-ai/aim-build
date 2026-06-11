@@ -9,15 +9,24 @@ SPDX-License-Identifier: MIT
 The main use-case for AIM is to provide optimized microservice for large AI models inference on AMD GPUs with simplified
 deployment process. AIM can be deployed in multiple ways depending on the use-case. The following options are available:
 
-* Kubernetes (for large-scale deployments)
-* KServe (for large-scale deployments tailored for model serving)
-* Docker (for development and low-scale use-cases)
+- Kubernetes deployment with AIM-Engine (recommended)
+- Raw Kubernetes Deployment without additional functionality/dependencies
+- KServe deployment without AIM-Engine
+- Docker (for development and low-scale use-cases)
 
-## Kubernetes
+## AIM-Engine
 
-Kubernetes is an open-source container orchestration system for automating software deployment, scaling, and management.
-Think of it as the operating system for your cloud-native applications, managing how and where they run. AIMs can be
-deployed with Kubernetes. Kubernetes requires specifying an image and parameters that the image may require. AIM
+AIM (AMD Inference Microservice) Engine is a Kubernetes operator that simplifies the deployment and management of AI inference workloads on AMD GPUs. It provides a declarative, cloud-native approach to running ML models at scale. AIM Engine automatically resolves the AIM model, selects an optimal runtime configuration for your hardware, deploys a KServe InferenceService, and optionally creates HTTP routing through Gateway API. In addition to standard KServe deployment, AIM-Engine offers:
+
+- Automatic discovery of AIMs catalog and images
+- Automatic selection of optimized images and profiles to match discovered accelerators
+- Automatic model lifecycle management of model caches
+- Automatic resource requests/allocation by model type
+- Simple, single CRD to handle everything from routing to auto-scaling
+
+## Raw Kubernetes deployment
+
+AIMs can be deployed with Kubernetes without additional dependencies. Raw Kubernetes deployment may serve basic requirements where aforementioned features of AIM-Engine are unnecessary. Kubernetes requires specifying an image and parameters that the image may require. AIM
 supports many models but their deployment process is fairly similar.
 
 ### Configuration
@@ -39,7 +48,7 @@ autoscaling, canary deployments, and multi-framework support. It simplifies the 
 learning models at scale. AIM can be integrated with KServe to provide optimized inference services for large AI models
 on AMD GPUs.
 
-KServe offers several advantages over standard Kubernetes deployments:
+KServe offers several advantages over standard Kubernetes deployments such as:
 - Automatic scaling based on traffic
 - Built-in monitoring and logging
 - Support for multiple model serving protocols

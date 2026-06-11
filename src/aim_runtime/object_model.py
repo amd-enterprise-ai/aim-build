@@ -6,10 +6,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# Import shared enums and ProfileMetadata from aim_common
-from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata
+# Re-export shared enums and ProfileMetadata from aim_common for package consumers.
+from aim_common import (
+    AcceleratorFamily,
+    AcceleratorModel,
+    AcceleratorType,
+    CPUModel,
+    Engine,
+    GPUModel,
+    Metric,
+    Precision,
+    ProfileMetadata,
+)
 
-__all__ = ["Engine", "GPUModel", "Metric", "Precision", "ProfileMetadata", "Profile", "ProfileHandling"]
+__all__ = [
+    "AcceleratorFamily",
+    "AcceleratorModel",
+    "AcceleratorType",
+    "CPUModel",
+    "Engine",
+    "GPUModel",
+    "Metric",
+    "Precision",
+    "ProfileMetadata",
+]
 
 
 @dataclass(frozen=True)

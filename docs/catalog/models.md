@@ -105,6 +105,27 @@ docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct:0.11
 :::
 ::::
 
+## MiniMaxAI
+
+::::{grid} 1 1 1 1
+:gutter: 3
+
+:::{grid-item-card}
+[MiniMaxAI/MiniMax-M2.5](https://hub.docker.com/r/amdenterpriseai/aim-minimaxai-minimax-m2-5/tags) (stable)
+^^^
+228B parameter mixture-of-experts language model with reasoning, tool calling, and coding capabilities.
+
+[Technical specification](../docs-aim/MiniMaxAI/MiniMax-M2.5/README.md#model-specific-aim)
+
++++
+
+```bash
+docker pull docker.io/amdenterpriseai/aim-minimaxai-minimax-m2-5:0.12.0
+```
+
+:::
+::::
+
 ## Mistral AI
 
 ::::{grid} 1 1 1 1
@@ -120,7 +141,7 @@ docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct:0.11
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 :::
@@ -162,7 +183,7 @@ docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-large-3-675b-instruc
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506:0.10.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506:0.11.0
 ```
 
 :::
@@ -176,7 +197,7 @@ Sparse MoE language model with 141B total parameters across 8 experts and functi
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1:0.10.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1:0.11.0
 ```
 
 :::
@@ -190,7 +211,7 @@ Sparse MoE language model with 47B total parameters across 8 experts.
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.10.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.11.0
 ```
 
 :::
@@ -211,7 +232,7 @@ Open-weight 117B parameter MoE model with 5.1B active parameters and configurabl
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-120b:0.10.0
+docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-120b:0.11.0
 ```
 
 :::
@@ -225,7 +246,7 @@ Open-weight 21B parameter MoE model with 3.6B active parameters for lower-latenc
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-20b:0.10.0
+docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-20b:0.11.0
 ```
 
 :::
@@ -260,7 +281,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-32b:0.10.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-32b:0.11.0
 ```
 
 :::
@@ -316,14 +337,14 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-thinking:0.11.
 :::{grid-item-card}
 [deepseek-ai/DeepSeek-R1](https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-r1/tags) (stable)
 ^^^
-671B parameter MoE reasoning model with 37B active parameters and 128K context length.
+671B parameter MoE reasoning model with 37B active parameters.
 
 [Technical specification](../docs-aim/deepseek-ai/DeepSeek-R1/README.md#model-specific-aim)
 
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.10.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.11.0
 ```
 
 :::
@@ -337,7 +358,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.10.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.10.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.11.0
 ```
 
 :::
@@ -351,7 +372,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.10.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.10.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
 ```
 
 :::
@@ -365,7 +386,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.10.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus:0.10.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus:0.11.0
 ```
 
 :::
@@ -377,6 +398,20 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus:0.1
 :gutter: 3
 
 :::{grid-item-card}
+[google/gemma-3-1b-it](https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-3-1b-it/tags) (stable)
+^^^
+Gemma 3 1B IT is a lightweight instruction-tuned model supporting text generation with a 32K context window.
+
+[Technical specification](../docs-aim/google/gemma-3-1b-it/README.md#model-specific-aim)
+
++++
+
+```bash
+docker pull docker.io/amdenterpriseai/aim-google-gemma-3-1b-it:0.12.0
+```
+
+:::
+:::{grid-item-card}
 [google/gemma-3-27b-it](https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-3-27b-it/tags) (stable)
 ^^^
 Gemma 3 27B IT is a multimodal instruction-tuned model supporting text and image input with a 128K context window.
@@ -387,6 +422,27 @@ Gemma 3 27B IT is a multimodal instruction-tuned model supporting text and image
 
 ```bash
 docker pull docker.io/amdenterpriseai/aim-google-gemma-3-27b-it:0.11.0
+```
+
+:::
+::::
+
+## zai-org
+
+::::{grid} 1 1 1 1
+:gutter: 3
+
+:::{grid-item-card}
+[zai-org/GLM-4.7](https://hub.docker.com/r/amdenterpriseai/aim-zai-org-glm-4-7/tags) (stable)
+^^^
+GLM-4.7 is a large language model with multi-turn conversation, tool use, and reasoning capabilities.
+
+[Technical specification](../docs-aim/zai-org/GLM-4.7/README.md#model-specific-aim)
+
++++
+
+```bash
+docker pull docker.io/amdenterpriseai/aim-zai-org-glm-4-7:0.12.0
 ```
 
 :::

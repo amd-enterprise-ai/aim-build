@@ -8,16 +8,25 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
+from pydantic import ValidationError
 
 from aim_utils.asset_utils import AssetDescriptor
 from aim_utils.config_utils import (
+    LEGACY_VLLM_BASE_TARGET_ID,
     BaseImageConfig,
+    BaseImageTargetConfig,
     CiBaseImageConfig,
+    CiBaseImageTarget,
     ConfigInitializer,
     Initializer,
     cli,
     get_canonical_name,
+    normalize_base_image_targets,
 )
+from aim_utils.image_naming import ImageName
+
+REGISTRY_HOST = "docker.io"
+REGISTRY_NAMESPACE = "namespace"
 
 
 @pytest.fixture
@@ -49,25 +58,127 @@ base_image:
     return config_file
 
 
+ACCELERATOR_CASES = [
+    (
+        "instinct",
+        {
+            "registry_host": "docker.io",
+            "base_registry_namespace": "vllm",
+            "base_repository": "vllm-openai-rocm",
+            "base_tag": "v0.16.0",
+            "expected_repository": "aim-instinct-base",  # Private push repository
+            "expected_canonical_repository": "aim-instinct-base",
+            "expected_public_repository": "aim-base",  # Public backward-compatible name
+            "expected_dockerfile": "docker/Dockerfile.aim-instinct-base",
+            "expected_run_validation": True,
+            "expected_upstream_image_ref": "docker.io/vllm/vllm-openai-rocm:v0.16.0",
+        },
+    ),
+    (
+        "epyc",
+        {
+            "registry_host": "docker.io",
+            "base_registry_namespace": "amdih",
+            "base_repository": "zendnn_zentorch",
+            "base_tag": "vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3",
+            "expected_repository": "aim-epyc-base",
+            "expected_canonical_repository": "aim-epyc-base",
+            "expected_public_repository": "aim-epyc-base",  # Same as canonical
+            "expected_dockerfile": "docker/Dockerfile.aim-epyc-base",
+            "expected_run_validation": False,
+            "expected_upstream_image_ref": "docker.io/amdih/zendnn_zentorch:vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3",
+        },
+    ),
+    (
+        "radeon",
+        {
+            "registry_host": "docker.io",
+            "base_registry_namespace": "hyoon11",
+            "base_repository": "vllm-dev",
+            "base_tag": "20260317_81_py3.12_torch2.9_triton3.5_navi_upstream_89a77b1_ubuntu24.04",
+            "expected_repository": "aim-radeon-base",
+            "expected_canonical_repository": "aim-radeon-base",
+            "expected_public_repository": "aim-radeon-base",  # Same as canonical
+            "expected_dockerfile": "docker/Dockerfile.aim-radeon-base",
+            "expected_run_validation": False,
+            "expected_upstream_image_ref": "docker.io/hyoon11/vllm-dev:20260317_81_py3.12_torch2.9_triton3.5_navi_upstream_89a77b1_ubuntu24.04",
+        },
+    ),
+    (
+        "cpu",
+        {
+            "registry_host": "docker.io",
+            "base_registry_namespace": "vllm",
+            "base_repository": "vllm-openai-cpu",
+            "base_tag": "v0.16.0",
+            "expected_repository": "aim-cpu-base",
+            "expected_canonical_repository": "aim-cpu-base",
+            "expected_public_repository": "aim-cpu-base",  # Same as canonical
+            "expected_dockerfile": "docker/Dockerfile.aim-cpu-base",
+            "expected_run_validation": False,
+            "expected_upstream_image_ref": "docker.io/vllm/vllm-openai-cpu:v0.16.0",
+        },
+    ),
+]
+
+
+def write_base_config(tmp_path, accelerator, case):
+    config_dir = tmp_path / "assets" / accelerator / "base"
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / "config.yaml"
+    config_file.write_text(
+        f"""
+base_image:
+  registry_host: {case["registry_host"]}
+  base_registry_namespace: {case["base_registry_namespace"]}
+  base_repository: {case["base_repository"]}
+  base_tag: {case["base_tag"]}
+"""
+    )
+    return config_file
+
+
+def write_named_base_target_config(
+    tmp_path,
+    accelerator,
+    target_id,
+    *,
+    registry_host,
+    base_registry_namespace,
+    base_repository,
+    base_tag,
+):
+    config_dir = tmp_path / "assets" / accelerator / "base" / target_id
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / "config.yaml"
+
+    config_file.write_text(
+        f"""
+base_image:
+  registry_host: {registry_host}
+  base_registry_namespace: {base_registry_namespace}
+  base_repository: {base_repository}
+  base_tag: {base_tag}
+"""
+    )
+    return config_file
+
+
+def get_accelerator_case(accelerator):
+    for case_accelerator, case in ACCELERATOR_CASES:
+        if case_accelerator == accelerator:
+            return case
+    raise KeyError(f"Unknown accelerator case: {accelerator}")
+
+
 @pytest.fixture
 def mock_file_readers():
-    with (
-        patch("aim_utils.config_utils.KeyValueFileReader") as kv_reader,
-        patch("aim_utils.config_utils.TomlFileReader") as toml_reader,
-    ):
-        kv_instance = MagicMock()
-        kv_instance.read_value.side_effect = lambda key: {
-            "BASE_REGISTRY_NAMESPACE": "test-namespace",
-            "BASE_REPOSITORY": "test-repo",
-            "BASE_TAG": "1.0.0",
-        }.get(key)
-        kv_reader.return_value = kv_instance
-
+    with patch("aim_utils.config_utils.TomlFileReader") as toml_reader:
         toml_instance = MagicMock()
         toml_instance.read_value.return_value = "2.0.0"
         toml_reader.return_value = toml_instance
 
-        yield kv_reader, toml_reader
+        yield toml_reader
 
 
 class TestGetCanonicalName:
@@ -93,7 +204,9 @@ class TestGetCanonicalName:
 
 
 class TestCliInit:
-    def test_init_command(self, runner, temp_assets_dir):
+    def test_init_command(self, runner, temp_assets_dir, monkeypatch):
+        monkeypatch.setenv("AIM_REGISTRY_HOSTNAME", REGISTRY_HOST)
+        monkeypatch.setenv("AIM_REGISTRY_NAMESPACE", REGISTRY_NAMESPACE)
         with patch("aim_utils.config_utils.ConfigInitializer") as mock_initializer:
             mock_instance = MagicMock()
             mock_initializer.return_value = mock_instance
@@ -101,10 +214,17 @@ class TestCliInit:
             result = runner.invoke(cli, ["init", "--assets_path", str(temp_assets_dir)])
 
             assert result.exit_code == 0
-            mock_initializer.assert_called_once_with(assets_path=str(temp_assets_dir), recreate=False)
+            mock_initializer.assert_called_once_with(
+                assets_path=str(temp_assets_dir),
+                recreate=False,
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
             mock_instance.initialize_all.assert_called_once()
 
-    def test_init_command_with_options(self, runner, temp_assets_dir):
+    def test_init_command_with_options(self, runner, temp_assets_dir, monkeypatch):
+        monkeypatch.setenv("AIM_REGISTRY_HOSTNAME", REGISTRY_HOST)
+        monkeypatch.setenv("AIM_REGISTRY_NAMESPACE", REGISTRY_NAMESPACE)
         with patch("aim_utils.config_utils.ConfigInitializer") as mock_initializer:
             mock_instance = MagicMock()
             mock_initializer.return_value = mock_instance
@@ -112,7 +232,12 @@ class TestCliInit:
             result = runner.invoke(cli, ["init", "--assets_path", str(temp_assets_dir), "--recreate"])
 
             assert result.exit_code == 0
-            mock_initializer.assert_called_once_with(assets_path=str(temp_assets_dir), recreate=True)
+            mock_initializer.assert_called_once_with(
+                assets_path=str(temp_assets_dir),
+                recreate=True,
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
 
 
 class TestCliGet:
@@ -188,32 +313,29 @@ class TestCliInvokeWithoutCommand:
 
 class TestConfigInitializer:
     def test_config_initializer_creation(self, temp_assets_dir):
-        initializer = ConfigInitializer(assets_path=str(temp_assets_dir))
+        initializer = ConfigInitializer(
+            assets_path=str(temp_assets_dir),
+            registry_host=REGISTRY_HOST,
+            registry_namespace=REGISTRY_NAMESPACE,
+        )
         assert isinstance(initializer, Initializer)
 
-    def test_initialize_base_config(self, temp_assets_dir, mock_file_readers):
+    def test_initialize_base_config(self, temp_assets_dir):
         base_dir = temp_assets_dir / "base"
         base_dir.mkdir()
 
         with patch("aim_utils.config_utils.save_yaml") as mock_save:
-            initializer = ConfigInitializer(assets_path=str(temp_assets_dir))
-            descriptor = AssetDescriptor(is_base=True, is_custom=False, directory=base_dir, org=None, model_name=None)
-            initializer.initialize(descriptor)
-
-            mock_save.assert_called_once()
-            call_args = mock_save.call_args
-            config = call_args[0][0]
-            assert "base_image" in config
-            assert config["base_image"]["base_registry_namespace"] == "test-namespace"
-
-    def test_initialize_model_config(self, temp_assets_dir, mock_file_readers):
-        model_dir = temp_assets_dir / "org" / "model"
-        model_dir.mkdir(parents=True)
-
-        with patch("aim_utils.config_utils.save_yaml") as mock_save:
-            initializer = ConfigInitializer(assets_path=str(temp_assets_dir))
+            initializer = ConfigInitializer(
+                assets_path=str(temp_assets_dir),
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
             descriptor = AssetDescriptor(
-                is_base=False, is_custom=False, directory=model_dir, org="org", model_name="model"
+                is_base=True,
+                is_custom=False,
+                directory=base_dir,
+                org=None,
+                model_name=None,
             )
             initializer.initialize(descriptor)
 
@@ -221,7 +343,39 @@ class TestConfigInitializer:
             call_args = mock_save.call_args
             config = call_args[0][0]
             assert "base_image" in config
-            assert config["base_image"]["registry_host"] == "ghcr.io"
+            assert config["base_image"]["registry_host"] == "docker.io"
+            assert config["base_image"]["base_registry_namespace"] == "vllm"
+            assert config["base_image"]["base_repository"] == "vllm-openai-rocm"
+            assert config["base_image"]["base_tag"] == "v0.20.0"
+
+    @pytest.mark.parametrize(("accelerator", "case"), ACCELERATOR_CASES, ids=["instinct", "epyc", "radeon", "cpu"])
+    def test_initialize_model_config(self, tmp_path, mock_file_readers, accelerator, case):
+        model_dir = tmp_path / "assets" / accelerator / "org" / "model"
+        model_dir.mkdir(parents=True)
+
+        with patch("aim_utils.config_utils.save_yaml") as mock_save:
+            initializer = ConfigInitializer(
+                assets_path=str(tmp_path / "assets" / accelerator),
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
+            descriptor = AssetDescriptor(
+                is_base=False,
+                is_custom=False,
+                directory=model_dir,
+                org="org",
+                model_name="model",
+            )
+            initializer.initialize(descriptor)
+
+            mock_save.assert_called_once()
+            call_args = mock_save.call_args
+            config = call_args[0][0]
+            assert "base_image" in config
+            assert config["base_image"]["registry_host"] == REGISTRY_HOST
+            assert config["base_image"]["base_registry_namespace"] == REGISTRY_NAMESPACE
+            assert config["base_image"]["base_repository"] == case["expected_canonical_repository"]
+            assert config["base_image"]["base_tag"] == "2.0.0"
 
     def test_initialize_skips_existing_file(self, temp_assets_dir, mock_file_readers):
         model_dir = temp_assets_dir / "org" / "model"
@@ -230,24 +384,44 @@ class TestConfigInitializer:
         config_file.write_text("existing: config")
 
         with patch("aim_utils.config_utils.save_yaml") as mock_save:
-            initializer = ConfigInitializer(assets_path=str(temp_assets_dir))
+            initializer = ConfigInitializer(
+                assets_path=str(temp_assets_dir),
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
             descriptor = AssetDescriptor(
-                is_base=False, is_custom=False, directory=model_dir, org="org", model_name="model"
+                is_base=False,
+                is_custom=False,
+                directory=model_dir,
+                org="org",
+                model_name="model",
             )
             initializer.initialize(descriptor)
 
             mock_save.assert_not_called()
 
     def test_initialize_recreates_existing_file(self, temp_assets_dir, mock_file_readers):
-        model_dir = temp_assets_dir / "org" / "model"
+        # Create a directory structure with accelerator family
+        instinct_dir = temp_assets_dir / "instinct"
+        instinct_dir.mkdir()
+        model_dir = instinct_dir / "org" / "model"
         model_dir.mkdir(parents=True)
         config_file = model_dir / "config.yaml"
         config_file.write_text("existing: config")
 
         with patch("aim_utils.config_utils.save_yaml") as mock_save:
-            initializer = ConfigInitializer(assets_path=str(temp_assets_dir), recreate=True)
+            initializer = ConfigInitializer(
+                assets_path=str(instinct_dir),
+                recreate=True,
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
             descriptor = AssetDescriptor(
-                is_base=False, is_custom=False, directory=model_dir, org="org", model_name="model"
+                is_base=False,
+                is_custom=False,
+                directory=model_dir,
+                org="org",
+                model_name="model",
             )
             initializer.initialize(descriptor)
 
@@ -260,10 +434,18 @@ class TestConfigInitializer:
         leaf_dir2.mkdir(parents=True)
 
         descriptor1 = AssetDescriptor(
-            is_base=False, is_custom=False, directory=leaf_dir1, org="org1", model_name="model1"
+            is_base=False,
+            is_custom=False,
+            directory=leaf_dir1,
+            org="org1",
+            model_name="model1",
         )
         descriptor2 = AssetDescriptor(
-            is_base=False, is_custom=False, directory=leaf_dir2, org="org2", model_name="model2"
+            is_base=False,
+            is_custom=False,
+            directory=leaf_dir2,
+            org="org2",
+            model_name="model2",
         )
 
         with (
@@ -272,7 +454,11 @@ class TestConfigInitializer:
         ):
             mock_get_descriptors.return_value = [descriptor1, descriptor2]
 
-            initializer = ConfigInitializer(assets_path=str(temp_assets_dir))
+            initializer = ConfigInitializer(
+                assets_path=str(temp_assets_dir),
+                registry_host=REGISTRY_HOST,
+                registry_namespace=REGISTRY_NAMESPACE,
+            )
             initializer.initialize_all()
 
             assert mock_init.call_count == 2
@@ -280,193 +466,380 @@ class TestConfigInitializer:
             mock_init.assert_any_call(descriptor2)
 
 
-@pytest.fixture
-def instinct_base_config_file(tmp_path):
-    """Create instinct base config file for testing."""
-    config_dir = tmp_path / "assets" / "instinct" / "base"
-    config_dir.mkdir(parents=True)
-    config_file = config_dir / "config.yaml"
-    config_file.write_text(
-        """
-base_image:
-  registry_host: docker.io
-  base_registry_namespace: rocm
-  base_repository: vllm
-  base_tag: rocm7.0.0_vllm_0.11.2_20251210
-"""
-    )
-    return config_file
-
-
-@pytest.fixture
-def epyc_base_config_file(tmp_path):
-    """Create epyc base config file for testing."""
-    config_dir = tmp_path / "assets" / "epyc" / "base"
-    config_dir.mkdir(parents=True)
-    config_file = config_dir / "config.yaml"
-    config_file.write_text(
-        """
-base_image:
-  registry_host: docker.io
-  base_registry_namespace: amdih
-  base_repository: zendnn_zentorch
-  base_tag: vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3
-"""
-    )
-    return config_file
-
-
 class TestCiBaseImageConfig:
-    def test_from_accelerator_type_instinct(self, tmp_path, instinct_base_config_file):
-        """Test CiBaseImageConfig creation for instinct accelerator."""
-        with patch("aim_utils.config_utils.BaseImageConfig.from_yaml_file") as mock_from_yaml:
-            from aim_utils.config_utils import BaseImageConfig
+    @pytest.mark.parametrize(("accelerator", "case"), ACCELERATOR_CASES, ids=["instinct", "epyc", "radeon", "cpu"])
+    def test_from_accelerator_family(self, tmp_path, monkeypatch, accelerator, case):
+        """Test CiBaseImageConfig creation for supported accelerators."""
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, accelerator, case)
 
-            mock_config = BaseImageConfig(
-                registry_host="docker.io",
-                base_registry_namespace="rocm",
-                base_repository="vllm",
-                base_tag="rocm7.0.0_vllm_0.11.2_20251210",
-            )
-            mock_from_yaml.return_value = mock_config
+        ci_config = CiBaseImageConfig.from_accelerator_family(accelerator)
 
-            ci_config = CiBaseImageConfig.from_accelerator_type("instinct")
-
-            assert ci_config.repository == "aim-base"
-            assert ci_config.dockerfile == "docker/Dockerfile.aim-base"
-            assert ci_config.run_validation is True
-            assert ci_config.base_image_ref == "docker.io/rocm/vllm:rocm7.0.0_vllm_0.11.2_20251210"
-
-    def test_from_accelerator_type_epyc(self, tmp_path, epyc_base_config_file):
-        """Test CiBaseImageConfig creation for epyc accelerator."""
-        with patch("aim_utils.config_utils.BaseImageConfig.from_yaml_file") as mock_from_yaml:
-            from aim_utils.config_utils import BaseImageConfig
-
-            mock_config = BaseImageConfig(
-                registry_host="docker.io",
-                base_registry_namespace="amdih",
-                base_repository="zendnn_zentorch",
-                base_tag="vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3",
-            )
-            mock_from_yaml.return_value = mock_config
-
-            ci_config = CiBaseImageConfig.from_accelerator_type("epyc")
-
-            assert ci_config.repository == "aim-epyc-base"
-            assert ci_config.dockerfile == "docker/Dockerfile.aim-epyc-base"
-            assert ci_config.run_validation is False
-            assert (
-                ci_config.base_image_ref
-                == "docker.io/amdih/zendnn_zentorch:vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3"
-            )
+        assert ci_config.repository == case["expected_repository"]
+        assert ci_config.public_repository == case["expected_public_repository"]
+        assert ci_config.has_alias == (case["expected_canonical_repository"] != case["expected_public_repository"])
+        assert ci_config.image_name == ImageName(
+            canonical=case["expected_canonical_repository"], public=case["expected_public_repository"]
+        )
+        assert ci_config.dockerfile == case["expected_dockerfile"]
+        assert ci_config.run_validation is case["expected_run_validation"]
+        assert ci_config.upstream_image_ref == case["expected_upstream_image_ref"]
 
     def test_model_dump_json(self):
         """Test JSON serialization of CiBaseImageConfig."""
         ci_config = CiBaseImageConfig(
-            repository="aim-base",
-            dockerfile="docker/Dockerfile.aim-base",
+            base_target_id=LEGACY_VLLM_BASE_TARGET_ID,
+            image_name=ImageName(canonical="aim-instinct-base", public="aim-base"),
+            dockerfile="docker/Dockerfile.aim-instinct-base",
             run_validation=True,
-            base_image_ref="docker.io/rocm/vllm:test",
+            upstream_image_ref="docker.io/rocm/vllm:test",
         )
 
         json_output = ci_config.model_dump_json()
         parsed = json.loads(json_output)
 
-        assert parsed["repository"] == "aim-base"
-        assert parsed["dockerfile"] == "docker/Dockerfile.aim-base"
+        assert parsed["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert parsed["repository"] == "aim-instinct-base"
+        assert parsed["public_repository"] == "aim-base"
+        assert parsed["has_alias"] is True
+        assert parsed["dockerfile"] == "docker/Dockerfile.aim-instinct-base"
         assert parsed["run_validation"] is True  # Boolean, not string
-        assert parsed["base_image_ref"] == "docker.io/rocm/vllm:test"
+        assert parsed["upstream_image_ref"] == "docker.io/rocm/vllm:test"
+
+
+class TestBaseImageTargetNormalization:
+    def test_normalize_legacy_base_image_to_legacy_vllm_target(self):
+        normalized = normalize_base_image_targets(
+            {
+                "base_image": {
+                    "registry_host": "docker.io",
+                    "base_registry_namespace": "vllm",
+                    "base_repository": "vllm-openai-rocm",
+                    "base_tag": "v0.16.0",
+                }
+            }
+        )
+
+        assert list(normalized.keys()) == [LEGACY_VLLM_BASE_TARGET_ID]
+        assert normalized[LEGACY_VLLM_BASE_TARGET_ID] == BaseImageTargetConfig(
+            target_id=LEGACY_VLLM_BASE_TARGET_ID,
+            registry_host="docker.io",
+            base_registry_namespace="vllm",
+            base_repository="vllm-openai-rocm",
+            base_tag="v0.16.0",
+        )
+
+    def test_normalize_empty_config_returns_empty_mapping(self):
+        normalized = normalize_base_image_targets({})
+        assert normalized == {}
+
+    def test_normalize_rejects_inline_base_images_mapping(self):
+        with pytest.raises(ValueError, match="inline 'base_images' mapping is not supported"):
+            normalize_base_image_targets(
+                {
+                    "base_images": {
+                        "bentoml": {
+                            "registry_host": "docker.io",
+                            "base_registry_namespace": "rocm",
+                            "base_repository": "pytorch",
+                            "base_tag": "rocm7.0",
+                        }
+                    }
+                }
+            )
+
+    def test_normalize_rejects_base_image_plus_inline_base_images(self):
+        with pytest.raises(ValueError, match="inline 'base_images' mapping is not supported"):
+            normalize_base_image_targets(
+                {
+                    "base_image": {
+                        "registry_host": "docker.io",
+                        "base_registry_namespace": "vllm",
+                        "base_repository": "vllm-openai-rocm",
+                        "base_tag": "v0.16.0",
+                    },
+                    "base_images": {
+                        "bentoml": {
+                            "registry_host": "docker.io",
+                            "base_registry_namespace": "rocm",
+                            "base_repository": "pytorch",
+                            "base_tag": "rocm7.0",
+                        }
+                    },
+                }
+            )
+
+    def test_normalize_requires_base_image_required_fields(self):
+        with pytest.raises(ValidationError, match="base_tag"):
+            normalize_base_image_targets(
+                {
+                    "base_image": {
+                        "registry_host": "docker.io",
+                        "base_registry_namespace": "vllm",
+                        "base_repository": "vllm-openai-rocm",
+                    }
+                }
+            )
+
+    def test_normalize_allows_extra_top_level_fields(self):
+        normalized = normalize_base_image_targets(
+            {
+                "metadata": {"owner": "team-ai"},
+                "base_image": {
+                    "registry_host": "docker.io",
+                    "base_registry_namespace": "vllm",
+                    "base_repository": "vllm-openai-rocm",
+                    "base_tag": "v0.16.0",
+                },
+            }
+        )
+
+        assert list(normalized.keys()) == [LEGACY_VLLM_BASE_TARGET_ID]
+        assert normalized[LEGACY_VLLM_BASE_TARGET_ID].base_repository == "vllm-openai-rocm"
+
+
+class TestCiBaseImageTarget:
+    def test_model_dump_json(self):
+        target = CiBaseImageTarget(
+            target_id=LEGACY_VLLM_BASE_TARGET_ID,
+            image_name=ImageName(canonical="aim-instinct-base", public="aim-base"),
+            dockerfile="docker/Dockerfile.aim-instinct-base",
+            run_validation=True,
+            upstream_image_ref="docker.io/rocm/vllm:test",
+        )
+
+        parsed = json.loads(target.model_dump_json())
+
+        assert parsed["target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert parsed["repository"] == "aim-instinct-base"
+        assert parsed["public_repository"] == "aim-base"
+        assert parsed["has_alias"] is True
 
 
 class TestResolveBuildConfigCommand:
-    def test_resolve_build_config_instinct(self, runner, tmp_path, instinct_base_config_file, monkeypatch):
-        """Test resolve-build-config command for instinct accelerator."""
-        # Change to tmp_path so the config files can be found
+    @pytest.mark.parametrize(("accelerator", "case"), ACCELERATOR_CASES, ids=["instinct", "epyc", "radeon", "cpu"])
+    def test_resolve_build_config(self, runner, tmp_path, monkeypatch, accelerator, case):
+        """Test resolve-build-config command for supported accelerators."""
         monkeypatch.chdir(tmp_path)
-        # Clear GITHUB_OUTPUT to force output to stdout instead of file
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        write_base_config(tmp_path, accelerator, case)
 
-        with patch("aim_utils.config_utils.CiBaseImageConfig.from_accelerator_type") as mock_from_type:
-            mock_ci_config = CiBaseImageConfig(
-                repository="aim-base",
-                dockerfile="docker/Dockerfile.aim-base",
-                run_validation=True,
-                base_image_ref="docker.io/rocm/vllm:rocm7.0.0_vllm_0.11.2_20251210",
-            )
-            mock_from_type.return_value = mock_ci_config
+        result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", accelerator])
 
-            result = runner.invoke(cli, ["resolve-build-config", "--accelerator-type", "instinct"])
+        assert result.exit_code == 0
+        output = json.loads(result.output.strip())
+        assert output["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert output["repository"] == case["expected_repository"]
+        assert output["dockerfile"] == case["expected_dockerfile"]
+        assert output["run_validation"] is case["expected_run_validation"]
+        assert output["upstream_image_ref"] == case["expected_upstream_image_ref"]
 
-            assert result.exit_code == 0
-            output = json.loads(result.output.strip())
-            assert output["repository"] == "aim-base"
-            assert output["dockerfile"] == "docker/Dockerfile.aim-base"
-            assert output["run_validation"] is True
-            assert output["base_image_ref"] == "docker.io/rocm/vllm:rocm7.0.0_vllm_0.11.2_20251210"
-
-    def test_resolve_build_config_epyc(self, runner, tmp_path, epyc_base_config_file, monkeypatch):
-        """Test resolve-build-config command for epyc accelerator."""
-        # Change to tmp_path so the config files can be found
-        monkeypatch.chdir(tmp_path)
-        # Clear GITHUB_OUTPUT to force output to stdout instead of file
-        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-
-        with patch("aim_utils.config_utils.CiBaseImageConfig.from_accelerator_type") as mock_from_type:
-            mock_ci_config = CiBaseImageConfig(
-                repository="aim-epyc-base",
-                dockerfile="docker/Dockerfile.aim-epyc-base",
-                run_validation=False,
-                base_image_ref="docker.io/amdih/zendnn_zentorch:vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3",
-            )
-            mock_from_type.return_value = mock_ci_config
-
-            result = runner.invoke(cli, ["resolve-build-config", "--accelerator-type", "epyc"])
-
-            assert result.exit_code == 0
-            output = json.loads(result.output.strip())
-            assert output["repository"] == "aim-epyc-base"
-            assert output["dockerfile"] == "docker/Dockerfile.aim-epyc-base"
-            assert output["run_validation"] is False
-            assert (
-                output["base_image_ref"]
-                == "docker.io/amdih/zendnn_zentorch:vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3"
-            )
-
-    def test_resolve_build_config_with_github_output(self, runner, tmp_path, instinct_base_config_file, monkeypatch):
+    @pytest.mark.parametrize(("accelerator", "case"), ACCELERATOR_CASES, ids=["instinct", "epyc", "radeon", "cpu"])
+    def test_resolve_build_config_with_github_output(self, runner, tmp_path, monkeypatch, accelerator, case):
         """Test resolve-build-config writes to GITHUB_OUTPUT when set."""
-        # Change to tmp_path so the config files can be found
         monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, accelerator, case)
 
         github_output_file = tmp_path / "github_output"
         github_output_file.touch()
 
-        with patch("aim_utils.config_utils.CiBaseImageConfig.from_accelerator_type") as mock_from_type:
-            mock_ci_config = CiBaseImageConfig(
-                repository="aim-base",
-                dockerfile="docker/Dockerfile.aim-base",
-                run_validation=True,
-                base_image_ref="docker.io/rocm/vllm:test",
-            )
-            mock_from_type.return_value = mock_ci_config
+        with patch.dict(os.environ, {"GITHUB_OUTPUT": str(github_output_file)}):
+            result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", accelerator])
 
-            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(github_output_file)}):
-                result = runner.invoke(cli, ["resolve-build-config", "--accelerator-type", "instinct"])
+            assert result.exit_code == 0
 
-                assert result.exit_code == 0
+            # Verify GITHUB_OUTPUT file content
+            content = github_output_file.read_text()
+            assert content.startswith("config=")
+            json_part = content.replace("config=", "").strip()
+            parsed = json.loads(json_part)
+            assert parsed["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+            assert parsed["repository"] == case["expected_repository"]
+            assert parsed["dockerfile"] == case["expected_dockerfile"]
+            assert parsed["run_validation"] is case["expected_run_validation"]
+            assert parsed["upstream_image_ref"] == case["expected_upstream_image_ref"]
 
-                # Verify GITHUB_OUTPUT file content
-                content = github_output_file.read_text()
-                assert content.startswith("config=")
-                json_part = content.replace("config=", "").strip()
-                parsed = json.loads(json_part)
-                assert parsed["repository"] == "aim-base"
-                assert parsed["run_validation"] is True
-
-    def test_resolve_build_config_missing_accelerator_type(self, runner):
+    def test_resolve_build_config_missing_accelerator_family(self, runner):
         """Test resolve-build-config fails without accelerator type."""
         result = runner.invoke(cli, ["resolve-build-config"])
         assert result.exit_code != 0
         assert "Missing option" in result.output or "required" in result.output.lower()
+
+    def test_resolve_build_config_invalid_accelerator_family(self, runner):
+        """Test resolve-build-config rejects unsupported accelerator values at CLI parsing."""
+        result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "invalid"])
+        assert result.exit_code != 0
+        assert "Invalid value for '--accelerator-family'" in result.output
+
+    def test_resolve_build_config_uses_legacy_target_when_named_targets_exist(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        output = json.loads(result.output.strip())
+        assert output["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert output["upstream_image_ref"] == case["expected_upstream_image_ref"]
+
+    def test_resolve_build_config_fails_without_legacy_target(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "instinct"])
+
+        assert result.exit_code != 0
+        assert result.exception is not None
+        assert LEGACY_VLLM_BASE_TARGET_ID in str(result.exception)
+
+
+class TestResolveBuildTargetsCommand:
+    def test_resolve_build_targets_legacy_only(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+
+        result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        targets = json.loads(result.output.strip())
+        assert len(targets) == 1
+        assert targets[0]["target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert targets[0]["upstream_image_ref"] == case["expected_upstream_image_ref"]
+
+    def test_resolve_build_targets_discovers_named_target_folder(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        targets = json.loads(result.output.strip())
+        assert [target["target_id"] for target in targets] == [LEGACY_VLLM_BASE_TARGET_ID, "bentoml"]
+
+        bentoml_target = targets[1]
+
+        assert bentoml_target["upstream_image_ref"] == (
+            "docker.io/rocm/pytorch:rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0"
+        )
+
+    def test_resolve_build_targets_with_github_output(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+
+        github_output_file = tmp_path / "github_output"
+        github_output_file.touch()
+
+        with patch.dict(os.environ, {"GITHUB_OUTPUT": str(github_output_file)}):
+            result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+            assert result.exit_code == 0
+
+            content = github_output_file.read_text()
+            assert content.startswith("targets=")
+            json_part = content.replace("targets=", "").strip()
+            targets = json.loads(json_part)
+            assert len(targets) == 1
+            assert targets[0]["target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+
+    def test_legacy_target_gets_legacy_vllm_image_name(self, runner, tmp_path, monkeypatch):
+        """legacy_vllm target uses the backward-compatible per-accelerator name (no target discriminator)."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+
+        result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        targets = json.loads(result.output.strip())
+        legacy = targets[0]
+        assert legacy["target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+        assert legacy["repository"] == "aim-instinct-base"
+        assert legacy["public_repository"] == "aim-base"
+        assert legacy["has_alias"] is True
+
+    def test_named_target_gets_discriminated_image_name(self, runner, tmp_path, monkeypatch):
+        """Named targets include target_id in repository name with no public alias."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        targets = json.loads(result.output.strip())
+        bentoml = next(t for t in targets if t["target_id"] == "bentoml")
+        assert bentoml["repository"] == "aim-instinct-bentoml-base"
+        assert bentoml["public_repository"] == "aim-instinct-bentoml-base"
+        assert bentoml["has_alias"] is False
+
+    def test_each_target_gets_independent_image_name(self, runner, tmp_path, monkeypatch):
+        """Different targets in the same accelerator family get different repository names."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "sglang",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(cli, ["resolve-build-targets", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0
+        targets = json.loads(result.output.strip())
+        repos = {t["target_id"]: t["repository"] for t in targets}
+        assert repos[LEGACY_VLLM_BASE_TARGET_ID] == "aim-instinct-base"
+        assert repos["sglang"] == "aim-instinct-sglang-base"
 
 
 # ---------------------------------------------------------------------------
@@ -501,33 +874,36 @@ class TestBaseImageConfigRegistryValidator:
 class TestBaseImageConfigTagValidator:
     """Validate the base_tag field_validator on BaseImageConfig."""
 
-    def test_aim_repo_valid_base_version(self):
+    @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
+    def test_aim_repo_valid_base_version(self, base_repository):
         """When base_repository starts with 'aim', base_tag must be a valid AIM base version."""
         config = BaseImageConfig(
             registry_host="ghcr.io",
             base_registry_namespace="silogen",
-            base_repository="aim-base",
+            base_repository=base_repository,
             base_tag="0.11",
         )
         assert config.base_tag == "0.11"
 
     @pytest.mark.parametrize("tag", ["0.11-rc1", "0.11-preview", "1.0"])
-    def test_aim_repo_valid_base_version_with_suffix(self, tag):
+    @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
+    def test_aim_repo_valid_base_version_with_suffix(self, tag, base_repository):
         config = BaseImageConfig(
             registry_host="ghcr.io",
             base_registry_namespace="silogen",
-            base_repository="aim-base",
+            base_repository=base_repository,
             base_tag=tag,
         )
         assert config.base_tag == tag
 
     @pytest.mark.parametrize("tag", ["BROKEN", "0.11.0", "0.11-rc0", "abc"])
-    def test_aim_repo_invalid_base_version_rejected(self, tag):
+    @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
+    def test_aim_repo_invalid_base_version_rejected(self, tag, base_repository):
         with pytest.raises(Exception, match="Invalid version format"):
             BaseImageConfig(
                 registry_host="ghcr.io",
                 base_registry_namespace="silogen",
-                base_repository="aim-base",
+                base_repository=base_repository,
                 base_tag=tag,
             )
 

@@ -11,16 +11,16 @@ import pytest
 from aim_utils import metadata_utils, yaml_utils
 
 
-@pytest.fixture
-def sample_yaml_data(assets_instinct_path: str) -> Dict[str, Any]:
+@pytest.fixture(params=["instinct", "radeon"], ids=["instinct", "radeon"])
+def sample_yaml_data(request, assets_path: Path) -> Dict[str, Any]:
     return yaml_utils.read_yaml(
-        Path(assets_instinct_path) / "TinyLlama" / "TinyLlama-1.1B-Chat-v1.0_case1" / "metadata.yaml"
+        assets_path / request.param / "TinyLlama" / "TinyLlama-1.1B-Chat-v1.0_case1" / "metadata.yaml"
     )
 
 
-@pytest.fixture
-def test_metadata_path():
-    return "tests/assets/instinct"
+@pytest.fixture(params=["tests/assets/instinct", "tests/assets/radeon"], ids=["instinct", "radeon"])
+def test_metadata_path(request):
+    return request.param
 
 
 def test_get_value_existing_key(sample_yaml_data):
@@ -60,27 +60,14 @@ def test_set_value_missing_key_no_add(sample_yaml_data):
     assert metadata_utils.get_value(updated_data, "com.amd.aim.newKey") is None
 
 
-def test_get_model_variants(model_profiles_path):
-    variants = metadata_utils.get_model_variants(Path(model_profiles_path))
+@pytest.mark.parametrize("assets_accelerator_path", ["instinct", "radeon"], indirect=True, ids=["instinct", "radeon"])
+def test_get_model_variants(assets_accelerator_path):
+    variants = metadata_utils.get_model_variants(
+        Path(assets_accelerator_path) / "meta-llama" / "Llama-3.1-8B-Instruct" / "profiles"
+    )
     assert len(variants) == 2
     assert variants[0] == "amd/Llama-3.1-8B-Instruct-FP8-KV"
     assert variants[1] == "meta-llama/Llama-3.1-8B-Instruct"
-
-
-def test_copy_value(sample_yaml_data):
-    data = metadata_utils._copy_value(
-        sample_yaml_data,
-        "com.amd.aim.model.canonicalName",
-        "org.opencontainers.image.title",
-        prefix="<PREFIX>",
-        postfix="<POSTFIX>",
-        separator="<SEP>",
-        add_if_missing=True,
-    )
-    assert (
-        metadata_utils.get_value(data, "org.opencontainers.image.title")
-        == "<PREFIX><SEP>TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1<SEP><POSTFIX>"
-    )
 
 
 def test_add_recommended_deployments_basic(tmp_path):

@@ -5,12 +5,16 @@
 aim_id: Qwen/Qwen3-Coder-Next
 model_id: Qwen/Qwen3-Coder-Next-FP8
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI300X
   gpu_count: 1
   manual_selection_only: true
   metric: throughput
   precision: fp8
+  primary: true
   type: unoptimized
 engine_args:
   disable-uvicorn-access-log: null

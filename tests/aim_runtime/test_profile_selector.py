@@ -17,7 +17,7 @@ from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileNotFo
 @pytest.fixture
 def selector_with_mock_gpu(aim_config: AIMConfig) -> ProfileSelector:
     """Create a ProfileSelector with mocked GPU detection to match test profiles."""
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         # Mock GPU detector to return values that match our test profiles
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
@@ -33,7 +33,7 @@ def selector_with_mock_gpu(aim_config: AIMConfig) -> ProfileSelector:
 @pytest.fixture
 def selector_no_gpu(aim_config: AIMConfig) -> ProfileSelector:
     """Create a ProfileSelector with no GPU detected."""
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = False
@@ -48,15 +48,15 @@ def selector_no_gpu(aim_config: AIMConfig) -> ProfileSelector:
 def test_profile_selector_initialization(aim_config: AIMConfig, selector_with_mock_gpu: ProfileSelector) -> None:
     """Test that ProfileSelector initializes correctly."""
     assert selector_with_mock_gpu.config == aim_config
-    assert selector_with_mock_gpu.detected_gpu == GPUModel.MI300X
-    assert selector_with_mock_gpu.detected_gpu_count == 1
+    assert selector_with_mock_gpu.detected_accelerator == GPUModel.MI300X
+    assert selector_with_mock_gpu.detected_accelerator_count == 1
     assert selector_with_mock_gpu.profile_validator is not None
 
 
 def test_profile_selector_no_gpu_initialization(aim_config: AIMConfig, selector_no_gpu: ProfileSelector) -> None:
     """Test that ProfileSelector handles no GPU correctly."""
-    assert selector_no_gpu.detected_gpu is None
-    assert selector_no_gpu.detected_gpu_count == 0
+    assert selector_no_gpu.detected_accelerator is None
+    assert selector_no_gpu.detected_accelerator_count == 0
 
 
 def test_build_search_paths_model_specific(
@@ -78,7 +78,7 @@ def test_build_search_paths_with_custom_path(custom_profiles_path: str) -> None:
         profile_base_path=custom_profiles_path,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector"):
+    with patch("aim_runtime.accelerator_detector.GPUDetector"):
         selector = ProfileSelector(config)
         search_paths = selector._build_search_paths()
 
@@ -103,7 +103,7 @@ def test_find_profile_success_model_specific(
 def test_find_profile_with_profile_id(aim_config: AIMConfig) -> None:
     """Test finding profile by specific profile ID."""
     # First get a valid profile ID
-    with patch("aim_runtime.profile_selector.GPUDetector"):
+    with patch("aim_runtime.accelerator_detector.GPUDetector"):
         selector = ProfileSelector(aim_config)
         registry = selector.registry
         valid_profiles = registry.profiles
@@ -130,7 +130,7 @@ def test_find_profile_with_invalid_profile_id(assets_instinct_path: str) -> None
         profile_id="invalid-profile-id",
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector"):
+    with patch("aim_runtime.accelerator_detector.GPUDetector"):
         selector = ProfileSelector(config)
 
         with pytest.raises(ProfileNotFound) as exc_info:
@@ -150,7 +150,7 @@ def test_find_profile_no_suitable_profile_found(assets_instinct_path: str) -> No
         metric="unsupported_metric",
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -188,7 +188,7 @@ def test_find_profile_manual_selection_only(selector_with_mock_gpu: ProfileSelec
 
 def test_find_profile_general_fallback(general_aim_config: AIMConfig) -> None:
     """Test that general profiles are used as fallback when no model-specific profiles exist."""
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -215,7 +215,7 @@ def test_auto_precision_engine_metric_defaults(aim_config: AIMConfig) -> None:
         metric=Metric.LATENCY,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -277,10 +277,10 @@ def test_get_categorized_profiles_precision_mismatch(assets_instinct_path: str) 
         precision=Precision.INT4,  # Specific precision that might not match all profiles
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
-        gpu_count="1",
+        accelerator_count="1",
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -326,10 +326,10 @@ def test_get_categorized_profiles_unknown_engine(assets_instinct_path: str) -> N
         precision=Precision.FP16,
         engine=Engine.VLLM,  # We'll mock this to not match
         metric=Metric.LATENCY,
-        gpu_count="1",
+        accelerator_count="1",
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -397,10 +397,10 @@ def test_get_categorized_profiles_empty_registry() -> None:
         precision=Precision.FP16,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
-        gpu_count="1",
+        accelerator_count="1",
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -449,37 +449,37 @@ def test_get_categorized_profiles_integration_with_real_profiles(
                 assert Path(profile.profile_handling.path).exists()
 
 
-def test_profile_selector_with_gpu_model_override(aim_config: AIMConfig) -> None:
-    """Test that ProfileSelector uses AIM_GPU_MODEL when provided."""
-    # Create config with GPU model override
-    config_with_gpu_model = deepcopy(aim_config)
-    config_with_gpu_model.gpu_model = GPUModel.MI325X
-    config_with_gpu_model.gpu_count = 2
+def test_profile_selector_with_accelerator_model_override(aim_config: AIMConfig) -> None:
+    """Test that ProfileSelector uses AIM_ACCELERATOR_MODEL when provided."""
+    # Create config with accelerator model override
+    config_with_accelerator_model = deepcopy(aim_config)
+    config_with_accelerator_model.accelerator_model = GPUModel.MI325X
+    config_with_accelerator_model.accelerator_count = 2
 
-    # ProfileSelector should not call GPUDetector when gpu_model is set
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
-        selector = ProfileSelector(config_with_gpu_model)
+    # ProfileSelector should not call GPUDetector when accelerator_model is set
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
+        selector = ProfileSelector(config_with_accelerator_model)
 
-        # GPUDetector should not be instantiated when gpu_model is set
+        # GPUDetector should not be instantiated when accelerator_model is set
         mock_detector.assert_not_called()
 
-        # Check that the GPU model from config is used
-        assert selector.detected_gpu == GPUModel.MI325X
-        assert selector.detected_gpu_count == 2
+        # Check that the accelerator model from config is used
+        assert selector.detected_accelerator == GPUModel.MI325X
+        assert selector.detected_accelerator_count == 2
 
 
-def test_profile_selector_gpu_model_with_auto_gpu_count(aim_config: AIMConfig) -> None:
-    """Test that ProfileSelector defaults to 1 GPU when gpu_model is set but gpu_count is auto."""
-    config_with_gpu_model = deepcopy(aim_config)
-    config_with_gpu_model.gpu_model = GPUModel.MI300A
-    config_with_gpu_model.gpu_count = "auto"
+def test_profile_selector_accelerator_model_with_auto_count(aim_config: AIMConfig) -> None:
+    """Test that ProfileSelector defaults to 1 when accelerator_model is set but accelerator_count is auto."""
+    config_with_accelerator_model = deepcopy(aim_config)
+    config_with_accelerator_model.accelerator_model = GPUModel.MI300A
+    config_with_accelerator_model.accelerator_count = "auto"
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
-        selector = ProfileSelector(config_with_gpu_model)
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
+        selector = ProfileSelector(config_with_accelerator_model)
 
         mock_detector.assert_not_called()
-        assert selector.detected_gpu == GPUModel.MI300A
-        assert selector.detected_gpu_count == 1
+        assert selector.detected_accelerator == GPUModel.MI300A
+        assert selector.detected_accelerator_count == 1
 
 
 def test_build_search_paths_with_general_fallback_enabled(assets_instinct_path: str) -> None:
@@ -490,7 +490,7 @@ def test_build_search_paths_with_general_fallback_enabled(assets_instinct_path: 
         allow_general_profile_fallback=True,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -516,7 +516,7 @@ def test_build_search_paths_with_general_fallback_disabled(assets_instinct_path:
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -542,7 +542,7 @@ def test_general_profiles_marked_manual_only_when_fallback_disabled(profile_base
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -570,7 +570,7 @@ def test_general_profiles_not_marked_manual_only_when_fallback_enabled(profile_b
         allow_general_profile_fallback=True,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -598,7 +598,7 @@ def test_find_profile_fallback_disabled_excludes_general_from_auto_selection(pro
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -631,10 +631,10 @@ def test_find_profile_fallback_enabled_uses_general(profile_base_path: str) -> N
         profile_base_path=profile_base_path,
         allow_general_profile_fallback=True,
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -659,12 +659,12 @@ def test_find_profile_unoptimized_fallback_disabled_by_default(profile_base_path
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=False,
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -687,12 +687,12 @@ def test_find_profile_unoptimized_fallback_enabled_selects_unoptimized(profile_b
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=True,
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -714,11 +714,11 @@ def test_find_profile_unoptimized_fallback_prefers_optimized(profile_base_path: 
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=True,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -740,12 +740,12 @@ def test_find_profile_unoptimized_fallback_logs_warning(profile_base_path: str) 
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=True,
         allow_general_profile_fallback=False,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -770,11 +770,11 @@ def test_find_profile_unoptimized_fallback_no_compatible_profiles(profile_base_p
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=True,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True
@@ -798,12 +798,12 @@ def test_find_profile_unoptimized_and_general_fallback_interaction(profile_base_
         aim_id="nonexistent/model",
         profile_base_path=str(profile_base_path),
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         allow_unoptimized=True,
         allow_general_profile_fallback=True,
     )
 
-    with patch("aim_runtime.profile_selector.GPUDetector") as mock_detector:
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
         mock_instance = Mock()
         mock_instance.all_gpus_idle = True
         mock_instance.has_gpus = True

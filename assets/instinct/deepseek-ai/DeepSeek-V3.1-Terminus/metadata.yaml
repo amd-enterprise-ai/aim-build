@@ -6,7 +6,7 @@ com:
   amd:
     aim:
       description:
-        full: "DeepSeek-V3.1-Terminus is an update to DeepSeek-V3.1 from DeepSeek AI, a 671 billion total parameter mixture-of-experts (MoE) language model with 37 billion active parameters and a 128K token context length. This version addresses user-reported issues including reduced mixed Chinese-English text and abnormal characters for language consistency, and further optimized Code Agent and Search Agent performance. It supports both thinking and non-thinking modes with tool calling capabilities. Licensed under MIT."
+        full: "DeepSeek-V3.1-Terminus is an update to DeepSeek-V3.1 from DeepSeek AI, a 671 billion total parameter mixture-of-experts (MoE) language model with 37 billion active parameters. This version addresses user-reported issues including reduced mixed Chinese-English text and abnormal characters for language consistency, and further optimized Code Agent and Search Agent performance. It supports both thinking and non-thinking modes with tool calling capabilities. Licensed under MIT."
       hfToken:
         required: false
       model:

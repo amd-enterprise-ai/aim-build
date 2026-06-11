@@ -6,21 +6,21 @@ SPDX-License-Identifier: MIT
 
 # AIM Container Technical Architecture
 >
-> **Version**: 0.11
+> **Version**: 0.12
 >
 > **Scope**: This document describes the internal technical architecture of AIM *containers*. It deliberately excludes higher‑level orchestration (Kubernetes, Helm, Operators) to focus on what ships inside and immediately around a single container instance.
 
 ## 1. Introduction
 
-**AMD Inference Microservice (AIM)** is a comprehensive framework for deploying and serving AI models on AMD hardware, specifically designed for AMD Instinct™ GPUs (MI300X, MI325X, MI350X, MI355X). AIM provides standardized profiles and configurations for efficient model inference across different hardware configurations, precision formats, and performance metrics. This document focuses on the architecture of AIM Containers.
+**AMD Inference Microservice (AIM)** is a comprehensive framework for deploying and serving AI models on AMD hardware, supporting AMD Instinct™ GPUs (MI300X, MI325X, MI350X, MI355X) and AMD Radeon™ Pro GPUs (W7900, R9700). AIM provides standardized profiles and configurations for efficient model inference across different hardware configurations, precision formats, and performance metrics. This document focuses on the architecture of AIM Containers.
 
 ### 1.1 Goals
 
-The container provides a production‑ready, portable inference microservice for AMD Instinct GPUs delivering:
+The container provides a production‑ready, portable inference microservice for AMD Instinct and Radeon Pro GPUs delivering:
 
 * Validated model profiles (YAML) for target hardware
 * Intelligent hardware detection and adaptive configuration (GPU count, precision)
-* Multiple inference engines (initial: vLLM; pluggable design for others such as SGLang)
+* Multiple inference engines (vLLM for LLMs, BentoML for specialized models; pluggable design for others such as SGLang)
 * Precision format selection (based on GPU support, e.g. fp16, bf16, fp8, int8, int4)
 * Tensor parallel scaling (1/2/4/8 GPU layouts) driven by profiles
 * Support for integration with model caching & persistence acceleration layer
@@ -44,7 +44,7 @@ The container provides a production‑ready, portable inference microservice for
 | **Profile Store** (mounted or baked) | Provides YAML profile + model spec documents. |
 | **Profile Selector** ( `ProfileSelector` ) | Resolves optimal profile given model, GPUs, precision, engine. |
 | **Command Generator** ( `CommandGenerator` ) | Produces runtime command, environment based on selected profile. |
-| **GPU & Capability Detection** ( `GPUDetector` ) | Determines host/container/vLLM-visible GPU counts & characteristics with health checks. |
+| **Accelerator detection** ( `AcceleratorDetector` ) | Chooses GPU vs CPU path, then delegates to `GPUDetector` (AMD GPUs: counts, model, utilization/health) or `EpycDetector` (EPYC CPU) for data consumed by profile selection. |
 | **Engine Runtime** (vLLM) | Executes inference & streaming APIs. |
 | **API Layer** (OpenAI‑compatible) | Accepts client requests (prompt, stream, tool invocation). |
 | **Metrics & Logging** | Emits structured events, performance counters (future: tracing). |
@@ -92,13 +92,14 @@ Each profile YAML file follows a standardized structure with the following key s
 
 **All Profiles:**
 * **`metadata`**: Structured information for profile selection and categorization:
-  + `engine`: Backend engine (e.g., "vllm", "sglang")
+  + `engine`: Backend engine (e.g., "vllm", "bentoml", "sglang")
   + `gpu`: Target GPU model (e.g., "MI300X", "MI325X")
   + `precision`: Data type precision (e.g., "fp16", "bf16", "fp8", "int8", "int4")
   + `gpu_count`: Number of GPUs for tensor parallelism (1, 2, 4, 8)
   + `metric`: Optimization target ("latency" or "throughput")
   + `manual_selection_only`: Boolean flag (true = only selectable via explicit `AIM_PROFILE_ID`)
   + `type`: Profile type classification (`optimized`, `unoptimized`, `preview`, or `general`)
+  + `primary`: Boolean flag marking this as the recommended profile for its accelerator model and metric combination (see [Section 3.7](#37-primary-profiles))
 * **`engine_args`**: Engine-specific command-line arguments and parameters
 * **`env_vars`**: Environment variables to set during runtime execution
 
@@ -147,6 +148,7 @@ Pydantic models (in `src/aim_common/`) enforce structural correctness: required 
 * Valid YAML structure
 * Presence of complete metadata section with all required fields
 * Engine argument validation (via native vLLM `EngineArgs` with Pydantic model fallback)
+* Engine definition for the resolved engine loaded from `/workspace/aim-runtime/config/engines.yaml` via `load_engine_config` (for example `launch`, `model_arg`, and `validator`); `engine_args` are then applied in the order profile `engine_args` → optional `AIM_ENGINE_ARGS` → system overrides (for example `port`, `served-model-name`)
 * GPU count validation (1, 2, 4, 8 for tensor parallelism)
 
 Optional checks:
@@ -158,7 +160,7 @@ The `AIMRuntime` class orchestrates the entire workflow, utilizing `ProfileSelec
 
 The profile selector executes these stages:
 
-1. **GPU Detection & Health Check** – Identify host, container, and vLLM-usable GPU counts and verify all GPUs are healthy
+1. **Accelerator detection & health check** – `AcceleratorDetector` (GPU path: host/container/vLLM-visible counts and health via `GPUDetector`; CPU path via `EpycDetector` when `AIM_ACCELERATOR_TYPE=cpu`)
 2. **Profile Search & Collection** – Gather all candidate profiles from search paths (custom, model-specific, and general)
 3. **General Profile Fallback Control** – If `AIM_ALLOW_GENERAL_PROFILE_FALLBACK=false`, mark all general profiles as manual-selection-only (excluded from automatic selection but still listable)
 4. **Metadata-Based Filtering** – Apply sequential filters based on:
@@ -169,7 +171,7 @@ The profile selector executes these stages:
    - `manual-selection-only` flag (profiles with this flag are excluded from automatic selection)
 5. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
 6. **Type ordering** - Sort remaining profiles by type in the order of: `optimized`, `preview`, `unoptimized`, `general`.
-7. **Unoptimized Profile Fallback** – If no auto-selectable profile was found and `AIM_ALLOW_UNOPTIMIZED=true`, attempt to select a compatible unoptimized profile (emits a warning)
+7. **Unoptimized Profile Fallback** – If the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true`, attempt a compatible **`unoptimized`** profile that is also **`manual_selection_only`** (emits a warning)
 8. **Profile Selection** – Return the best-matched profile from the ordered list
 
 The selection algorithm leverages the structured metadata section to efficiently filter and rank profiles based on the runtime environment and user preferences. This metadata-driven approach ensures optimal profile selection while maintaining deterministic fallback behavior.
@@ -195,6 +197,7 @@ metadata:
   manual_selection_only: false
   metric: latency
   precision: fp8
+  primary: true
   type: optimized
 engine_args:
   async-scheduling: null
@@ -251,8 +254,7 @@ Users can influence profile selection through the following environment variable
 - `AIM_PROFILE_ID`: Explicitly specify a profile filename (skips heuristic selection)
 - `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: When set to "false", general profiles become marked as `manual_selection_only: true`
 and are not considered for automatic selection
-- `AIM_ALLOW_UNOPTIMIZED`: When set to "true", allows automatic selection of unoptimized profiles as a fallback when no
-optimized or preview profiles are auto-selectable for the current hardware (default: "false")
+- `AIM_ALLOW_UNOPTIMIZED`: When set to `"true"`, allows fallback to a compatible `unoptimized` profile that is `manual_selection_only` when the automatic pool is empty (default: `"false"`)
 
 Profiles can be of different types (see Section 3.2 for details):
 * `optimized`
@@ -263,13 +265,41 @@ Profiles can be of different types (see Section 3.2 for details):
 Profiles of types `optimized` and `preview` are participating in automatic profile selection by default, and therefore can be
 selected without any intervention from the user. `General` profiles can be selected automatically if base container is
 used (see Section 12.2). `General` profiles can be automatically selected for model-specific containers as well, but
-only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". Unoptimized profiles are excluded from automatic selection by default. When `AIM_ALLOW_UNOPTIMIZED` is set to "true",
-they can be automatically selected as a fallback if no optimized or preview profiles match the current hardware.
-Any profile with the `manual_selection_only` field set to `true` can also be excluded from automatic selection.
+only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". `Unoptimized` without `manual_selection_only` is auto-eligible like other types; with `manual_selection_only`, it is skipped until the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true` (warning), or set `AIM_PROFILE_ID` to force it.
 
 It is still possible to select profiles with `manual_selection_only=true` for runtime. This is achieved by setting the
 environment variable `AIM_PROFILE_ID` with the desired profile identifier. Profile identifier is the filename of the
 profile without the `.yaml` extension.
+
+### 3.7 Primary Profiles
+
+The `primary` flag in a profile's `metadata` section is the way to express which profiles represent the
+recommended deployment for a given accelerator model and metric. It replaces the deprecated `recommendedDeployments`
+field in `metadata.yaml`.
+
+#### Purpose
+
+`primary: true` marks a profile as a recommendation for its `(gpu, gpu_count, metric)` combination. Only
+**one** profile per combination should carry `primary: true` within a model's profile set. The flag is informational
+for tooling and documentation purposes — it does not directly influence runtime profile selection, which is governed
+by the selection algorithm described in [Section 3.4](#34-selection-algorithm-overview).
+
+#### How `primary` is assigned
+
+The flag is set automatically by the `profile_utils set-all-primary-flags` pre-commit hook using the same ranking
+criteria as the profile selector:
+
+1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
+3. Lower accelerator count (smaller tensor-parallel size) is preferred.
+
+To regenerate `primary` flags after adding or removing profiles:
+
+```bash
+python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
+```
+
+See [metadata_overview.md — Primary Profiles](./metadata_overview.md#primary-profiles) for the full reference.
 
 ## 4. AIM Runtime & Command Execution
 
@@ -295,6 +325,8 @@ The `AIMRuntime` class orchestrates the complete workflow, coordinating profile 
    - Model from `AIM_ID` environment variable (fallback for general profiles)
 6. **Execution** – Execute via `os.execv()` (serve mode) or generate scripts for inspection (dry-run mode)
 
+**AITER (GPU):** When the image includes `/workspace/aiter-jit-prebuilt/<gfx_arch>/`, the runtime may copy matching prebuilt `.so` kernels into the AITER package JIT directory before `exec`, reducing first-request JIT compilation latency.
+
 ### 4.2 Execution Modes
 
 - **Direct execution (serve mode)**: Uses `os.execv()` to replace the current process with the inference engine, avoiding shell interpretation and command injection risks
@@ -310,9 +342,9 @@ The `AIMRuntime` class orchestrates the complete workflow, coordinating profile 
 
 The runtime provides fine-grained logging control through `AIM_LOG_LEVEL_ROOT` and `AIM_LOG_LEVEL` environment variables. See Section 7 (Observability & Diagnostics) for complete logging configuration details.
 
-## 5. GPU & Capability Detection Layer
+## 5. Accelerator & GPU Capability Detection Layer
 
-The `GPUDetector` class provides comprehensive AMD GPU detection and health monitoring capabilities using multiple detection methods to ensure robust GPU visibility:
+`ProfileSelector` uses **`AcceleratorDetector`**, which delegates to **`GPUDetector`** when the accelerator type is GPU (default). **`GPUDetector`** implements AMD GPU detection and health monitoring using multiple methods to ensure robust visibility:
 
 ### 5.1 Detection Methods
 
@@ -380,7 +412,7 @@ sequenceDiagram
     participant E as Entrypoint
     participant R as AIMRuntime
     participant PS as ProfileSelector
-    participant GD as GPUDetector
+    participant AD as AcceleratorDetector
     participant CG as CommandGenerator
     participant V as vLLM Runtime
     participant C as Cache
@@ -389,10 +421,10 @@ sequenceDiagram
     U->>E: Deploy Model Request
     E->>R: Initialize Runtime
     R->>PS: Select Optimal Profile
-    PS->>GD: Detect & Validate GPUs
-    GD->>G: Check GPU Health
-    G-->>GD: GPU Status & Count
-    GD-->>PS: GPU Info & Health OK
+    PS->>AD: Detect hardware and health
+    AD->>G: Check GPU Health
+    G-->>AD: GPU Status & Count
+    AD-->>PS: Accelerator info & Health OK
     PS->>PS: Filter & Rank Profiles
     PS-->>R: Selected Profile
 
@@ -444,13 +476,13 @@ Designed to serve any supported model (remote or local) using a single artifact.
 
 Core characteristics:
 * **Base Image**: ROCm‑aligned Python (e.g., upstream PyTorch ROCm) + system libs (hip, rocblas, rccl).
-* **Versioning**: Tagged with a semantic version (e.g., `aim-base:0.1.0`). Changes to the base image (new packages, security updates) should increment this version.
+* **Versioning**: Tagged with a semantic version (e.g., `aim-base:0.11` for Instinct, `aim-radeon-base:0.11` for Radeon). Changes to the base image (new packages, security updates) should increment this version.
 * **Core Packages**: vLLM (and optional alternative engine), transformers, safetensors, sentencepiece, accelerated tokenization libs.
 * **AIM Runtime Layer**: Copy `aim_runtime` Python package (selector, command-line generator) + entrypoint script.
 * **Deferred Model Download**: Model resolved at container start using environment variables, profiles, and cache; no weights baked in.
 * **Hierarchical Profile Layout**: Includes only general profiles `/workspace/aim-runtime/profiles/general` and no model-specific `/workspace/aim-runtime/profiles/<org>/<model>` profiles.
 * **Custom Profile Support**: Users can mount custom profiles at `/workspace/aim-runtime/profiles/custom` which take precedence over built-in profiles.
-* **Profile-Driven Launch**: Entrypoint script performs: GPU detection → profile selection → config generation → exec engine. The user can override the profile selection by setting the `PROFILE_ID` environment variable.
+* **Profile-Driven Launch**: Entrypoint script performs: accelerator detection → profile selection → config generation → exec engine. The user can override the profile selection by setting the `AIM_PROFILE_ID` environment variable.
 * **Profile Fallback Control**: Sets `AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"` by default, allowing automatic selection of general profiles since no model-specific profiles are included.
 
 Recommended environment variables:
@@ -459,12 +491,15 @@ Recommended environment variables:
 |----------|---------|
 | AIM_MODEL_ID | **Required for base containers**. Hugging Face or local model reference (e.g., `org/model` or local path). Specifies which model to deploy. Cannot be used with AIM_ID. |
 | AIM_PRECISION | Override heuristic precision (e.g., `bf16` ). |
-| AIM_GPU_COUNT | Override GPU Count (e.g., `1`, `2`, `4`, `8` for tensor parallel). |
+| AIM_ACCELERATOR_TYPE | `gpu` (default) or `cpu` — selects GPU vs EPYC CPU detection (`GPUDetector` vs `EpycDetector`) for profile matching; `cpu` also drives core/cpuset-related env overrides at launch. |
+| AIM_ACCELERATOR_MODEL | Override detected accelerator model (e.g. GPU family). Deprecated alias: `AIM_GPU_MODEL`. |
+| AIM_ACCELERATOR_COUNT | Override accelerator count for tensor parallel (e.g. `1`, `2`, `4`, `8`; `auto`). Deprecated alias: `AIM_GPU_COUNT`. |
 | AIM_ENGINE | Engine key aligning with profile namespace (default: `vllm`). |
+| AIM_ENGINE_ARGS | JSON object of engine CLI overrides (merged after profile `engine_args`). |
 | AIM_METRIC | Optional metric to optimize for (e.g., `latency`, `throughput` ). |
 | AIM_PROFILE_ID | Optional explicit profile selection (skips heuristic). |
 | AIM_ALLOW_GENERAL_PROFILE_FALLBACK | Allow automatic selection of general profiles (true/false, default: true for base containers, false for model-specific containers). When false, general profiles are still loaded but marked as manual-selection-only. |
-| AIM_ALLOW_UNOPTIMIZED | Allow automatic fallback to unoptimized profiles when no optimized or preview profiles are auto-selectable (true/false, default: false). |
+| AIM_ALLOW_UNOPTIMIZED | When `true`, allow fallback to a compatible `manual_selection_only` `unoptimized` profile only if the automatic pool is empty (default: `false`). |
 | AIM_CACHE_PATH | Override default cache root. |
 | AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: WARNING). |
 | AIM_LOG_LEVEL | Log level for AIM runtime packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |
@@ -476,12 +511,15 @@ Recommended environment variables:
 Approximate structure of the base image:
 
 ```Dockerfile
-ARG BASE_REGISTRY_NAMESPACE=rocm
-ARG BASE_REPOSITORY=vllm
-ARG BASE_TAG=rocm6.4.1_vllm_0.9.1_20250715
-FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
+ARG PARENT_REGISTRY_PREFIX=docker.io/rocm
+ARG PARENT_REPOSITORY=vllm
+ARG PARENT_TAG=rocm6.4.1_vllm_0.9.1_20250715
+FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 
-ARG AIM_BASE_IMAGE_REF
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG PARENT_REGISTRY_PREFIX
+ARG PARENT_REPOSITORY
+ARG PARENT_TAG
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -490,7 +528,7 @@ ENV PYTHONPATH="/workspace/aim-runtime/src"
 ENV HF_HOME="/workspace/model-cache"
 ENV HF_DATASETS_CACHE="/workspace/model-cache"
 ENV HF_HUB_DISABLE_TELEMETRY="1"
-ENV AIM_BASE_IMAGE_REF=${AIM_BASE_IMAGE_REF}
+ENV AIM_UPSTREAM_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
 
 # Create workspace directory
@@ -515,18 +553,17 @@ RUN mkdir -p /workspace/model-cache
 ENTRYPOINT ["./entrypoint.py"]
 ```
 
-### 12.3 Model‑Specific Container (`aim`)
+### 12.3 Model‑Specific Container
 
-Extends the base image by **adding model‑specific profile overlays** at `/workspace/aim-runtime/profiles/<org>/<model>/`. It does **not** embed or pre‑download model weights. All weight materialization still occurs at runtime through the normal engine+cache path, ensuring a lean image.
+Extends the base image by **adding model‑specific profile overlays** at `/workspace/aim-runtime/profiles/<org>/<model>/`. It does **not** embed or pre‑download model weights. All weight materialization still occurs at runtime through the normal engine+cache path, ensuring a lean image. These images are built with `docker/Dockerfile.aim`. Instinct keeps the legacy `aim-<org>-<model>` repository naming, while EPYC and Radeon use `aim-<accelerator_family>-<org>-<model>`.
 
-* **Versioning**: The container name reflects organisation and model; the tag follows semantic versioning.
-  + **Format**: `aim-<org>-<model>:MAJOR.MINOR.PATCH[-rcN|-preview]`
-  + **Example**: `aim-meta-llama-llama-3-1-8b-instruct:0.8.5`
+* **Versioning**: The container name reflects accelerator, organisation, and model; the tag follows semantic versioning.
+  + **Format**: `aim-<org>-<model>:MAJOR.MINOR.PATCH[-rcN|-preview]` for Instinct, `aim-<accelerator_family>-<org>-<model>:MAJOR.MINOR.PATCH[-rcN|-preview]` for EPYC and Radeon
+  + **Example**: `aim-meta-llama-llama-3-1-8b-instruct:0.8.5` (Instinct), `aim-radeon-meta-llama-llama-3-1-8b-instruct:0.8.5` (Radeon)
   + All parts of the image name are lowercased for compatibility.
 
-Currently, the make file produces date-based version for model specific images, however it is planned to be changed.
 
-* **Profile Fallback Control**: Sets `AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"` to ensure the container prioritizes its model-specific optimized profiles. General profiles remain available for manual selection via `AIM_PROFILE_ID` if needed.
+* **Profile Fallback Control**: Sets `AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"` to ensure the container prioritizes its model-specific optimized profiles. General profiles remain available for manual selection via `AIM_PROFILE_ID` if needed. `AIM_ALLOW_UNOPTIMIZED` is not set in the image; operators may set it to `"true"` for the same unoptimized fallback as in Section 12.2.
 
 Use cases:
 * Shipping finely tuned profile parameters (tensor parallel sizes, batch limits, memory utilization) for a strategic model.
@@ -539,17 +576,21 @@ Additional layers / contents:
 Illustrative layering:
 
 ```Dockerfile
-ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
-ARG BASE_REPOSITORY=dummy_base_image
-ARG BASE_IMAGE_TAG=dummy_base_image_tag
-FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_IMAGE_TAG} AS final
+ARG PARENT_REGISTRY_PREFIX=dummy_parent_registry_prefix
+ARG PARENT_REPOSITORY=dummy_parent_image
+ARG PARENT_TAG=dummy_parent_image_tag
+FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG} AS final
 
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG PARENT_REGISTRY_PREFIX
+ARG PARENT_REPOSITORY
+ARG PARENT_TAG
 ARG ORG
 ARG MODEL
 
 # Set environment variables
 # AIM_ID identifies this as a model-specific AIM container
-ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_IMAGE_TAG}
+ENV AIM_BASE_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 ENV AIM_ID=${ORG}/${MODEL}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
 

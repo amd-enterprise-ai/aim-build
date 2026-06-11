@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT, AMD EPYC CONTAINER LICENSE AGREEMENT
+#
+
+aim_id: unsloth/gpt-oss-20b-BF16
+model_id: unsloth/gpt-oss-20b-BF16
+metadata:
+  accelerator_count: 1
+  accelerator_model: EPYC_9965
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: true
+  metric: latency
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  dtype: bfloat16
+  max-num-batched-tokens: 4096
+env_vars:
+  OMP_NUM_THREADS: '192'
+  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_NUM_OF_RESERVED_CPU: '1'
+  VLLM_CPU_OMP_THREADS_BIND: auto

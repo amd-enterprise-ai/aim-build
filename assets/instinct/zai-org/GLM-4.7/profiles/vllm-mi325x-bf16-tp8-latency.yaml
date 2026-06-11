@@ -1,0 +1,40 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: zai-org/GLM-4.7
+model_id: zai-org/GLM-4.7
+metadata:
+  accelerator_count: 8
+  accelerator_model: MI325X
+  accelerator_type: gpu
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 8
+  manual_selection_only: true
+  metric: latency
+  precision: bf16
+  type: unoptimized
+engine_args:
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: auto
+  enable-auto-tool-choice: null
+  enable-expert-parallel: null
+  gpu-memory-utilization: 0.95
+  kv-cache-dtype: auto
+  max-model-len: -1
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  reasoning-parser: glm45
+  speculative-config:
+    method: mtp
+    num_speculative_tokens: 1
+  tensor-parallel-size: 8
+  tool-call-parser: glm47
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

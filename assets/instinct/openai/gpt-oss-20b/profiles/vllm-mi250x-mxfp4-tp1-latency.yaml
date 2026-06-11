@@ -5,12 +5,16 @@
 aim_id: openai/gpt-oss-20b
 model_id: openai/gpt-oss-20b
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI250X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI250X
   gpu_count: 1
   manual_selection_only: true
   metric: latency
   precision: fp4
+  primary: true
   type: unoptimized
 engine_args:
   enable-auto-tool-choice: null
@@ -25,4 +29,5 @@ engine_args:
   tool-call-parser: openai
 env_vars:
   VLLM_DO_NOT_TRACK: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_USE_AITER: '0'

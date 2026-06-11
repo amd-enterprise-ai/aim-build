@@ -9,13 +9,13 @@ Tests for AIMRuntime class including dry-run functionality.
 from unittest.mock import Mock, patch
 
 import pytest
-import yaml
 
 from aim_common import Engine, Precision, ProfileMetadata
 from aim_runtime.aim_runtime import AIMRuntime
 from aim_runtime.config import AIMConfig
 from aim_runtime.object_model import Profile, ProfileHandling
 from aim_runtime.profile_registry import ProfileRegistry
+from aim_utils.yaml_utils import dump_yaml
 
 
 class TestNormalizeModelSource:
@@ -41,7 +41,7 @@ def mock_config():
     return AIMConfig(
         aim_id="test/aim",
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         engine=Engine.VLLM,
         port=8000,
         log_level="DEBUG",
@@ -61,7 +61,7 @@ def mock_profile():
     profile.gpu_count = 1
     profile.metadata = Mock(spec=ProfileMetadata)
     profile.metadata.engine = Engine.VLLM
-    profile.metadata.gpu = None
+    profile.metadata.accelerator_model = None
     profile.env_vars = {}
     profile.engine_args = {}
     return profile
@@ -101,7 +101,7 @@ class TestAIMRuntimeDryRun:
                     runtime.profile_selector.find_profile.return_value = model_profile
                     runtime.command_generator.generate_command_script.return_value = script_path
 
-                    result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
+                    result = dump_yaml(runtime.dry_run())
 
         # Check for profile path (format-agnostic)
         assert model_profile.profile_handling.path in result
@@ -109,7 +109,7 @@ class TestAIMRuntimeDryRun:
         assert "aim_id:" in result
         assert "meta-llama/Llama-3.1-8B-Instruct" in result
         assert "precision: fp16" in result or 'precision: "fp16"' in result
-        assert "gpu_count: 1" in result
+        assert "accelerator_count: 1" in result  # dry_run reads raw YAML which still uses gpu_count
         assert "engine: vllm" in result or 'engine: "vllm"' in result
         # Check for generated script
         assert "#!/bin/bash" in result
@@ -128,7 +128,7 @@ class TestAIMRuntimeDryRun:
                     runtime.profile_selector.find_profile.return_value = complex_profile
                     runtime.command_generator.generate_command_script.return_value = script_path
 
-                    result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
+                    result = dump_yaml(runtime.dry_run())
 
         # Check for profile path (format-agnostic)
         assert complex_profile.profile_handling.path in result
@@ -152,7 +152,7 @@ class TestAIMRuntimeDryRun:
                     runtime.profile_selector.find_profile.return_value = model_profile
                     runtime.command_generator.generate_command_script.return_value = script_path
 
-                    result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
+                    result = dump_yaml(runtime.dry_run())
 
         # Check for profile path (format-agnostic - could be in header or comment)
         assert model_profile.profile_handling.path in result
@@ -171,7 +171,7 @@ class TestAIMRuntimeDryRun:
                     runtime.profile_selector.find_profile.return_value = model_profile
                     runtime.command_generator.generate_command_script.return_value = script_path
 
-                    result = yaml.safe_dump(runtime.dry_run(), sort_keys=False)
+                    result = dump_yaml(runtime.dry_run())
 
         # Verify script content is included
         assert "#!/bin/bash" in result
@@ -271,7 +271,7 @@ class TestAIMRuntimeDryRunJson:
         assert profile_data["aim_id"] == "meta-llama/Llama-3.1-8B-Instruct"
         assert profile_data["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
         assert profile_data["metadata"]["precision"] == "fp16"
-        assert profile_data["metadata"]["gpu_count"] == 1
+        assert profile_data["metadata"]["accelerator_count"] == 1  # dry_run reads raw YAML which still uses gpu_count
         assert profile_data["metadata"]["engine"] == "vllm"
         # Check models field
         assert "models" in profile_entry
@@ -438,7 +438,6 @@ class TestAddStorageEstimates:
 class TestInstallAiterPrebuiltKernels:
     """Test suite for _install_aiter_prebuilt_kernels function."""
 
-    @pytest.mark.skip(reason="coverage issue")
     def test_installs_kernels_for_valid_gpu(self, tmp_path):
         """Test that kernels are copied when GPU model and prebuilt dir exist."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
@@ -518,7 +517,6 @@ class TestInstallAiterPrebuiltKernels:
                         _install_aiter_prebuilt_kernels("MI300X")
                         # Should log debug message and return gracefully
 
-    @pytest.mark.skip(reason="coverage issue")
     def test_skips_existing_kernels(self, tmp_path):
         """Test that existing .so files in jit dir are not overwritten."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels

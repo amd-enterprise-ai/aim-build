@@ -24,7 +24,7 @@ assumes MI350X GPU on the target system.
 docker run \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 
@@ -40,7 +40,7 @@ docker run \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 ## 2. Model caching for production
@@ -56,7 +56,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0 \
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0 \
   download-to-cache --model-id mistralai/Ministral-3-14B-Instruct-2512
 ```
 
@@ -67,7 +67,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 ## 3. Kubernetes deployment
@@ -98,7 +98,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+          image: amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -264,7 +264,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 ### 5.2 Using profiles excluded from automatic selection
@@ -277,7 +277,7 @@ docker run \
   -e AIM_PROFILE_ID=vllm-mi300x-fp8-tp1-latency \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -288,7 +288,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0 \
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0 \
   --help
 ```
 
@@ -296,7 +296,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0 \
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0 \
   <subcommand> --help
 ```
 
@@ -307,7 +307,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -319,7 +319,7 @@ docker run \
   -e AIM_GPU_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0 \
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0 \
   dry-run
 ```
 
@@ -327,7 +327,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.10.0 \
+  amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0 \
   list-profiles
 ```
 

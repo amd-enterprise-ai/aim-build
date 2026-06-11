@@ -3,7 +3,7 @@
 # Copyright © Advanced Micro Devices, Inc., or its affiliates.
 #
 # SPDX-License-Identifier: MIT
-"""Pre-build AITER JIT attention kernels for vLLM 0.16 profiles.
+"""Pre-build AITER JIT attention kernels for vLLM model profiles.
 
 AITER dynamically compiles (JIT) MHA attention kernels on first use,
 causing 25-40s stalls per kernel variant. This script pre-builds all
@@ -12,7 +12,7 @@ container image and eliminate runtime JIT entirely.
 
 Two kernel types are built:
   - mha_varlen_fwd_*: 9 variants covering all dtype × causal × LSE
-    combinations used by vLLM 0.16 model profiles.
+    combinations used by vLLM model profiles.
   - module_fmha_v3_varlen_fwd: Flash Attention v3 ASM fast-path for
     bf16 models with head_dim=128. Uses hand-written GPU ASM, so it
     must be compiled separately per architecture (cannot be fat binary).
@@ -52,7 +52,9 @@ import time
 from pathlib import Path
 
 # GPU model name (as used in profile filenames) → ROCm gfx architecture.
-# Keep in sync with GPU_TO_GFX_ARCH in src/aim_runtime/gpu_detector.py
+# SYNC: Must match GPU_TO_GFX_ARCH in src/aim_runtime/gpu_detector.py.
+# When adding GPU models there, add them here too so profile-based arch
+# inference (--profile-dir) picks up the new architecture.
 GPU_MODEL_TO_GFX = {
     "mi300a": "gfx942",
     "mi300x": "gfx942",
@@ -63,6 +65,15 @@ GPU_MODEL_TO_GFX = {
 }
 
 DEFAULT_ARCHS = ["gfx942", "gfx950"]
+
+
+def _normalize_archs(archs: list[str]) -> list[str]:
+    """Strip feature-flag suffixes and deduplicate arch names.
+
+    ROCm/PyTorch may return names like 'gfx942:sramecc+:xnack-' but AITER
+    and hipcc expect bare names like 'gfx942'.
+    """
+    return list(dict.fromkeys(a.split(":")[0] for a in archs))
 
 
 def infer_archs_from_profiles(assets_dir: Path) -> list[str]:
@@ -100,9 +111,13 @@ def _get_aiter_jit_dir() -> Path:
 # The kernel name encodes these flags:
 #   mha_varlen_fwd_{dtype}_{logits}_{bias}_{causal}_{lse}_{dropout}_{skip}_{qscale}
 #
-# All v0.16 profiles use: nlogits, nbias, ndropout, nqscale (fixed).
+# All profiles use: nlogits, nbias, ndropout, nqscale (fixed).
 # The varying flags are: dtype (fp16/bf16), causal (mask/nmask),
 # lse (lse/nlse), and skip (skip if min_seqlen_q>0, nskip if 0).
+#
+# Derived from the AITER attention configs used across vLLM 0.16–0.19
+# serving profiles. When adding new model profiles that use different
+# attention configs (e.g. new dtypes or causal modes), add entries here.
 MHA_VARIANTS = [
     # fp16 attention — used by fp16 model profiles
     ("fp16", True, False, 128, "fp16_mask_nlse"),
@@ -173,12 +188,7 @@ def _trigger_mha_variant(variant_index: int):
     v = torch.randn(seq, 1, d, dtype=dt, device="cuda")
     cu = torch.tensor([0, seq], dtype=torch.int32, device="cuda")
 
-    mha_varlen_fwd(
-        q,
-        k,
-        v,
-        cu,
-        cu,
+    kwargs = dict(
         max_seqlen_q=seq,
         max_seqlen_k=seq,
         min_seqlen_q=min_sq,
@@ -192,6 +202,14 @@ def _trigger_mha_variant(variant_index: int):
         return_softmax_lse=return_lse,
         return_dropout_randval=False,
     )
+
+    try:
+        mha_varlen_fwd(q, k, v, cu, cu, sink_size=0, **kwargs)
+    except (TypeError, RuntimeError) as e:
+        if "sink_size" in str(e):
+            mha_varlen_fwd(q, k, v, cu, cu, **kwargs)
+        else:
+            raise
 
 
 def _trigger_fmha_v3():
@@ -341,7 +359,7 @@ def build_kernels(archs: list[str], output_dir: Path):
 
 def list_kernels():
     """Print the full list of kernels this script builds."""
-    print("AITER kernels pre-built for vLLM 0.16 profiles:\n")
+    print("AITER kernels pre-built for vLLM profiles:\n")
     print("mha_varlen_fwd variants (9):")
     for name in MHA_SO_NAMES:
         print(f"  {name}")
@@ -354,7 +372,7 @@ def list_kernels():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pre-build AITER JIT attention kernels for vLLM 0.16 profiles")
+    parser = argparse.ArgumentParser(description="Pre-build AITER JIT attention kernels for vLLM profiles")
     parser.add_argument("--list", action="store_true", help="List target kernel variants without building")
     parser.add_argument(
         "--archs",
@@ -371,7 +389,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("/workspace/aiter-jit-prebuilt"),
+        default=Path("/workspace/aiter-jit-prebuilt/kernels"),
         help="Output directory (kernels stored in <dir>/<arch>/)",
     )
     parser.add_argument("--_trigger-mha", type=int, metavar="INDEX", help=argparse.SUPPRESS)
@@ -397,6 +415,7 @@ def main():
     else:
         archs = DEFAULT_ARCHS
 
+    archs = _normalize_archs(archs)
     build_kernels(archs, args.output_dir)
 
 

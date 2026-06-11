@@ -1,0 +1,21 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  accelerator_count: 1
+  accelerator_model: CPU
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: false
+  metric: latency
+  precision: bf16
+  type: general
+engine_args:
+  dtype: bfloat16
+env_vars:
+  MKL_NUM_THREADS: '4'
+  OMP_NUM_THREADS: '4'
+  VLLM_CPU_KVCACHE_SPACE: '6'
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_TARGET_DEVICE: cpu

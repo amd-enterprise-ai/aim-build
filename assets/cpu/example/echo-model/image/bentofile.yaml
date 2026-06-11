@@ -1,0 +1,15 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# BentoML build/serve manifest for the play echo-model.
+#
+# `bentoml serve --working-dir /workspace/model` (the launch command from the
+# BentoML engines.yaml) defaults its target to ".", so it reads the `service`
+# field below to locate the service instance. The `service` module resolves
+# from /workspace/model/src, which the specialized Dockerfile places on
+# sys.path via a .pth file.
+service: "service:EchoService"
+
+include:
+  - "src/*.py"

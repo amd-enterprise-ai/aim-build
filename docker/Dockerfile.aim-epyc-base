@@ -4,15 +4,15 @@
 
 # ARGs before FROM are used in the FROM instruction
 # these must be overridden via --build-arg
-ARG BASE_REGISTRY_NAMESPACE=dummy_base_registry
-ARG BASE_REPOSITORY=dummy_base_repository
-ARG BASE_TAG=dummy_base_tag
-FROM ${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
+ARG PARENT_REGISTRY_PREFIX=dummy_parent_registry_prefix
+ARG PARENT_REPOSITORY=dummy_parent_repository
+ARG PARENT_TAG=dummy_parent_tag
+FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 
 # Re-declare ARGs after FROM to use them in subsequent instructions
-ARG BASE_REGISTRY_NAMESPACE
-ARG BASE_REPOSITORY
-ARG BASE_TAG
+ARG PARENT_REGISTRY_PREFIX
+ARG PARENT_REPOSITORY
+ARG PARENT_TAG
 
 # LMCache installation arguments
 ARG INSTALL_LMCACHE=false
@@ -25,33 +25,38 @@ ENV PYTHONPATH="/workspace/aim-runtime/src"
 ENV HF_HOME="/workspace/model-cache"
 ENV HF_DATASETS_CACHE="/workspace/model-cache"
 ENV HF_HUB_DISABLE_TELEMETRY="1"
-ENV AIM_BASE_IMAGE_REF=${BASE_REGISTRY_NAMESPACE}/${BASE_REPOSITORY}:${BASE_TAG}
+ENV AIM_UPSTREAM_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
-ENV AIM_ACC_TYPE="epyc"
+ENV AIM_CONFIG_PATH="/workspace/aim-runtime/config"
+ENV AIM_ACCELERATOR_FAMILY="epyc"
+ENV AIM_ACCELERATOR_TYPE="cpu"
 
-RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
+# Set VLLM_CPU_OMP_THREADS_BIND to "auto" by default to allow container environment to function correctly.
+# E.g. There is no way to bind to cpu 0-128 if the container is not given those cores...
+ENV VLLM_CPU_OMP_THREADS_BIND="auto"
+
+RUN echo "AIM Upstream Image: ${AIM_UPSTREAM_IMAGE_REF}"
 
 # Create workspace directory
 WORKDIR /workspace
 
-# Copy AIM Runtime source code
-COPY src/ /workspace/aim-runtime/src/
-COPY pyproject.toml /workspace/aim-runtime/
+# Copy AIM Runtime source code (only runtime packages, not developer tooling)
+COPY src/aim_runtime/ /workspace/aim-runtime/src/aim_runtime/
+COPY src/aim_common/ /workspace/aim-runtime/src/aim_common/
 COPY requirements/requirements.txt /workspace/aim-runtime/
 COPY src/entrypoint.py /workspace/entrypoint.py
 RUN chmod +x /workspace/entrypoint.py
 
 # Copy general profiles and engine config
-COPY assets/epyc/base/profiles/general /workspace/aim-runtime/profiles/general
-COPY assets/epyc/base/config /workspace/aim-runtime/config
+COPY assets/${AIM_ACCELERATOR_FAMILY}/base/profiles/general /workspace/aim-runtime/profiles/general
+COPY assets/${AIM_ACCELERATOR_FAMILY}/base/config /workspace/aim-runtime/config
 
-# Install AIM Runtime in production mode
+# Install runtime dependencies
 RUN cd /workspace/aim-runtime && \
-    pip3 install -r requirements.txt && \
-    pip3 install --no-deps .
+    pip3 install -r requirements.txt
 
 # Install LMCache for KV-caching support (conditional based on INSTALL_LMCACHE)
-# We install from source using commit hash corresponding to the a particular release tag, for supply-chain security (immutable reference).
+# We install from source using commit hash corresponding to a particular release tag, for supply-chain security (immutable reference).
 RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
         cd /workspace && \
         git clone https://github.com/LMCache/LMCache.git && \
@@ -67,5 +72,9 @@ RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
 
 # Create cache directories
 RUN mkdir -p /workspace/model-cache
+
+# Copy License files (placed late to preserve build cache for expensive preceding layers)
+COPY LICENSE /workspace/LICENSE
+COPY LICENSE.EPYC_AIMS /workspace/LICENSE.EPYC_AIMS
 
 ENTRYPOINT ["./entrypoint.py"]

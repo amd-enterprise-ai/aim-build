@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: google/gemma-3-1b-it
+model_id: google/gemma-3-1b-it
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI325X
+  accelerator_type: gpu
+  engine: vllm
+  gpu: MI325X
+  gpu_count: 1
+  manual_selection_only: true
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  async-scheduling: null
+  attention-backend: TRITON_ATTN
+  disable-uvicorn-access-log: null
+  dtype: bfloat16
+  gpu-memory-utilization: 0.95
+  max-model-len: -1
+  max-num-batched-tokens: 2048
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  no-trust-remote-code: null
+  tensor-parallel-size: 1
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '1'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: example/echo-model
+model_id: example/echo-model
+metadata:
+  accelerator_count: 1
+  accelerator_model: CPU
+  accelerator_type: cpu
+  engine: bentoml
+  manual_selection_only: true
+  metric: latency
+  precision: fp32
+  primary: true
+  type: unoptimized
+engine_args:
+  port: 3000
+env_vars: {}

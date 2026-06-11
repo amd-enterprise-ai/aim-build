@@ -7,12 +7,15 @@ aim_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1
 model_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0
 metadata:
   engine: vllm
-  gpu: W7900
   precision: fp16
-  gpu_count: 1
   metric: latency
   manual_selection_only: false
-  type: "unoptimized"
+  type: unoptimized
+  accelerator_type: gpu
+  accelerator_model: W7900
+  accelerator_count: 1
+  gpu_count: 1
+  gpu: W7900
 engine_args:
   dtype: float16
   tensor-parallel-size: 1

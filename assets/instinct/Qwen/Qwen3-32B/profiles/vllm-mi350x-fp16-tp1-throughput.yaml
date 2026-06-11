@@ -5,13 +5,17 @@
 aim_id: Qwen/Qwen3-32B
 model_id: Qwen/Qwen3-32B
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI350X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI350X
   gpu_count: 1
-  manual_selection_only: true
+  manual_selection_only: false
   metric: throughput
   precision: fp16
-  type: unoptimized
+  primary: false
+  type: preview
 engine_args:
   disable-uvicorn-access-log: null
   distributed_executor_backend: mp
@@ -31,6 +35,7 @@ engine_args:
 env_vars:
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
   VLLM_ROCM_USE_AITER: '1'
   VLLM_ROCM_USE_AITER_MHA: '1'
   VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

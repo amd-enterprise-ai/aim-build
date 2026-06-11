@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 import pytest
 
-from aim_utils.version_utils import AIMVersion, AIMVersionSuffixType, validate_version_tag
+from aim_utils.version_utils import AIMVersion, AIMVersionSuffix, AIMVersionSuffixType, validate_version_tag
 
 
 def test_sort_order():
@@ -297,6 +297,186 @@ def test_minor_large_number():
     actual = AIMVersion("0.42.1").minor
     expected = 42
     assert actual == expected
+
+
+# ---------------------------------------------------------------------------
+# Tests for AIMVersionSuffixType.read_enum()
+# ---------------------------------------------------------------------------
+
+
+class TestAIMVersionSuffixTypeReadEnum:
+    def test_read_enum_rc(self):
+        result = AIMVersionSuffixType.read_enum("rc")
+        assert result == AIMVersionSuffixType.RC
+
+    def test_read_enum_preview(self):
+        result = AIMVersionSuffixType.read_enum("preview")
+        assert result == AIMVersionSuffixType.PREVIEW
+
+    def test_read_enum_stable(self):
+        result = AIMVersionSuffixType.read_enum("")
+        assert result == AIMVersionSuffixType.STABLE
+
+    def test_read_enum_none_returns_none(self):
+        result = AIMVersionSuffixType.read_enum(None)
+        assert result is None
+
+    def test_read_enum_invalid_raises(self):
+        with pytest.raises(ValueError):
+            AIMVersionSuffixType.read_enum("beta")
+
+
+# ---------------------------------------------------------------------------
+# Tests for AIMVersionSuffix
+# ---------------------------------------------------------------------------
+
+
+class TestAIMVersionSuffix:
+    def test_empty_suffix_is_stable(self):
+        s = AIMVersionSuffix("")
+        assert s.suffix == ""
+        assert s.suffix_type == AIMVersionSuffixType.STABLE
+
+    def test_preview_suffix(self):
+        s = AIMVersionSuffix("preview")
+        assert s.suffix == "preview"
+        assert s.suffix_type == AIMVersionSuffixType.PREVIEW
+
+    def test_rc_suffix(self):
+        s = AIMVersionSuffix("rc1")
+        assert s.suffix == "rc1"
+        assert s.suffix_type == AIMVersionSuffixType.RC
+
+    def test_rc_suffix_large_number(self):
+        s = AIMVersionSuffix("rc42")
+        assert s.suffix == "rc42"
+        assert s.suffix_type == AIMVersionSuffixType.RC
+
+    def test_invalid_suffix_raises(self):
+        with pytest.raises(ValueError):
+            AIMVersionSuffix("beta")
+
+    def test_invalid_suffix_rc0_raises(self):
+        # rc0 does not match the pattern rc[1-9]\d* used in AIMVersion,
+        # but AIMVersionSuffix uses a looser pattern; verify behaviour
+        # The SUFFIX_PATTERN allows rc\d+ (any digits), so "rc0" actually
+        # matches the suffix pattern directly. This test documents that.
+        s = AIMVersionSuffix("rc0")
+        assert s.suffix_type == AIMVersionSuffixType.RC
+        assert s.rc_number == 0
+
+    def test_rc_number_returns_int(self):
+        s = AIMVersionSuffix("rc5")
+        assert s.rc_number == 5
+
+    def test_rc_number_multidigit(self):
+        s = AIMVersionSuffix("rc99")
+        assert s.rc_number == 99
+
+    def test_rc_number_none_for_preview(self):
+        s = AIMVersionSuffix("preview")
+        assert s.rc_number is None
+
+    def test_rc_number_none_for_stable(self):
+        s = AIMVersionSuffix("")
+        assert s.rc_number is None
+
+
+# ---------------------------------------------------------------------------
+# Tests for AIMVersion.is_stable
+# ---------------------------------------------------------------------------
+
+
+class TestAIMVersionIsStable:
+    def test_stable_full_version(self):
+        assert AIMVersion("1.0.0").is_stable is True
+
+    def test_stable_full_version_zero(self):
+        assert AIMVersion("0.11.0").is_stable is True
+
+    def test_rc_full_version_not_stable(self):
+        assert AIMVersion("1.0.0-rc1").is_stable is False
+
+    def test_preview_full_version_not_stable(self):
+        assert AIMVersion("1.0.0-preview").is_stable is False
+
+    def test_stable_base_version(self):
+        assert AIMVersion("1.0", is_base=True).is_stable is True
+
+    def test_stable_base_version_zero(self):
+        assert AIMVersion("0.11", is_base=True).is_stable is True
+
+    def test_rc_base_version_not_stable(self):
+        assert AIMVersion("1.0-rc1", is_base=True).is_stable is False
+
+    def test_preview_base_version_not_stable(self):
+        assert AIMVersion("1.0-preview", is_base=True).is_stable is False
+
+
+# ---------------------------------------------------------------------------
+# Tests for AIMVersion.__str__
+# ---------------------------------------------------------------------------
+
+
+class TestAIMVersionStr:
+    def test_str_full_stable(self):
+        assert str(AIMVersion("1.2.3")) == "1.2.3"
+
+    def test_str_full_rc(self):
+        assert str(AIMVersion("1.2.3-rc1")) == "1.2.3-rc1"
+
+    def test_str_full_preview(self):
+        assert str(AIMVersion("1.2.3-preview")) == "1.2.3-preview"
+
+    def test_str_base_stable(self):
+        assert str(AIMVersion("0.11", is_base=True)) == "0.11"
+
+    def test_str_base_rc(self):
+        assert str(AIMVersion("0.11-rc2", is_base=True)) == "0.11-rc2"
+
+
+# ---------------------------------------------------------------------------
+# Tests for AIMVersion.from_string()
+# ---------------------------------------------------------------------------
+
+
+class TestAIMVersionFromString:
+    def test_from_string_full_stable(self):
+        v = AIMVersion.from_string("1.2.3")
+        assert str(v) == "1.2.3"
+        assert v.is_base is False
+
+    def test_from_string_full_rc(self):
+        v = AIMVersion.from_string("1.2.3-rc1")
+        assert str(v) == "1.2.3-rc1"
+        assert v.is_base is False
+
+    def test_from_string_full_preview(self):
+        v = AIMVersion.from_string("1.2.3-preview")
+        assert str(v) == "1.2.3-preview"
+        assert v.is_base is False
+
+    def test_from_string_base_stable(self):
+        v = AIMVersion.from_string("0.11")
+        assert str(v) == "0.11"
+        assert v.is_base is True
+
+    def test_from_string_base_rc(self):
+        v = AIMVersion.from_string("0.11-rc1")
+        assert str(v) == "0.11-rc1"
+        assert v.is_base is True
+
+    def test_from_string_base_preview(self):
+        v = AIMVersion.from_string("1.0-preview")
+        assert str(v) == "1.0-preview"
+        assert v.is_base is True
+
+    def test_from_string_major_only_is_base(self):
+        # Only one dot-separated component → treated as base
+        # "1" splits into ["1"] which is length 1 < 3, so is_base=True,
+        # but "1" is not a valid base version (needs MAJOR.MINOR).
+        with pytest.raises(ValueError):
+            AIMVersion.from_string("1")
 
 
 # ---------------------------------------------------------------------------

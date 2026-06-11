@@ -7,9 +7,9 @@
 # Fallback configuration suite (one of the config_suites below)
 active_config: "default_opt"
 
-# GPU count to suite mapping - maps GPU counts to specific benchmark suites
-# Used to automatically select appropriate benchmark configurations based on GPU count
-gpu_count_suite_map:
+# Accelerator count to suite mapping - maps accelerator counts to specific benchmark suites
+# Used to automatically select appropriate benchmark configurations based on accelerator count
+accelerator_count_suite_map:
   1: "AIM_IM2"
   2: "AIM_IM1"
   4: "AIM_IM1"
@@ -35,5 +35,5 @@ settings:
   timeout_seconds_per_config: 14400  # 4 hours per configuration
   ignore_eos: true
   percentile_metrics: "ttft,tpot,itl,e2el"
-  metric_percentiles: "90,99"
+  metric_percentiles: "75,90,99"
   dataset_name: "random"

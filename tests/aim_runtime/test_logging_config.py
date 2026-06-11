@@ -11,7 +11,7 @@ proper log level setting for root and aim_runtime loggers.
 
 import logging
 
-from logging_config import configure_logging
+from aim_runtime.logging_config import configure_logging
 
 
 class TestLoggingConfiguration:

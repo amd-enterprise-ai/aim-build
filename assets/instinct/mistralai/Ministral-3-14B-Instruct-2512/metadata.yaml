@@ -15,7 +15,7 @@ com:
   amd:
     aim:
       description:
-        full: "Ministral-3-14B-Instruct-2512 is a 14 billion parameter language model from Mistral AI, consisting of a 13.5B language model and a 0.4B vision encoder. It is the instruct post-trained version of the Ministral 3 14B model, provided in FP8 precision. The model supports text and vision inputs, native function calling with JSON output, and handles 11 languages including English, French, Spanish, German, Italian, Portuguese, Dutch, Chinese, Japanese, Korean, and Arabic. It provides a 256K token context window and can be deployed on a single GPU with 24GB of VRAM in FP8 precision. Part of the Ministral 3 family designed for edge deployment. Licensed under Apache 2.0."
+        full: "Ministral-3-14B-Instruct-2512 is a 14 billion parameter language model from Mistral AI, consisting of a 13.5B language model and a 0.4B vision encoder. It is the instruct post-trained version of the Ministral 3 14B model, provided in FP8 precision. The model supports text and vision inputs, native function calling with JSON output, and handles 11 languages including English, French, Spanish, German, Italian, Portuguese, Dutch, Chinese, Japanese, Korean, and Arabic. It can be deployed on a single GPU with 24GB of VRAM in FP8 precision. Part of the Ministral 3 family designed for edge deployment. Licensed under Apache 2.0."
       hfToken:
         required: false
       model:

@@ -5,12 +5,16 @@
 aim_id: meta-llama/Llama-3.1-405B-Instruct
 model_id: amd/Llama-3.1-405B-Instruct-MXFP4-Preview
 metadata:
+  accelerator_count: 4
+  accelerator_model: MI350X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI350X
   gpu_count: 4
   manual_selection_only: true
   metric: throughput
   precision: fp4
+  primary: false
   type: unoptimized
 engine_args:
   async-scheduling: null

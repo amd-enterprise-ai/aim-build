@@ -1,0 +1,45 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+# Correct metadata
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "TinyLlama/TinyLlama-1.1B-Chat-v1.0_case1"
+        tags:
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        variants:
+        - "amd/TinyLlama-1.1B-Chat-v1.0"
+        - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        recommendedDeployments:
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on R9700 using fp8 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on R9700 using fp8 precision"
+        publisher: "TinyLlama"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
+      title: "TinyLlama 1.1B Chat v1.0"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Ultra-compact chat model with 1.1B parameters optimized for conversational AI on resource-constrained devices."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -6,6 +6,7 @@
 Tests for CommandGenerator engine arguments override and validation
 """
 
+import shlex
 from unittest.mock import patch
 
 import pytest
@@ -34,8 +35,8 @@ def mock_config():
     return AIMConfig(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         precision=Precision.FP16,
-        gpu_count=1,
-        gpu_model=GPUModel.MI300X,
+        accelerator_count=1,
+        accelerator_model=GPUModel.MI300X,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
         profile_id=None,
@@ -53,9 +54,9 @@ def mock_profile():
         profile_handling=ProfileHandling(path="/workspace/profiles/test.yaml", filename="test.yaml", priority=1),
         metadata=ProfileMetadata(
             engine=Engine.VLLM,
-            gpu=GPUModel.MI300X,
+            accelerator_model=GPUModel.MI300X,
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             metric=Metric.LATENCY,
             manual_selection_only=False,
             type=ProfileType.UNOPTIMIZED,
@@ -133,9 +134,9 @@ class TestCommandGeneratorEngineArgsOverride:
             profile_handling=ProfileHandling(path="/workspace/profiles/test.yaml", filename="test.yaml", priority=1),
             metadata=ProfileMetadata(
                 engine=Engine.VLLM,
-                gpu=GPUModel.MI300X,
+                accelerator_model=GPUModel.MI300X,
                 precision=Precision.FP16,
-                gpu_count=1,
+                accelerator_count=1,
                 metric=Metric.LATENCY,
                 manual_selection_only=False,
                 type=ProfileType.UNOPTIMIZED,
@@ -203,7 +204,7 @@ class TestCommandGeneratorEngineArgsOverride:
             command_list = generator._build_command_list(mock_profile)
 
         # Convert to command string for easier checking
-        command_str = " ".join(command_list)
+        command_str = shlex.join(command_list)
 
         # Should include overridden arg
         assert "--max-model-len" in command_str

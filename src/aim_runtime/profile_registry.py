@@ -14,10 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import yaml
 from pydantic import ValidationError as PydanticValidationError
 
 from aim_common import ProfileMetadata
+from aim_common.engine_args_models import validate_vllm_env_vars
+from aim_runtime.utils import read_yaml
 
 from .object_model import Profile, ProfileHandling
 from .profile_validator import ProfileValidator
@@ -109,8 +110,7 @@ class ProfileRegistry:
         profile_file = Path(profile_path)
 
         # Load the YAML content
-        with open(profile_path, "r", encoding="utf-8") as f:
-            profile_data = yaml.safe_load(f)
+        profile_data = read_yaml(Path(profile_path))
 
         # Determine if this is a general or model-specific profile
         profile_handling = ProfileHandling(path=profile_path, filename=profile_file.name, priority=priority)
@@ -118,6 +118,9 @@ class ProfileRegistry:
 
         # Validate the profile using the already-loaded data (this will raise ValidationError if invalid)
         validator.validate(profile_data, is_general_profile=is_general)
+
+        # Validate VLLM_* env vars against vLLM's known environment variables
+        validate_vllm_env_vars(profile_data.get("env_vars", {}), source=profile_path)
 
         metadata = ProfileMetadata.from_dict(profile_data["metadata"])
 
@@ -165,10 +168,10 @@ class ProfileRegistry:
             engine_profiles = [p for p in self.profiles if p.metadata.engine == engine]
             logger.info(f"  {engine}: {len(engine_profiles)} profiles")
 
-        gpus = set(p.metadata.gpu for p in self.profiles)
-        for gpu in sorted(gpus):
-            gpu_profiles = [p for p in self.profiles if p.metadata.gpu == gpu]
-            logger.info(f"  {gpu}: {len(gpu_profiles)} profiles")
+        accelerators = set(p.metadata.accelerator_model for p in self.profiles)
+        for accelerator in sorted(accelerators, key=str):
+            acc_profiles = [p for p in self.profiles if p.metadata.accelerator_model == accelerator]
+            logger.info(f"  {accelerator}: {len(acc_profiles)} profiles")
 
         general_count = len(self.get_general_profiles())
         model_specific_count = len(self.profiles) - general_count
@@ -179,7 +182,7 @@ class ProfileRegistry:
         for p in self.profiles:
             manual_flag = " [manual-only]" if p.metadata.manual_selection_only else ""
             logger.info(
-                f"    {p.profile_handling.filename}{manual_flag} (engine={p.metadata.engine}, gpu={p.metadata.gpu}, precision={p.metadata.precision}, metric={p.metadata.metric}, gpu_count={p.metadata.gpu_count}, type={p.metadata.type})"
+                f"    {p.profile_handling.filename}{manual_flag} (engine={p.metadata.engine}, accelerator_model={p.metadata.accelerator_model}, precision={p.metadata.precision}, metric={p.metadata.metric}, accelerator_count={p.metadata.accelerator_count}, type={p.metadata.type})"
             )
 
         logger.info("===============================")

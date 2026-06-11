@@ -21,6 +21,9 @@ support level is unoptimized. Otherwise, the support level is general.
 The supported GPU models and their support levels for each AIM are based on the latest public release and are summarized
 in the table below.
 
+```{admonition} ROCm version
+ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
+```
 <table style="border-collapse:collapse">
 <thead>
 <tr>

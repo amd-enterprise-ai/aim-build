@@ -1,0 +1,77 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      description:
+        full: "GLM-4.7 is a large language model with multi-turn conversation, tool use, and reasoning capabilities. Supports speculative decoding with MTP for improved performance."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "zai-org/GLM-4.7"
+        publisher: "Z.ai"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp8 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 2
+          precision: "fp8"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using fp8 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 2
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp2-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using fp4 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using fp4 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using fp4 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "fp4"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using fp4 precision"
+        source: "https://huggingface.co/zai-org/GLM-4.7"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "tool-use"
+        variants:
+        - "amd/GLM-4.7-MXFP4"
+        - "zai-org/GLM-4.7-FP8"
+        - "zai-org/GLM-4.7"
+      release:
+        notes: ""
+      title: "GLM-4.7"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "GLM-4.7 is a large language model with multi-turn conversation, tool use, and reasoning capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

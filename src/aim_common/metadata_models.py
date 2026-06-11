@@ -10,7 +10,7 @@ ensuring no unexpected fields are present in metadata files.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional, Union
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -84,7 +84,7 @@ class BaseMetadataModel(BaseModel):
 class RecommendedDeployment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    gpuModel: Union[GPUModel, Literal["NONE"]]
+    gpuModel: GPUModel
     gpuCount: int = Field(ge=0, le=8)
     precision: Optional[Precision] = None
     metric: Optional[Metric] = None

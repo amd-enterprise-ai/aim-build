@@ -5,6 +5,9 @@
 aim_id: deepseek-ai/DeepSeek-R1-0528
 model_id: deepseek-ai/DeepSeek-R1-0528
 metadata:
+  accelerator_count: 8
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI300X
   gpu_count: 8

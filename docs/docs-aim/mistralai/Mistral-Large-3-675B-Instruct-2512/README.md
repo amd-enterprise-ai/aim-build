@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 # AIMs Overview
 
 AIM stands for AMD Inference Microservice. AIMs provide standardized, portable inference microservices for serving AI
-models on AMD Instinct™ GPUs. AIMs use ROCm 7 under the hood.
+models on AMD Instinct™ GPUs and AMD Radeon™ Pro GPUs. AIMs use ROCm under the hood.
 
 AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. Serving AI models
 in general and LLMs in particular is not a trivial task. AIMs abstract away the complexities involved in configuring

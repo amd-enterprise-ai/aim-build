@@ -6,14 +6,17 @@
 Tests for entrypoint CLI functionality.
 """
 
+import json
 from unittest.mock import Mock, patch
 
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from aim_common import Engine, Precision
+from aim_runtime.accelerator_detector import AcceleratorDetectionResult
 from aim_runtime.config import AIMConfig
+from aim_runtime.object_model import AcceleratorFamily, AcceleratorModel, AcceleratorType
+from aim_utils.yaml_utils import load_yaml_string
 from entrypoint import cli
 
 
@@ -23,7 +26,7 @@ def mock_config():
     return AIMConfig(
         aim_id="test-org/test-model",
         precision=Precision.FP16,
-        gpu_count=1,
+        accelerator_count=1,
         engine=Engine.VLLM,
         port=8000,
         log_level="INFO",
@@ -180,7 +183,7 @@ class TestDryRunCommand:
 
                     result = runner.invoke(cli, ["dry-run", "--format", "yaml"])
                     assert result.exit_code == 0
-                    assert yaml.safe_load(result.output) == [{"aim_id": "test-model", "precision": "fp16"}]
+                    assert load_yaml_string(result.output) == [{"aim_id": "test-model", "precision": "fp16"}]
                     mock_runtime.dry_run.assert_called_once()
 
     def test_dry_run_does_not_execute_script(self, mock_config, runner):
@@ -240,7 +243,7 @@ class TestDownloadToCacheCommand:
         custom_config = AIMConfig(
             aim_id="test-model",
             precision=Precision.FP16,
-            gpu_count=1,
+            accelerator_count=1,
             cache_path=custom_cache,  # Custom cache path
         )
 
@@ -516,8 +519,6 @@ class TestListProfilesCommand:
                     result = runner.invoke(cli, ["list-profiles", "--format", "json"])
                     assert result.exit_code == 0
 
-                    import json
-
                     parsed = json.loads(result.output)
                     assert isinstance(parsed, list)
                     assert len(parsed) == 1
@@ -533,7 +534,7 @@ class TestListProfilesCommand:
                     result = runner.invoke(cli, ["list-profiles", "--format", "yaml"])
                     assert result.exit_code == 0
 
-                    parsed = yaml.safe_load(result.output)
+                    parsed = load_yaml_string(result.output)
                     assert isinstance(parsed, list)
                     assert len(parsed) == 1
                     assert set(parsed[0].keys()) == {"profile_id", "compatibility", "profile"}
@@ -562,7 +563,196 @@ class TestListProfilesCommand:
                     assert result.exit_code == 0
                     mock_selector.serialize_all_profiles.assert_called_once()
 
-                    import json
-
                     parsed = json.loads(result.output)
                     assert isinstance(parsed, list)
+
+
+class TestDetectHardwareCommand:
+    """Test suite for detect-hardware command."""
+
+    def _make_gpu_result(self):
+        return AcceleratorDetectionResult(
+            accelerator_type=AcceleratorType.GPU,
+            accelerator_model=AcceleratorModel.MI300X,
+            accelerator_count=8,
+        )
+
+    def _make_cpu_result(self):
+        return AcceleratorDetectionResult(
+            accelerator_type=AcceleratorType.CPU,
+            accelerator_model=AcceleratorModel.EPYC_9965,
+            accelerator_count=192,
+        )
+
+    def test_detect_hardware_json_default(self, runner):
+        """Test detect-hardware with default --type all returns combined JSON list."""
+        gpu_result = self._make_gpu_result()
+        cpu_result = self._make_cpu_result()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.side_effect = [gpu_result, cpu_result]
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware"])
+
+            assert result.exit_code == 0
+            parsed = json.loads(result.output)
+            assert isinstance(parsed, list)
+            assert len(parsed) == 2
+            assert parsed[0] == {"accelerator_type": "GPU", "accelerator_model": "MI300X", "accelerator_count": 8}
+            assert parsed[1] == {
+                "accelerator_type": "CPU",
+                "accelerator_model": "EPYC_9965",
+                "accelerator_count": 192,
+            }
+
+    def test_detect_hardware_gpu_only(self, runner):
+        """Test detect-hardware --type gpu runs only GPU detection."""
+        gpu_result = self._make_gpu_result()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.return_value = gpu_result
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "gpu"])
+
+            assert result.exit_code == 0
+            mock_detector.detect.assert_called_once_with(accelerator_type=AcceleratorType.GPU)
+            parsed = json.loads(result.output)
+            assert len(parsed) == 1
+            assert parsed[0]["accelerator_model"] == "MI300X"
+
+    def test_detect_hardware_cpu_only(self, runner):
+        """Test detect-hardware --type cpu runs only CPU detection."""
+        cpu_result = self._make_cpu_result()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.return_value = cpu_result
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "cpu"])
+
+            assert result.exit_code == 0
+            mock_detector.detect.assert_called_once_with(
+                accelerator_type=AcceleratorType.CPU,
+                accelerator_family=AcceleratorFamily.EPYC,
+            )
+            parsed = json.loads(result.output)
+            assert len(parsed) == 1
+            assert parsed[0]["accelerator_model"] == "EPYC_9965"
+
+    def test_detect_hardware_cpu_falls_back_to_generic_family(self, runner):
+        """CPU detect-hardware falls back to generic CPU family when EPYC is generic."""
+        epyc_generic_result = AcceleratorDetectionResult(
+            accelerator_type=AcceleratorType.CPU,
+            accelerator_model=AcceleratorModel.CPU,
+            accelerator_count=1,
+        )
+        cpu_result = AcceleratorDetectionResult(
+            accelerator_type=AcceleratorType.CPU,
+            accelerator_model=AcceleratorModel.CPU,
+            accelerator_count=192,
+        )
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.side_effect = [epyc_generic_result, cpu_result]
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "cpu"])
+
+            assert result.exit_code == 0
+            assert mock_detector.detect.call_count == 2
+            mock_detector.detect.assert_any_call(
+                accelerator_type=AcceleratorType.CPU, accelerator_family=AcceleratorFamily.EPYC
+            )
+            mock_detector.detect.assert_any_call(
+                accelerator_type=AcceleratorType.CPU, accelerator_family=AcceleratorFamily.CPU
+            )
+
+    def test_detect_hardware_yaml_output(self, runner):
+        """Test detect-hardware --format yaml."""
+        gpu_result = self._make_gpu_result()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.return_value = gpu_result
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "gpu", "--format", "yaml"])
+
+            assert result.exit_code == 0
+            parsed = load_yaml_string(result.output)
+            assert isinstance(parsed, list)
+            assert parsed[0]["accelerator_model"] == "MI300X"
+
+    def test_detect_hardware_verbose(self, runner):
+        """Test detect-hardware --verbose returns detail dicts."""
+        gpu_result = self._make_gpu_result()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.return_value = gpu_result
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "gpu", "--verbose"])
+
+            assert result.exit_code == 0
+            parsed = json.loads(result.output)
+            assert isinstance(parsed, list)
+            assert len(parsed) == 1
+            # Verbose mode uses to_detail_dict which keeps lowercase accelerator_type
+            assert parsed[0]["accelerator_type"] == "gpu"
+            assert parsed[0]["accelerator_model"] == "MI300X"
+
+    def test_detect_hardware_handles_error(self, runner):
+        """Test detect-hardware exits with code 1 on error."""
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector", side_effect=RuntimeError("detection failed")),
+        ):
+            result = runner.invoke(cli, ["detect-hardware"])
+            assert result.exit_code == 1
+
+    def test_detect_hardware_no_model_detected(self, runner):
+        """Test detect-hardware when no hardware is detected returns empty list."""
+        empty_result = AcceleratorDetectionResult(
+            accelerator_type=AcceleratorType.GPU,
+            accelerator_model=None,
+            accelerator_count=0,
+        )
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("entrypoint.AcceleratorDetector") as mock_cls,
+        ):
+            mock_detector = Mock()
+            mock_detector.detect.return_value = empty_result
+            mock_cls.return_value = mock_detector
+
+            result = runner.invoke(cli, ["detect-hardware", "--type", "gpu"])
+
+            assert result.exit_code == 0
+            parsed = json.loads(result.output)
+            assert parsed == []

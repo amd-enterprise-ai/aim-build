@@ -5,12 +5,16 @@
 aim_id: Qwen/Qwen3-235B-A22B
 model_id: Qwen/Qwen3-235B-A22B-FP8
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI350X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI350X
   gpu_count: 1
   manual_selection_only: false
   metric: latency
   precision: fp8
+  primary: true
   type: optimized
 engine_args:
   disable-uvicorn-access-log: null

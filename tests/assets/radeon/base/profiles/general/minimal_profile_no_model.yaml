@@ -1,0 +1,18 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  engine: "vllm"
+  accelerator_model: "R9700"
+  precision: "fp16"
+  accelerator_count: 1
+  metric: "latency"
+  manual_selection_only: false
+  type: "general"
+
+env_vars:
+  DUMMY_VAR: dummy_value
+
+engine_args:
+  dtype: "float16"

@@ -3,28 +3,29 @@
 # SPDX-License-Identifier: MIT
 
 metadata:
-  engine: "vllm"
-  gpu: "MI300X"
-  precision: "fp16"
-  gpu_count: 1
-  metric: "latency"
+  accelerator_type: gpu
+  engine: vllm
+  accelerator_model: MI300X
+  precision: fp16
+  accelerator_count: 1
+  metric: latency
   manual_selection_only: false
-  type: "general"
-
+  type: general
+  gpu: MI300X
+  gpu_count: 1
 engine_args:
-  dtype: "float16"
+  dtype: float16
   tensor-parallel-size: 1
   gpu-memory-utilization: 0.95
   no-enable-chunked-prefill: null
   enable-eplb: true
-
 env_vars:
-  VLLM_DO_NOT_TRACK: "1"
-  VLLM_USE_V1: "0"
-  VLLM_USE_TRITON_FLASH_ATTN: "0"
-  HIP_FORCE_DEV_KERNARG: "1"
-  NCCL_MIN_NCHANNELS: "112"
-  TORCH_BLAS_PREFER_HIPBLASLT: "1"
-  PYTORCH_TUNABLEOP_ENABLED: "1"
-  PYTORCH_TUNABLEOP_VERBOSE: "1"
-  PYTORCH_TUNABLEOP_TUNING: "0"
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_USE_V1: '0'
+  VLLM_USE_TRITON_FLASH_ATTN: '0'
+  HIP_FORCE_DEV_KERNARG: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  PYTORCH_TUNABLEOP_ENABLED: '1'
+  PYTORCH_TUNABLEOP_VERBOSE: '1'
+  PYTORCH_TUNABLEOP_TUNING: '0'

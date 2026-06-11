@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 metadata:
+  accelerator_count: 2
+  accelerator_model: MI355X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI355X
   gpu_count: 2

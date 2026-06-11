@@ -1,0 +1,24 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-0.6B
+model_id: Qwen/Qwen3-0.6B
+metadata:
+  accelerator_count: 1
+  accelerator_model: CPU
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: true
+  metric: latency
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  dtype: bfloat16
+env_vars:
+  MKL_NUM_THREADS: '4'
+  OMP_NUM_THREADS: '4'
+  VLLM_CPU_KVCACHE_SPACE: '6'
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_TARGET_DEVICE: cpu

@@ -14,7 +14,7 @@ correctly.
 ## Prerequisites
 
 - Kubernetes cluster with kubectl configured (v1.32.8+rke2r1)
-- AMD GPU with ROCm support (e.g., MI300X)
+- AMD GPU with ROCm support (e.g., MI300X for Instinct, W7900 or R9700 for Radeon Pro)
 
 ## Deployment
 
@@ -78,7 +78,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.8.5"
+          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0"
           imagePullPolicy: Always
           env:
             - name: HF_TOKEN

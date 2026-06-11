@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "7B parameter distilled reasoning model based on Qwen-2.5, optimized for CPU inference on AMD EPYC."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+        tags:
+        - "text-generation"
+        - "reasoning"
+        - "chat"
+        source: "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+        variants:
+        - "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+        publisher: "DeepSeek"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "DeepSeek-R1-Distill-Qwen-7B is a 7.6 billion parameter language model distilled from DeepSeek-R1 using the Qwen-2.5-7B architecture. It features strong reasoning capabilities inherited from the larger R1 model through knowledge distillation. The model is designed for tasks requiring step-by-step reasoning, math, coding, and general instruction following."
+      title: "DeepSeek R1 Distill Qwen 7B"

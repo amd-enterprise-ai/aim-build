@@ -211,7 +211,7 @@ sequenceDiagram
 - `--use-hf-cache` - Store in Hugging Face cache format instead of local directory
 
 **Environment Variables:**
-- `AIM_MODEL_ID` - Model identifier for profile selection (required for `aim-base` container unless `--model-id` used)
+- `AIM_MODEL_ID` - Model identifier for profile selection (required for `aim-base` on Instinct, or `aim-epyc-base` / `aim-radeon-base` unless `--model-id` is used)
 - `AIM_PRECISION` - Desired precision (fp16, fp8, int4, etc.) - used for profile selection
 - `AIM_GPU_MODEL` - GPU model (MI300X, MI325X, etc.) - used for profile selection
 - `AIM_GPU_COUNT` - Number of GPUs - used for profile selection
@@ -220,8 +220,8 @@ sequenceDiagram
 - `HF_TOKEN` - Hugging Face token for gated models
 
 > **📝 Important:**
-> - **Model-specific containers** (e.g., `aim-meta-llama-llama-3-1-8b-instruct:0.8.5`) have the model ID baked in. Users specify high-level parameters (`AIM_PRECISION`, `AIM_GPU_MODEL`, `AIM_METRIC`) which trigger profile selection to determine the actual Hugging Face model to download (may be a quantized variant like `amd/Llama-3.1-8B-Instruct-FP8-KV`).
-> - **Base container** (`aim-base`) requires `AIM_MODEL_ID` for profile selection.
+> - **Model-specific containers** (e.g., `aim-meta-llama-llama-3-1-8b-instruct:0.11.0` on Instinct) have the model ID baked in. Users specify high-level parameters (`AIM_PRECISION`, `AIM_GPU_MODEL`, `AIM_METRIC`) which trigger profile selection to determine the actual Hugging Face model to download (may be a quantized variant like `amd/Llama-3.1-8B-Instruct-FP8-KV`).
+> - **Base containers** (e.g., `aim-base` on Instinct, `aim-radeon-base` on Radeon) require `AIM_MODEL_ID` for profile selection.
 > - Use `--model-id` to bypass profile selection and download a specific model directly.
 
 ## Download Examples
@@ -237,7 +237,7 @@ docker run --rm \
   -e AIM_GPU_MODEL="MI300X" \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache
 # → /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
 
@@ -253,7 +253,7 @@ docker run --rm \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache --use-hf-cache
 # → /workspace/model-cache/hub/models--meta-llama--Llama-3.1-8B-Instruct/
 ```
@@ -269,7 +269,7 @@ docker run --rm \
   -e AIM_PRECISION="fp16" \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /host/cache:/workspace/model-cache \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache
 # → /workspace/model-cache/meta-llama/Llama-3.1-8B-Instruct/
 ```
@@ -291,7 +291,7 @@ docker run --rm \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache
 
 # Serve immediately (no download delay)
@@ -299,7 +299,7 @@ docker run \
   -e AIM_PRECISION="fp16" \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 **Benefits:**
@@ -323,7 +323,7 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 # (Downloads model on first start based on profile selection)
 
 # Subsequent containers: Use cached model
@@ -332,7 +332,7 @@ docker run \
   -e AIM_METRIC="throughput" \
   -v /persistent/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8001:8000 \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 # (No download, uses cache)
 ```
 
@@ -380,14 +380,14 @@ docker run --rm \
   -e AIM_PRECISION="fp16" \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /shared/cache:/workspace/model-cache \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache
 
 docker run --rm \
   -e AIM_PRECISION="fp16" \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /shared/cache:/workspace/model-cache \
-  aim-mistralai-mixtral-8x7b-instruct-v0-1:0.8.5 \
+  aim-mistralai-mixtral-8x7b-instruct-v0-1:0.11.0 \
   download-to-cache
 
 # Serve one of the models from the shared cache
@@ -395,7 +395,7 @@ docker run \
   -e AIM_PRECISION="fp16" \
   -v /shared/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 ## Air-Gapped Deployment
@@ -407,7 +407,7 @@ Download on connected system, transfer to air-gapped environment:
 docker run --rm \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /transfer/cache:/workspace/model-cache \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 \
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 \
   download-to-cache
 
 # Transfer cache to air-gapped system
@@ -417,7 +417,7 @@ rsync -av /transfer/cache/ airgapped-host:/data/cache/
 docker run \
   -v /data/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri -p 8000:8000 \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
 ```
 
 ---
@@ -438,7 +438,7 @@ curl http://localhost:8000/v1/completions \
 **Model not found:**
 1. Verify directory structure: `{cache_dir}/org/model/`
 2. Check model files exist: `config.json`, weights, etc.
-3. Enable debug: `-e AIM_DEBUG=true`
+3. Enable debug: `-e AIM_LOG_LEVEL=DEBUG`
 
 **Check cache resolution:**
 ```bash
@@ -446,6 +446,6 @@ docker run \
   -e AIM_PRECISION="fp16" \
   -v /host/cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
-  aim-meta-llama-llama-3-1-8b-instruct:0.8.5 dry-run
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.0 dry-run
 ```
 Look for `--model` argument in output to see resolved path.

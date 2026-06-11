@@ -214,6 +214,12 @@ class AIMVersion:
 
         return int(parts[1])
 
+    @classmethod
+    def from_string(cls, version: str) -> "AIMVersion":
+        version_parts = version.split(".")
+        is_base = len(version_parts) < 3
+        return cls(version, is_base=is_base)
+
 
 def validate_version_tag(version: str, is_base: bool = False) -> None:
     """Validate a version string against the AIM versioning strategy.

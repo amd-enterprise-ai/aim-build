@@ -12,7 +12,7 @@ hidden: True
 ---
 AIMs Overview <aims/overview.md>
 Deployment Overview <aims/deployment_overview.md>
-Kubernetes Deployment <aims/kubernetes_deployment.md>
+Raw Kubernetes Deployment <aims/kubernetes_deployment.md>
 KServe Deployment <aims/kserve_deployment.md>
 Docker Deployment <aims/docker_deployment.md>
 AIMs Catalog <aims/catalog/models.md>

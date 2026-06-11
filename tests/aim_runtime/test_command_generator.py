@@ -5,14 +5,17 @@
 """Tests for the CommandGenerator class."""
 
 import os
+import shlex
 import stat
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from aim_common import Engine, Metric, Precision
+from aim_common.engine_args_models import EngineArgsFormat
 from aim_runtime import ProfileRegistry
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import AIMConfig
@@ -30,6 +33,29 @@ def vllm_engine_config() -> EngineConfig:
         model_arg="--model",
         validator="vllm",
     )
+
+
+@pytest.fixture
+def bentoml_engine_config() -> EngineConfig:
+    """Create a BentoML EngineConfig for testing."""
+    return EngineConfig(
+        launch="python -m bentoml serve --working-dir /workspace/model",
+        args_format=EngineArgsFormat.FORWARDED,
+    )
+
+
+@pytest.fixture
+def bentoml_aim_config(aim_config: AIMConfig) -> AIMConfig:
+    """Create an AIMConfig for BentoML engine testing."""
+    config = deepcopy(aim_config)
+    config.engine = Engine.BENTOML
+    return config
+
+
+@pytest.fixture
+def bentoml_command_generator(bentoml_aim_config: AIMConfig, bentoml_engine_config: EngineConfig) -> CommandGenerator:
+    """Create a CommandGenerator instance for BentoML engine."""
+    return CommandGenerator(bentoml_aim_config, bentoml_engine_config)
 
 
 @pytest.fixture
@@ -145,6 +171,26 @@ def test_build_command(command_generator: CommandGenerator, model_profile: Profi
     assert "--dtype float16" in command
     assert "--port 8000" in command
     assert "--enable-eplb" in command
+
+
+def test_build_command_quotes_special_characters(command_generator: CommandGenerator, model_profile: Profile) -> None:
+    """Test that _build_command produces a shell-safe string that round-trips through shlex."""
+    command = command_generator._build_command(model_profile)
+
+    # Round-trip: parsing the shell string must recover the original argv
+    original_list = command_generator._build_command_list(model_profile)
+    assert shlex.split(command) == original_list
+
+    # Inject a model path with spaces and shell metacharacters via mock
+    tricky_path = "/mnt/models/my model (v2)/weights"
+    with patch.object(command_generator.cache_resolver, "resolve_model_path") as mock_resolve:
+        mock_resolve.return_value = Mock(path=tricky_path)
+        cmd_with_spaces = command_generator._build_command(model_profile)
+        argv_with_spaces = command_generator._build_command_list(model_profile)
+
+        # The shell string must properly quote the tricky path
+        assert tricky_path not in cmd_with_spaces.split(" ")  # not naively split
+        assert shlex.split(cmd_with_spaces) == argv_with_spaces
 
 
 def test_build_command_list_with_model_in_profile(command_generator: CommandGenerator, model_profile: Profile) -> None:
@@ -523,8 +569,8 @@ def test_build_command_list_with_local_dir_cache_different_aim_id(
         precision=Precision.FP16,
         engine=Engine.VLLM,
         metric=Metric.LATENCY,
-        gpu_count="1",
-        gpu_model=None,
+        accelerator_count="1",
+        accelerator_model=None,
     )
     command_generator = CommandGenerator(config, vllm_engine_config)
 
@@ -581,3 +627,76 @@ def test_build_command_list_general_profile_with_aim_id_fallback(
     assert "--model" in command_list
     model_index = command_list.index("--model")
     assert command_list[model_index + 1] == "meta-llama/Llama-3.1-8B-Instruct"
+
+
+def test_build_forwarded_args(bentoml_command_generator: CommandGenerator) -> None:
+    """Verify --arg key=value serialization for all value types."""
+    args = {
+        "accelerator": "gpu",
+        "gpu_count": 1,
+        "no_kernels": True,
+        "num_workers": 2,
+        "use_cache": False,
+        "debug": None,
+    }
+    result = bentoml_command_generator._build_engine_args(args)
+    assert result == [
+        "--arg",
+        "accelerator=gpu",
+        "--arg",
+        "gpu_count=1",
+        "--arg",
+        "no_kernels=True",
+        "--arg",
+        "num_workers=2",
+        "--arg",
+        "use_cache=False",
+        "--arg",
+        "debug=True",
+    ]
+
+
+@pytest.mark.parametrize(
+    "engine_config_name,aim_config_name,expect_model_flag",
+    [
+        ("vllm_engine_config", "aim_config", True),
+        ("bentoml_engine_config", "bentoml_aim_config", False),
+    ],
+)
+def test_build_command_list_model_flag(
+    engine_config_name: str,
+    aim_config_name: str,
+    expect_model_flag: bool,
+    model_profile: Profile,
+    request: pytest.FixtureRequest,
+) -> None:
+    """vLLM commands include --model; BentoML commands do not."""
+    generator = CommandGenerator(
+        request.getfixturevalue(aim_config_name),
+        request.getfixturevalue(engine_config_name),
+    )
+    command_list = generator._build_command_list(model_profile)
+    assert ("--model" in command_list) == expect_model_flag
+
+
+@pytest.mark.parametrize(
+    "engine_config_name,aim_config_name,expect_served_model_name",
+    [
+        ("vllm_engine_config", "aim_config", True),
+        ("bentoml_engine_config", "bentoml_aim_config", False),
+    ],
+)
+def test_build_command_list_served_model_name(
+    engine_config_name: str,
+    aim_config_name: str,
+    expect_served_model_name: bool,
+    model_profile: Profile,
+    request: pytest.FixtureRequest,
+) -> None:
+    """vLLM commands include --served-model-name; BentoML commands do not."""
+    generator = CommandGenerator(
+        request.getfixturevalue(aim_config_name),
+        request.getfixturevalue(engine_config_name),
+    )
+    command_list = generator._build_command_list(model_profile)
+    assert ("--served-model-name" in command_list) == expect_served_model_name

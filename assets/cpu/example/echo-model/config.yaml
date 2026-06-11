@@ -1,0 +1,13 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Play example: a minimal specialized model that echoes input back.
+# Used to demonstrate the harness pattern without real ML dependencies.
+
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: library
+  base_repository: python
+  base_tag: "3.12-slim"
+specialized: true

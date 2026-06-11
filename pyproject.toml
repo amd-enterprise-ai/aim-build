@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "0.11"
+version = "0.12"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -21,17 +21,18 @@ classifiers = [
 ]
 # Core dependencies (aim_runtime)
 dependencies = [
-    "click>=8.0.0",
+    "click>=8.4.0",
     "huggingface-hub>=0.34.0,<1.0",
-    "pydantic>=2.0.0,<3.0",
+    "pydantic>=2.13.3,<3.0",
     "PyYAML==6.0.3",
 ]
 
 [project.optional-dependencies]
 # Dependencies for running tests
 test = [
-    "pytest-cov>=4.0.0",
-    "pytest==9.0.2",
+    "pytest-cov>=7.1.0",
+    "pytest==9.0.3",
+    "pytest-mock>=3.14.0",
     "coverage",
     "pytest-html",
     "pytest-json-report"
@@ -39,46 +40,49 @@ test = [
 
 # Lightweight CI dependencies (version resolution, registry queries, change detection)
 ci = [
-    "requests>=2.32.5",
+    "requests>=2.34.2",
     "semver>=3,<4",
-    "tomli>=1.1.0",
+    "tomli>=2.4.1",
 ]
 
 # Database dependencies (validation result caching and recording)
 db = [
-    "psycopg[binary]>=3.1.0",
-    "sqlmodel>=0.0.22",
+    "psycopg[binary]>=3.3.4",
+    "sqlmodel>=0.0.38",
 ]
 
 # Dependencies for development (CI, pre-commit hooks, linting, running utils, etc.)
 dev = [
-    "black>=22.0.0",
-    "flake8>=5.0.0",
-    "isort>=5.0.0",
-    "jinja2>=3.0.0",
-    "mypy>=1.0.0",
-    "pre-commit>=3.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest==9.0.2",
+    "black>=26.5.1",
+    "flake8>=7.3.0",
+    "isort>=8.0.1",
+    "jinja2>=3.1.6",
+    "mypy>=2.1.0",
+    "pre-commit>=4.6.0",
+    "pytest-cov>=7.1.0",
+    "pytest==9.0.3",
+    "pytest-mock>=3.14.0",
     # Added for development scripts and tests that require HTTP requests.
-    "requests>=2.32.5",
+    "requests>=2.34.2",
     "semver>=3,<4",
-    "tomli>=1.1.0",
+    "tomli>=2.4.1",
     "pandas==2.3.3",
     "openpyxl==3.1.5",
-    "pydantic==2.12.5",
+    "pydantic==2.13.3",
     # PostgreSQL adapter for validation database and pgcli
-    "psycopg[binary]>=3.1.0",
-    "sqlmodel>=0.0.22",
+    "psycopg[binary]>=3.3.4",
+    "sqlmodel>=0.0.38",
     # CLI tool for interactive database exploration
-    "pgcli>=4.0.0"
+    "pgcli>=4.0.0",
+    # vRAM estimation tool dependency
+    "hf-mem>=0.5.5"
 ]
 
 # Dependencies for accuracy evaluation and model validation
 evaluation = [
-    "transformers>=4.40.0",
-    "lm-eval[api]>=0.4.0",
-    "hf_transfer>=0.1.8"
+    "transformers>=4.57.6",
+    "lm-eval[api]>=0.4.12",
+    "hf_transfer>=0.1.9"
 ]
 
 [project.urls]
@@ -89,7 +93,8 @@ aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["aim_runtime", "aim_common", "aim_utils"]
+packages = ["aim_runtime", "aim_runtime.harness", "aim_common", "aim_utils"]
+py-modules = ["entrypoint"]
 
 [tool.setuptools.package-data]
 aim_runtime = ["benchmark-config.yaml"]
@@ -126,10 +131,7 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-m", "not integration",  # Exclude integration tests by default
-    "--cov=src/aim_runtime",
-    "--cov=ci/utils",
-    "--cov=utils",
-    "--cov=entrypoint.py",
+    "--cov",
     "--cov-report=term",
     "--cov-report=html",
     "--cov-report=xml",
@@ -147,4 +149,16 @@ filterwarnings = [
     "error",
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
+]
+[tool.coverage.run]
+source = [
+    "src/aim_runtime",
+    "src/aim_common",
+    "src/aim_utils",
+    "ci/utils",
+    "entrypoint",
+]
+omit = [
+    "*/site-packages/*",
+    "*/dist-packages/*",
 ]

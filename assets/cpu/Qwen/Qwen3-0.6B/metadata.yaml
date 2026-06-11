@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "0.6B parameter dense language model with dual thinking modes and multilingual support."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-0.6B"
+        tags:
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen3-0.6B"
+        variants:
+        - "Qwen/Qwen3-0.6B"
+        recommendedDeployments:
+        - gpuModel: "CPU"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on CPU using bf16 precision"
+          profileId: "vllm-cpu-bf16-tp1-latency"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-0.6B is a 0.6 billion parameter dense causal language model from the Qwen series by the Qwen Team at Alibaba Group. It supports seamless switching between thinking mode (for complex logical reasoning, math, and coding) and non-thinking mode (for efficient general-purpose dialogue). Suitable for CPU-based inference in development and testing environments."
+      title: "Qwen3 0.6B"

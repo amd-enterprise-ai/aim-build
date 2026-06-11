@@ -1,0 +1,74 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "gemma, MIT"
+      description: "Gemma 3 1B IT is a lightweight instruction-tuned model supporting text generation with a 32K context window."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-3-1b-it"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/google/gemma-3-1b-it"
+        variants:
+        - "google/gemma-3-1b-it"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using bf16 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using bf16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using bf16 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using bf16 precision"
+        publisher: "Google"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "Gemma 3 is a family of lightweight, multimodal open models built from the same research and technology used to create the Gemini models. The 1B instruction-tuned variant supports text input with a 32K token context window and multilingual capabilities across 140+ languages, optimized for deployment in resource-constrained environments."
+      title: "Gemma 3 1B IT"

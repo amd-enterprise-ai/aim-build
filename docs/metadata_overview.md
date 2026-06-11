@@ -16,29 +16,29 @@ configurations, and other attributes.
 The metadata is stored in YAML format and follows a structured schema that ensures consistency across all models in the
 catalog. There are two types of metadata:
 
-1. **Base Metadata** - For the generic AIM base image (`metadata/base/metadata.yaml`)
-2. **Model Metadata** - For specific models (e.g., `metadata/meta-llama/Llama-3.1-8B-Instruct/metadata.yaml`)
+1. **Base Metadata** - For the generic AIM base image (`assets/<accelerator>/base/metadata.yaml`)
+2. **Model Metadata** - For specific models (e.g., `assets/<accelerator>/meta-llama/Llama-3.1-8B-Instruct/metadata.yaml`)
 
 ## Directory Structure
 
-The metadata directory is organized by model publisher and model name:
+The assets directory is organized by accelerator family, model publisher, and model name:
 
 ```
-metadata/
-├── base/
-│   └── metadata.yaml                    # Base image metadata
-├── CohereLabs/
-│   └── command-a-reasoning-08-2025/
-│       └── metadata.yaml
-├── meta-llama/
-│   ├── Llama-3.1-405B-Instruct/
-│   │   └── metadata.yaml
-│   ├── Llama-3.1-8B-Instruct/
-│   │   └── metadata.yaml
+assets/
+├── instinct/
+│   ├── base/
+│   │   └── metadata.yaml                # Base image metadata
+│   ├── CohereLabs/
+│   │   └── command-a-reasoning-08-2025/
+│   │       └── metadata.yaml
+│   ├── meta-llama/
+│   │   ├── Llama-3.1-405B-Instruct/
+│   │   │   └── metadata.yaml
+│   │   ├── Llama-3.1-8B-Instruct/
+│   │   │   └── metadata.yaml
+│   │   └── ...
 │   └── ...
-├── mistralai/
-│   ├── Mistral-Small-3.2-24B-Instruct-2506/
-│   │   └── metadata.yaml
+├── epyc/
 │   └── ...
 └── ...
 ```
@@ -70,6 +70,7 @@ com:
         variants:
           - "amd/Llama-3.1-8B-Instruct-FP8-KV"
           - "meta-llama/Llama-3.1-8B-Instruct"
+        # recommendedDeployments are deprecated, refer to "primary" field in individual profiles
         recommendedDeployments:
           - gpuModel: "MI300X"
             gpuCount: 1
@@ -127,10 +128,12 @@ variants.
 - `publisher` (string, required): Name of the organization or individual that published the model (e.g., "Meta",
 "Mistral AI", "OpenAI").
 
-- `recommendedDeployments` (array of objects, optional): Array of recommended deployment configurations for
-different hardware and optimization goals.
+- `recommendedDeployments` (array of objects, **deprecated**): Previously used to specify recommended deployment
+ configurations for different hardware and optimization goals. **Use the `primary` flag in profile YAML files instead** — see
+  [Primary Profiles](#primary-profiles) below. Existing `recommendedDeployments` entries are kept for backwards
+  compatibility.
 
-###### Recommended Deployment Object
+###### Recommended Deployment Object (deprecated)
 
 Each deployment configuration can include:
 
@@ -231,7 +234,7 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "MIT"
-      description: "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME."
+      description: "Generic image that can run any model in the AIM catalog. Model identifier should be specified using the environment variable AIM_MODEL_ID."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"
 
@@ -241,7 +244,7 @@ com:
       release:
         notes: ""
       description:
-        full: "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME."
+        full: "Generic image that can run any model in the AIM catalog. Model identifier should be specified using the environment variable AIM_MODEL_ID."
       title: "AIM Base"
 ```
 
@@ -259,20 +262,50 @@ These models enforce:
 - String length constraints (e.g., OCI description ≤ 160 characters)
 - No additional properties beyond the model definition
 
-## Recommended Profiles
+## Primary Profiles
 
-The `recommendedDeployments` field provides guidance on optimal deployment configurations for each model. These
-recommendations are automatically generated from available profiles. It lists the best configuration for each GPU model
-and metric (latency/throughput). Selection prioritizes: (1) profiles with `manual_selection_only=false`, (2) lowest
-precision (lower is better: int4 > int8 > fp4 > fp8 > fp16 > bf16 > fp32), and (3) lowest GPU count.
+The `primary` flag in a profile's `metadata` section is the authoritative way to mark which profiles represent the
+recommended deployment for a given accelerator model and metric combination. It replaces the deprecated
+`recommendedDeployments` field in `metadata.yaml`.
 
-### Profile ID Usage
+### How `primary` is determined
 
-The `profileId` field explicitly identifies which profile to use for deployment. It is included in recommended
-deployments when:
+A profile should have `primary: true` when it is the best available profile for its accelerator model and optimization metric.
+The selection follows the same criteria used by the automatic profile selector:
 
-- The best profile has `manual_selection_only=true` (requires explicit selection)
-- No optimized or preview profile is available for a given AIM
-- Explicit profile identification is needed for correct deployment
+1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
+3. Lower GPU count (smaller tensor-parallel size) is preferred.
 
-When `profileId` is present, the `precision` field is omitted since precision is determined by the referenced profile.
+Only **one** profile per `(gpu, gpu_count, metric)` combination should have `primary: true`.
+
+The `set-primary-flags` command in `profile_utils` automatically sets `primary` flags based on the selection
+criteria described above:
+
+```bash
+python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
+```
+
+## Primary Profiles
+
+The `primary` flag in a profile's `metadata` section is the authoritative way to mark which profiles represent the
+recommended deployment for a given accelerator model and metric combination. It replaces the deprecated
+`recommendedDeployments` field in `metadata.yaml`.
+
+### How `primary` is determined
+
+A profile should have `primary: true` when it is the best available profile for its accelerator model and optimization metric.
+The selection follows the same criteria used by the automatic profile selector:
+
+1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
+3. Lower GPU count (smaller tensor-parallel size) is preferred.
+
+Only **one** profile per `(gpu, gpu_count, metric)` combination should have `primary: true`.
+
+The `set-primary-flags` command in `profile_utils` automatically sets `primary` flags based on the selection
+criteria described above:
+
+```bash
+python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
+```

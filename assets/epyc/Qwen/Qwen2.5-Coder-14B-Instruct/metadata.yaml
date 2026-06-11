@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "qwen, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Qwen 2.5 Coder 14B Instruct model optimized for EPYC."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen2.5-Coder-14B-Instruct"
+        tags:
+          - "text-generation"
+          - "code"
+          - "instruction"
+        source: "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct"
+        variants:
+          - "Qwen/Qwen2.5-Coder-14B-Instruct"
+        publisher: "Alibaba"
+
+      hfToken:
+        required: true
+
+      release:
+        notes: ""
+
+      description:
+        full: "Qwen2.5-Coder-14B-Instruct is a 14.7 billion parameter instruction-tuned large language model from Alibaba Cloud, designed specifically for code generation, reasoning, debugging, and developer-centric workflows. Built on the Qwen2.5 architecture, it leverages transformer optimizations including RoPE, SwiGLU, RMSNorm, and Grouped-Query Attention (GQA). The model is trained on large-scale code corpora and mixed natural language datasets, enabling strong coding, reasoning, and conversational capabilities. It supports long-context inference up to 128K tokens and is suitable for code assistants, automated code generation, and interactive developer tools."
+
+      title: "Qwen2.5 Coder 14B Instruct"

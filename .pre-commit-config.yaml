@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 # Global exclude pattern applies to all hooks
-exclude: \.patch$
+exclude: \.patch$|^LICENSE
 
 repos:
 - repo: local
@@ -23,10 +23,10 @@ repos:
   - id: check-yaml
     exclude: ".*_template\\.yaml$"
   - id: end-of-file-fixer
-    exclude: "^docs/docs-aim/.*\\.md$"
+    exclude: "^docs/docs-aim/.*\\.md$|^docs/templates/.*$"
   - id: check-toml
   - id: trailing-whitespace
-    exclude: "^docs/docs-aim/.*\\.md$"
+    exclude: "^docs/docs-aim/.*\\.md$|^docs/templates/.*$"
 
 - repo: https://github.com/pre-commit/mirrors-prettier
   rev: v4.0.0-alpha.8
@@ -111,7 +111,7 @@ repos:
   - id: check-profile-names
     name: "Profiles: check names"
     description: Check if profile metadata matches profile's file name
-    entry: python3 -m aim_utils.profile_utils check-metadata
+    entry: python3 -m aim_utils.profile_utils check-all-metadata
     language: system
     types: [ yaml ]
     pass_filenames: false
@@ -123,7 +123,7 @@ repos:
   - id: add-recommended-deployments
     name: "Metadata: add recommended deployments"
     description: Add recommended deployments to based on profiles' changes
-    entry: python3 -m aim_utils.metadata_utils add-recommended-deployments
+    entry: python3 -m aim_utils.metadata_utils add-all-recommended-deployments
     language: system
     types: [ yaml ]
     pass_filenames: false
@@ -135,7 +135,7 @@ repos:
   - id: metadata-validation
     name: "Metadata: validation"
     description: Validate metadata YAML files
-    entry: python3 -m aim_utils.metadata_utils validate
+    entry: python3 -m aim_utils.metadata_utils validate-all
     language: system
     types: [ yaml ]
     pass_filenames: false
@@ -147,7 +147,7 @@ repos:
   - id: validate-recommended-deployments-profile-ids
     name: "Metadata: validate profile ids in recommended deployments"
     description: Validate that profile ids in recommended deployments
-    entry: python3 -m aim_utils.metadata_utils validate-recommended-deployments-profile-ids
+    entry: python3 -m aim_utils.metadata_utils validate-all-recommended-deployments-profile-ids
     language: system
     types: [ yaml ]
     pass_filenames: false
@@ -165,3 +165,15 @@ repos:
     pass_filenames: true
     always_run: false
     files: ^assets/.*/config\.yaml$
+
+- repo: local
+  hooks:
+  - id: set-all-primary-flags
+    name: "Profiles: set primary flags"
+    description: Set profiles recommended for deployment as primary
+    entry: python3 -m aim_utils.profile_utils set-all-primary-flags
+    language: system
+    types: [ yaml ]
+    pass_filenames: false
+    always_run: false
+    files: ^assets/[^/]+/.*/profiles/.*\.yaml$

@@ -13,8 +13,15 @@ from pydantic import ValidationError
 from aim_common.metadata_models import BaseMetadataModel, ModelMetadataModel
 from aim_common.object_model import CanonicalName, ProfileMetadata
 
-from .asset_utils import AssetDescriptor, AssetManager, Initializer, assets_path_option
-from .dict_utils import delete_key, get_value, rename_keys, set_value
+from .asset_utils import (
+    AssetDescriptor,
+    AssetManager,
+    Initializer,
+    assets_path_option,
+    assets_root_option,
+    discover_assets_paths,
+)
+from .dict_utils import get_value, rename_keys, set_value
 from .yaml_utils import get_yamls, read_yaml, save_yaml
 
 logger = logging.getLogger(__name__)
@@ -62,7 +69,7 @@ BASE_METADATA: Metadata = {
                 "vendor": "AMD",
                 "authors": "",
                 "licenses": "MIT",
-                "description": "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME.",
+                "description": "Generic image that can run any model in the AIM catalog. Model identifier should be specified using the environment variable AIM_MODEL_ID.",
                 "documentation": "",
                 "source": "https://github.com/amd-enterprise-ai/aim-build",
             }
@@ -73,7 +80,7 @@ BASE_METADATA: Metadata = {
             "aim": {
                 "release": {"notes": ""},
                 "description": {
-                    "full": "Generic image that can run any model in the AIM catalog. Model name should be specified using the environment variable AIM_MODEL_NAME."
+                    "full": "Generic image that can run any model in the AIM catalog. Model identifier should be specified using the environment variable AIM_MODEL_ID."
                 },
                 "title": "AIM Base",
             }
@@ -86,7 +93,7 @@ class MetadataInitializer(Initializer):
 
     def __init__(
         self,
-        assets_path: str = "assets/instinct",
+        assets_path: str,
         file_name: Optional[str] = None,
         recreate: bool = False,
     ) -> None:
@@ -141,6 +148,9 @@ class MetadataInitializer(Initializer):
 
 class MetadataManager(AssetManager):
 
+    def __init__(self, assets_path: str):
+        super().__init__(assets_path, enforce_double_quotes=True)
+
     def get_yamls(self, canonical_name: Optional[CanonicalName] = None) -> List[Path]:
         descriptors: List[AssetDescriptor] = self.get_descriptors(canonical_name=canonical_name)
 
@@ -152,6 +162,56 @@ class MetadataManager(AssetManager):
                 metadata_paths.append(resolved_path)
 
         return metadata_paths
+
+    def update_value(
+        self,
+        key: str,
+        new_value: Optional[Any] = None,
+        canonical_name: Optional[str] = None,
+        add_if_missing: bool = False,
+    ) -> None:
+        logger.warning(
+            "Currently, this command supports only string values. Non-string values will be set as strings. Use with caution."
+        )
+
+        # Mapping of keys to functions that calculate their values dynamically from metadata. Not all keys need this.
+        update_mapping = {
+            "com.amd.aim.model.publisher": lambda data: CanonicalName.from_string(  # type: ignore[union-attr]
+                get_value(data, "com.amd.aim.model.canonicalName")
+            ).publisher,
+            "com.amd.aim.title": lambda data: CanonicalName.from_string(  # type: ignore[union-attr]
+                get_value(data, "com.amd.aim.model.canonicalName")
+            ).title,
+        }
+
+        # Find all metadata.yaml files
+        metadata_files = self.get_yamls(CanonicalName.from_string(canonical_name))
+        logger.debug(f"Found {len(metadata_files)} metadata files to update")
+
+        # Process each metadata file
+        for file_path in metadata_files:
+            logger.info(f"File name: '{file_path}'")
+            try:
+                metadata = read_yaml(file_path)
+                if new_value is None:
+                    value_function = update_mapping.get(key)
+                    if value_function:
+                        calculated_value = value_function(metadata)
+                        if calculated_value is not None:
+                            metadata = set_value(metadata, key, calculated_value, add_if_missing=add_if_missing)
+                            save_yaml(metadata, path=file_path, enforce_double_quotes=self.enforce_double_quotes)
+                        else:
+                            logger.warning(f"Calculated value for key '{key}' is None, skipping update for {file_path}")
+                    else:
+                        logger.warning(
+                            f"No update mapping found for key '{key}' and no explicit value provided. Skipping {file_path}"
+                        )
+                else:
+                    metadata = set_value(metadata, key, new_value, add_if_missing=add_if_missing)
+                    save_yaml(metadata, path=file_path, enforce_double_quotes=self.enforce_double_quotes)
+            except Exception as e:
+                logger.error(f"Error updating '{file_path}': {str(e)}")
+                raise e
 
 
 def get_model_variants(model_dir: Path) -> List[str]:
@@ -175,14 +235,14 @@ def cli(ctx):
 
 @cli.command(name="init")
 @assets_path_option
-def init_command(assets_path: str = "assets/instinct") -> None:
+def init_command(assets_path: str) -> None:
     """Initialize metadata.yaml files for all models based on their profiles."""
     MetadataInitializer(assets_path=assets_path).initialize_all()
 
 
 @cli.command(name="delete")
 @assets_path_option
-def delete_metadata_command(assets_path: str = "assets/instinct") -> None:
+def delete_metadata_command(assets_path: str) -> None:
     """
     Delete all metadata.yaml files from the assets directory.
     """
@@ -193,30 +253,9 @@ def delete_metadata_command(assets_path: str = "assets/instinct") -> None:
 @click.argument("key", type=str)
 @assets_path_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def delete_key_command(key: str, assets_path: str = "assets/instinct", canonical_name: Optional[str] = None) -> None:
+def delete_key_command(key: str, assets_path: str, canonical_name: Optional[str] = None) -> None:
     """Remove a specific key from metadata files."""
-    delete_key_from_files(key, assets_path, canonical_name)
-
-
-def delete_key_from_files(key: str, assets_path: str = "assets/instinct", canonical_name: Optional[str] = None) -> None:
-    """
-    Remove a specific key from all metadata.yaml files
-    :param assets_path: path to the root assets directory
-    :param key: key to remove in dot notation (e.g., "org.opencontainers.image.vendor")
-    :param canonical_name: directory name to filter by (e.g., "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-    """
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
-
-    for file_path in metadata_files:
-        metadata = read_yaml(file_path)
-
-        logger.info(f"Deleting key from metadata file: '{file_path}'")
-        try:
-            metadata = delete_key(metadata, key)
-            save_yaml(metadata, path=file_path, enforce_double_quotes=True)
-        except Exception as e:
-            logger.error(f"Error removing key from '{file_path}': {str(e)}")
-            raise e
+    MetadataManager(assets_path=assets_path).delete_key(key, canonical_name)
 
 
 @cli.command(name="update-value")
@@ -224,11 +263,11 @@ def delete_key_from_files(key: str, assets_path: str = "assets/instinct", canoni
 @click.argument("new_value", type=str, default=None)
 @assets_path_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-@click.option("--add_if_missing", type=bool, default=False, help="Add the key if it doesn't exist")
+@click.option("--add_if_missing", is_flag=True, default=False, help="Add the key if it doesn't exist")
 def update_value_command(
     key: str,
+    assets_path: str,
     new_value: Optional[Any] = None,
-    assets_path: str = "assets/instinct",
     canonical_name: Optional[str] = None,
     add_if_missing: bool = False,
 ) -> None:
@@ -242,49 +281,7 @@ def update_value_command(
         add_if_missing: If True, add the key if it doesn't exist
         canonical_name: If provided, only update files matching this canonical name
     """
-
-    logger.warning(
-        "Currently, this command supports only string values. Non-string values will be set as strings. Use with caution."
-    )
-
-    # Mapping of keys to functions that calculate their values dynamically from metadata. Not all keys need this.
-    update_mapping = {
-        "com.amd.aim.model.publisher": lambda data: CanonicalName.from_string(  # type: ignore[union-attr]
-            get_value(data, "com.amd.aim.model.canonicalName")
-        ).publisher,
-        "com.amd.aim.title": lambda data: CanonicalName.from_string(  # type: ignore[union-attr]
-            get_value(data, "com.amd.aim.model.canonicalName")
-        ).title,
-    }
-
-    # Find all metadata.yaml files
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
-    logger.debug(f"Found {len(metadata_files)} metadata files to update")
-
-    # Process each metadata file
-    for file_path in metadata_files:
-        logger.info(f"File name: '{file_path}'")
-        try:
-            metadata = read_yaml(file_path)
-            if new_value is None:
-                value_function = update_mapping.get(key)
-                if value_function:
-                    calculated_value = value_function(metadata)
-                    if calculated_value is not None:
-                        metadata = set_value(metadata, key, calculated_value, add_if_missing=add_if_missing)
-                        save_yaml(metadata, path=file_path, enforce_double_quotes=True)
-                    else:
-                        logger.warning(f"Calculated value for key '{key}' is None, skipping update for {file_path}")
-                else:
-                    logger.warning(
-                        f"No update mapping found for key '{key}' and no explicit value provided. Skipping {file_path}"
-                    )
-            else:
-                metadata = set_value(metadata, key, new_value, add_if_missing=add_if_missing)
-                save_yaml(metadata, path=file_path, enforce_double_quotes=True)
-        except Exception as e:
-            logger.error(f"Error updating '{file_path}': {str(e)}")
-            raise e
+    MetadataManager(assets_path=assets_path).update_value(key, new_value, canonical_name, add_if_missing)
 
 
 @cli.command(name="copy-value")
@@ -295,11 +292,11 @@ def update_value_command(
 @click.option("--prefix", type=str, default=None, help="Prefix to add to the copied value")
 @click.option("--postfix", type=str, default=None, help="Postfix to add to the copied value")
 @click.option("--separator", type=str, default="", help="Separator between prefix/postfix and value")
-@click.option("--add_if_missing", type=bool, default=False, help="Add the target key if it doesn't exist")
+@click.option("--add_if_missing", is_flag=True, default=False, help="Add the target key if it doesn't exist")
 def copy_value_command(
     source_key: str,
     target_key: str,
-    assets_path: str = "assets/instinct",
+    assets_path: str,
     canonical_name: Optional[str] = None,
     prefix: Optional[str] = None,
     postfix: Optional[str] = None,
@@ -309,65 +306,15 @@ def copy_value_command(
     """
     Copy a value from one key to another in metadata files. Optionally add prefix/postfix to string values with a separator.
     """
-    copy_value(
+    MetadataManager(assets_path=assets_path).copy_value(
         source_key,
         target_key,
-        assets_path,
         canonical_name,
         prefix,
         postfix,
         separator,
         add_if_missing,
     )
-
-
-def copy_value(
-    source_key: str,
-    target_key: str,
-    assets_path: str = "assets/instinct",
-    canonical_name: Optional[str] = None,
-    prefix: Optional[str] = None,
-    postfix: Optional[str] = None,
-    separator: str = "",
-    add_if_missing: bool = False,
-) -> None:
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
-    logger.debug(f"Found {len(metadata_files)} metadata files to update")
-
-    for file_path in metadata_files:
-        metadata = read_yaml(file_path)
-        try:
-            metadata = _copy_value(
-                metadata,
-                source_key,
-                target_key,
-                prefix,
-                postfix,
-                separator,
-                add_if_missing,
-            )
-            save_yaml(metadata, path=file_path, enforce_double_quotes=True)
-        except Exception as e:
-            logger.error(f"Error copying value in '{file_path}'")
-            raise e
-
-
-def _copy_value(
-    metadata: Metadata,
-    source_key: str,
-    target_key: str,
-    prefix: Optional[str] = None,
-    postfix: Optional[str] = None,
-    separator: str = "",
-    add_if_missing: bool = False,
-) -> Metadata:
-    source_value = get_value(metadata, source_key)
-    if isinstance(source_value, str):
-        if prefix:
-            source_value = f"{prefix}{separator}{source_value}"
-        if postfix:
-            source_value = f"{source_value}{separator}{postfix}"
-    return set_value(metadata, target_key, source_value, add_if_missing)
 
 
 @cli.command(name="rename-key")
@@ -378,20 +325,17 @@ def _copy_value(
 def rename_key_command(
     source_key: str,
     target_key: str,
-    assets_path: str = "assets/instinct",
+    assets_path: str,
     canonical_name: Optional[str] = None,
 ) -> None:
     """Rename a key by copying its value to a new key and deleting the original."""
-    copy_value(source_key, target_key, assets_path, canonical_name, add_if_missing=True)
-    delete_key_from_files(source_key, assets_path, canonical_name)
+    MetadataManager(assets_path=assets_path).rename_key(source_key, target_key, canonical_name)
 
 
 @cli.command(name="add-recommended-deployments")
 @assets_path_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def add_recommended_deployments_command(
-    assets_path: str = "assets/instinct", canonical_name: Optional[str] = None
-) -> None:
+def add_recommended_deployments_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
     """
     Add recommended deployment configurations based on available profiles.
     Automatically detects latency and throughput profiles for each GPU model.
@@ -400,6 +344,23 @@ def add_recommended_deployments_command(
         metadata_path: Root directory containing metadata.yaml files
         canonical_name: If provided, only update files matching this canonical name
     """
+    modified_count = _add_recommended_deployments(assets_path, canonical_name)
+    sys.exit(1 if modified_count > 0 else 0)
+
+
+@cli.command(name="add-all-recommended-deployments")
+@assets_root_option
+@click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
+def add_all_recommended_deployments_command(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
+    """Add recommended deployments across all accelerator asset directories."""
+    total_modified = 0
+    for assets_path in discover_assets_paths(assets_root):
+        total_modified += _add_recommended_deployments(assets_path, canonical_name)
+    sys.exit(1 if total_modified > 0 else 0)
+
+
+def _add_recommended_deployments(assets_path: str, canonical_name: Optional[str] = None) -> int:
+    """Core logic: returns the number of modified files."""
     metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
 
     modified_count = 0
@@ -410,9 +371,8 @@ def add_recommended_deployments_command(
 
     if modified_count > 0:
         logger.info(f"✅ Recommended deployments added to {modified_count}/{len(metadata_files)} metadata files")
-        sys.exit(1)
 
-    sys.exit(0)
+    return modified_count
 
 
 def _add_recommended_deployments_for_model(metadata_file: Path) -> bool:
@@ -556,7 +516,7 @@ def _add_recommended_deployments_for_model(metadata_file: Path) -> bool:
 @cli.command(name="validate")
 @assets_path_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_metadata_command(assets_path: str = "assets/instinct", canonical_name: Optional[str] = None) -> None:
+def validate_metadata_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
     """
     Validate all metadata.yaml files against Pydantic models.
 
@@ -565,16 +525,29 @@ def validate_metadata_command(assets_path: str = "assets/instinct", canonical_na
         canonical_name: If provided, only validate files matching this canonical name
     """
     results = validate_metadata(assets_path, canonical_name)
+    _report_validation_results(results)
+    sys.exit(0 if results["invalid_count"] == 0 else 1)
 
-    if results["valid_count"] == results["total_count"]:
+
+@cli.command(name="validate-all")
+@assets_root_option
+@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
+def validate_all_metadata_command(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
+    """Validate metadata across all accelerator asset directories."""
+    totals = {"total_count": 0, "valid_count": 0, "invalid_count": 0}
+    for assets_path in discover_assets_paths(assets_root):
+        results = validate_metadata(assets_path, canonical_name)
+        for key in totals:
+            totals[key] += results[key]
+    _report_validation_results(totals)
+    sys.exit(0 if totals["invalid_count"] == 0 else 1)
+
+
+def _report_validation_results(results: Dict[str, int]) -> None:
+    if results["invalid_count"] == 0:
         logger.info(f"✅ All {results['total_count']} metadata files are valid!")
-        sys.exit(0)
     else:
-        error_message = (
-            f"❌ {results['invalid_count']} out of {results['total_count']} metadata files failed validation"
-        )
-        logger.error(error_message)
-        sys.exit(1)
+        logger.error(f"❌ {results['invalid_count']} out of {results['total_count']} metadata files failed validation")
 
 
 def validate_metadata(assets_path: str, canonical_name: Optional[str] = None) -> Dict[str, int]:
@@ -656,7 +629,7 @@ def extract_all_keys(data: Dict[str, Any], prefix: str = "") -> List[str]:
 @cli.command(name="list-keys")
 @assets_path_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def list_keys_command(assets_path: str = "assets/instinct", canonical_name: Optional[str] = None) -> None:
+def list_keys_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
     """
     List all keys from metadata.yaml files.
 
@@ -688,9 +661,35 @@ def list_keys_command(assets_path: str = "assets/instinct", canonical_name: Opti
 @cli.command(name="validate-recommended-deployments-profile-ids")
 @assets_path_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_recommended_deployments_profile_ids(
-    assets_path: str = "assets/instinct", canonical_name: Optional[str] = None
+def validate_recommended_deployments_profile_ids(assets_path: str, canonical_name: Optional[str] = None) -> None:
+    """Validate that profile ids in recommended deployments exist and match."""
+    failed = _validate_recommended_deployments_profile_ids(assets_path, canonical_name)
+    if failed:
+        logger.error("❌ Recommended deployments validation failed")
+        sys.exit(1)
+    logger.info("✅ Recommended deployments validation passed.")
+
+
+@cli.command(name="validate-all-recommended-deployments-profile-ids")
+@assets_root_option
+@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
+def validate_all_recommended_deployments_profile_ids(
+    assets_root: str = "assets", canonical_name: Optional[str] = None
 ) -> None:
+    """Validate recommended deployment profile ids across all accelerator asset directories."""
+    any_failed = False
+    for assets_path in discover_assets_paths(assets_root):
+        if _validate_recommended_deployments_profile_ids(assets_path, canonical_name):
+            any_failed = True
+    if any_failed:
+        logger.error("❌ Recommended deployments validation failed")
+        sys.exit(1)
+    logger.info("✅ All recommended deployments validation passed.")
+    sys.exit(0)
+
+
+def _validate_recommended_deployments_profile_ids(assets_path: str, canonical_name: Optional[str] = None) -> bool:
+    """Core logic: returns True if validation failed."""
 
     def rd_to_profile_metadata(rd: Dict[str, Any], profile_metadata: ProfileMetadata) -> ProfileMetadata:
         key_mapping = {
@@ -720,7 +719,7 @@ def validate_recommended_deployments_profile_ids(
             logger.error(
                 f"❌ Recommended deployments validation failed. {metadata_file} is missing canonical name ('com.amd.aim.model.canonicalName')."
             )
-            sys.exit(1)
+            return True
 
         count_non_existent_profiles = 0
         count_metadata_mismatches = 0
@@ -730,7 +729,7 @@ def validate_recommended_deployments_profile_ids(
             profile_id = rd.get("profileId")
             if profile_id:
                 count_rd_with_profiles += 1
-                profile_path = Path(assets_path) / canonical_name_from_metadata / "profiles" / f"{profile_id}.yaml"
+                profile_path = metadata_file.parent / "profiles" / f"{profile_id}.yaml"
                 if not profile_path.exists():
                     logger.error(f"Recommended deployment references non-existent profile: {profile_path}")
                     count_non_existent_profiles += 1
@@ -738,6 +737,8 @@ def validate_recommended_deployments_profile_ids(
 
                 profile = read_yaml(profile_path)
                 profile_metadata = profile.get("metadata", {})
+                profile_metadata.pop("accelerator_type", None)
+                profile_metadata.pop("primary", None)
                 from_profile = ProfileMetadata.from_dict(profile_metadata)
                 from_metadata = rd_to_profile_metadata(rd, from_profile)
 
@@ -765,10 +766,10 @@ def validate_recommended_deployments_profile_ids(
             )
 
     if failed:
-        logger.error("❌ Recommended deployments validation failed")
-        sys.exit(1)
+        return True
 
     logger.info(f"✅ All {len(metadata_files)} metadata files passed recommended deployment check.")
+    return False
 
 
 if __name__ == "__main__":

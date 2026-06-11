@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# The echo service is hosted by BentoML. `use_arguments` (consuming AIM's
+# forwarded --arg port) requires BentoML >= 1.4.8. Pydantic ships with BentoML
+# but is pinned here since service.py imports it directly.
+bentoml>=1.4.8
+pydantic>=2.0

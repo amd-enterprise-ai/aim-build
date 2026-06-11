@@ -128,3 +128,7 @@ def rename_keys(dict_value: Dict[str, Any], key_mapping: Dict[str, str]) -> Dict
     for old_key, new_key in key_mapping.items():
         dict_value = rename_key(dict_value, old_key, new_key)
     return dict_value
+
+
+def has_key(dict_value: Dict[str, Any], key_path: str) -> bool:
+    return get_value(dict_value, key_path) is not None

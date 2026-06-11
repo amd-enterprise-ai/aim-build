@@ -5,16 +5,17 @@
 aim_id: test/model
 model_id: test/model
 metadata:
-  engine: "vllm"
-  gpu: "MI300X"
-  precision: "fp16"
-  gpu_count: 1
-  metric: "latency"
+  engine: vllm
+  precision: fp16
+  metric: latency
   manual_selection_only: false
-  type: "unoptimized"
-
+  type: unoptimized
+  accelerator_type: gpu
+  accelerator_model: MI300X
+  accelerator_count: 1
+  gpu_count: 1
+  gpu: MI300X
 engine_args:
-  # Test all supported argument types in one profile
   string-arg: string_value
   int-arg: 42
   float-arg: 3.14159
@@ -22,21 +23,20 @@ engine_args:
   bool-false-arg: false
   null-flag: null
   list-arg:
-    - item1
-    - item2
-    - item3
+  - item1
+  - item2
+  - item3
   tuple-arg:
-    - tuple1
-    - tuple2
+  - tuple1
+  - tuple2
   mixed-types-list:
-    - 1
-    - string
-    - 3.14
-    - true
-
+  - 1
+  - string
+  - 3.14
+  - true
 env_vars:
   SIMPLE_VAR: simple
   SPACED_VAR: value with spaces
-  SPECIAL_CHARS: "value'with\"special$chars"
+  SPECIAL_CHARS: value'with"special$chars
   NUMERIC_VAR: 123
   BOOLEAN_VAR: true

@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+base_image:
+  base_registry_namespace: vllm
+  base_repository: vllm-openai-cpu
+  base_tag: v0.19.0
+  registry_host: docker.io

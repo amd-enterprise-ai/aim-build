@@ -9,75 +9,97 @@ from unittest.mock import patch
 
 import pytest
 
-from aim_common import GPUModel
+from aim_common import AcceleratorModel
 from aim_runtime.config import AIMConfig
 
 
-class TestGPUModelConfig:
-    """Tests for AIM_GPU_MODEL environment variable handling."""
+class TestAcceleratorModelConfig:
+    """Tests for AIM_ACCELERATOR_MODEL environment variable handling."""
 
-    def test_valid_gpu_model(self):
-        """Test that valid GPU model is accepted."""
+    def test_valid_accelerator_model(self):
+        """Test that valid accelerator model is accepted."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ACCELERATOR_MODEL": "MI300X",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_model == AcceleratorModel.MI300X
+
+    def test_accelerator_model_case_insensitive(self):
+        """Test that accelerator model is case-insensitive."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ACCELERATOR_MODEL": "mi300x",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_model == AcceleratorModel.MI300X
+
+    def test_invalid_accelerator_model(self):
+        """Test that invalid accelerator model logs warning and defaults to None."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ACCELERATOR_MODEL": "INVALID_GPU",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_model is None
+
+    def test_no_accelerator_model(self):
+        """Test that missing accelerator model defaults to None."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+        }
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("AIM_ACCELERATOR_MODEL", "AIM_GPU_MODEL")}
+        with patch.dict(os.environ, clean_env, clear=True):
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = AIMConfig.from_environment()
+                assert config.accelerator_model is None
+
+    def test_all_accelerator_models_valid(self):
+        """Test that all AcceleratorModel enum values are valid."""
+        for model in AcceleratorModel:
+            env_vars = {
+                "AIM_MODEL_ID": "test/model",
+                "AIM_ACCELERATOR_MODEL": model.value,
+            }
+            with patch.dict(os.environ, env_vars, clear=False):
+                config = AIMConfig.from_environment()
+                assert config.accelerator_model == model
+
+    def test_accelerator_model_in_to_dict(self):
+        """Test that accelerator_model appears in to_dict output."""
+        config = AIMConfig(
+            aim_id="test/aim",
+            accelerator_model=AcceleratorModel.MI300X,
+        )
+        config_dict = config.to_dict()
+        assert "accelerator_model" in config_dict
+        assert config_dict["accelerator_model"] == AcceleratorModel.MI300X
+
+    def test_deprecated_gpu_model_env_var(self):
+        """Test that deprecated AIM_GPU_MODEL env var still works as fallback."""
         env_vars = {
             "AIM_MODEL_ID": "test/model",
             "AIM_GPU_MODEL": "MI300X",
         }
-        with patch.dict(os.environ, env_vars, clear=False):
-            config = AIMConfig.from_environment()
-            assert config.gpu_model == GPUModel.MI300X
-
-    def test_gpu_model_case_insensitive(self):
-        """Test that GPU model is case-insensitive."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-            "AIM_GPU_MODEL": "mi300x",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            config = AIMConfig.from_environment()
-            assert config.gpu_model == GPUModel.MI300X
-
-    def test_invalid_gpu_model(self):
-        """Test that invalid GPU model logs warning and defaults to None."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-            "AIM_GPU_MODEL": "INVALID_GPU",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            config = AIMConfig.from_environment()
-            assert config.gpu_model is None
-
-    def test_no_gpu_model(self):
-        """Test that missing GPU model defaults to None."""
-        env_vars = {
-            "AIM_MODEL_ID": "test/model",
-        }
-        # Clear AIM_GPU_MODEL if it exists
-        clean_env = {k: v for k, v in os.environ.items() if k != "AIM_GPU_MODEL"}
+        clean_env = {k: v for k, v in os.environ.items() if k != "AIM_ACCELERATOR_MODEL"}
         with patch.dict(os.environ, clean_env, clear=True):
             with patch.dict(os.environ, env_vars, clear=False):
                 config = AIMConfig.from_environment()
-                assert config.gpu_model is None
+                assert config.accelerator_model == AcceleratorModel.MI300X
 
-    def test_all_gpu_models_valid(self):
-        """Test that all GPUModel enum values are valid."""
-        for gpu_model in GPUModel:
-            env_vars = {
-                "AIM_MODEL_ID": "test/model",
-                "AIM_GPU_MODEL": gpu_model.value,
-            }
-            with patch.dict(os.environ, env_vars, clear=False):
-                config = AIMConfig.from_environment()
-                assert config.gpu_model == gpu_model
-
-    def test_gpu_model_in_to_dict(self):
-        """Test that gpu_model appears in to_dict output."""
-        config = AIMConfig(
-            aim_id="test/aim",
-            gpu_model=GPUModel.MI300X,
-        )
-        config_dict = config.to_dict()
-        assert "gpu_model" in config_dict
-        assert config_dict["gpu_model"] == GPUModel.MI300X
+    def test_new_env_var_takes_precedence_over_deprecated(self):
+        """Test that AIM_ACCELERATOR_MODEL takes precedence over AIM_GPU_MODEL."""
+        env_vars = {
+            "AIM_MODEL_ID": "test/model",
+            "AIM_ACCELERATOR_MODEL": "MI325X",
+            "AIM_GPU_MODEL": "MI300X",
+        }
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_model == AcceleratorModel.MI325X
 
 
 class TestLogLevelConfig:

@@ -1,0 +1,26 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: mit/boltz2
+model_id: mit/boltz2
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  gpu: MI300X
+  gpu_count: 1
+  manual_selection_only: true
+  metric: latency
+  precision: fp16
+  primary: true
+  type: unoptimized
+engine_args:
+  accelerator: gpu
+  gpu_count: 1
+  no_kernels: true
+  num_workers: 0
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

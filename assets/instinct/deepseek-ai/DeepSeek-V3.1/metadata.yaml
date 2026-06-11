@@ -6,7 +6,7 @@ com:
   amd:
     aim:
       description:
-        full: "DeepSeek-V3.1 is a 671 billion total parameter mixture-of-experts (MoE) language model from DeepSeek AI, with 37 billion active parameters and a 128K token context length. It is a hybrid model supporting both thinking mode (for extended reasoning) and non-thinking mode (for standard dialogue). Post-trained on top of DeepSeek-V3.1-Base with expanded long-context training (630B tokens for 32K extension, 209B tokens for 128K extension). The model features tool calling with code agent and search agent capabilities, and uses UE8M0 FP8 scale data format on both weights and activations. Licensed under MIT."
+        full: "DeepSeek-V3.1 is a 671 billion total parameter mixture-of-experts (MoE) language model from DeepSeek AI, with 37 billion active parameters. It is a hybrid model supporting both thinking mode (for extended reasoning) and non-thinking mode (for standard dialogue). Post-trained on top of DeepSeek-V3.1-Base with expanded long-context training (630B tokens for 32K extension, 209B tokens for 128K extension). The model features tool calling with code agent and search agent capabilities, and uses UE8M0 FP8 scale data format on both weights and activations. Licensed under MIT."
       hfToken:
         required: false
       model:

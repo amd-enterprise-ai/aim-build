@@ -1,0 +1,11 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# TODO: aim-bentoml-base image does not exist yet — update base_tag once the image is built and published.
+base_image:
+  registry_host: ghcr.io
+  base_registry_namespace: silogen
+  base_repository: aim-bentoml-base
+  base_tag: "0.12"
+specialized: true

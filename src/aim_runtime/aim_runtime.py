@@ -11,17 +11,20 @@ AIM runtime workflow including profile selection and command generation.
 
 import logging
 import os
+import shlex
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
+from aim_runtime.utils import read_yaml
 
 from .command_generator import CommandGenerator
 from .config import AIMConfig
+from .cpu_detector import EpycDetector
 from .engine_config import load_engine_config
 from .gpu_detector import get_gfx_arch
 from .model_storage import StorageBackendRegistry
+from .object_model import AcceleratorType
 from .profile_selector import ProfileSelector
 
 logger = logging.getLogger(__name__)
@@ -204,8 +207,7 @@ class AIMRuntime:
             logger.info(f"Selected profile: {profile.profile_handling.path}")
 
             # Read and parse profile to extract model
-            with open(profile.profile_handling.path, "r", encoding="utf-8") as f:
-                profile_data = yaml.safe_load(f)
+            profile_data = read_yaml(Path(profile.profile_handling.path))
 
             # Get model_id from profile
             if "model_id" in profile_data and profile_data["model_id"]:
@@ -270,12 +272,20 @@ class AIMRuntime:
             raise ValueError("Model not specified in profile or configuration")
 
         # Install pre-built AITER kernels for the target GPU architecture
-        if profile.metadata and profile.metadata.gpu:
-            _install_aiter_prebuilt_kernels(profile.metadata.gpu)
+        if profile.metadata and profile.metadata.accelerator_model:
+            _install_aiter_prebuilt_kernels(profile.metadata.accelerator_model)
 
         # Step 3: Generate execution parameters
         logger.info("Generating execution parameters...")
         command_list, env_vars = self.command_generator.generate_execution_params(profile)
+
+        # Step 3b: Override CPU env vars based on detected cores
+        if self.config.accelerator_type == AcceleratorType.CPU and hasattr(self.profile_selector, "detected_cpu_cores"):
+            EpycDetector.override_cpu_env_vars(
+                env_vars,
+                self.profile_selector.detected_cpu_cores,
+                cpuset_bind=self.profile_selector.cpuset_bind,
+            )
 
         # Step 4: Set environment variables
         logger.info("--- Setting Environment Variables ---")
@@ -286,7 +296,7 @@ class AIMRuntime:
 
         # Step 5: Log command
         logger.info("--- Execution Command ---")
-        logger.info(f"Command: {' '.join(command_list)}")
+        logger.info(f"Command: {shlex.join(command_list)}")
         logger.info("-------------------------")
 
         # Step 6: Resolve the executable path and execute
@@ -318,8 +328,18 @@ class AIMRuntime:
             path = profile.profile_handling.path
 
             # Read and parse profile contents as YAML
-            with open(profile.profile_handling.path, "r", encoding="utf-8") as f:
-                profile_data = yaml.safe_load(f)
+            profile_data = read_yaml(Path(profile.profile_handling.path))
+
+            # Override CPU env vars in the profile data for dry-run output
+            if self.config.accelerator_type == AcceleratorType.CPU and hasattr(
+                self.profile_selector, "detected_cpu_cores"
+            ):
+                if "env_vars" in profile_data and profile_data["env_vars"]:
+                    EpycDetector.override_cpu_env_vars(
+                        profile_data["env_vars"],
+                        self.profile_selector.detected_cpu_cores,
+                        cpuset_bind=self.profile_selector.cpuset_bind,
+                    )
 
             # Step 3: Extract required models from profile
             models = _extract_models_from_profile(profile_data)

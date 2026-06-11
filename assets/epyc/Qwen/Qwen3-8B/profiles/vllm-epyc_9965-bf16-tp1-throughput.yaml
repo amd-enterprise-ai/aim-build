@@ -1,0 +1,23 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3-8B
+model_id: Qwen/Qwen3-8B
+metadata:
+  accelerator_count: 1
+  accelerator_model: EPYC_9965
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: true
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  dtype: bfloat16
+env_vars:
+  OMP_NUM_THREADS: '192'
+  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNNL_MATMUL_ALGO: '1'

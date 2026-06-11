@@ -10,7 +10,6 @@ from profile configurations. Engine-specific details (launch command, model
 argument, validation) are configured via engines.yaml rather than hardcoded.
 """
 
-import json
 import logging
 import os
 import shlex
@@ -21,10 +20,12 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError as PydanticValidationError
 
+from aim_common.engine_args_models import ENGINE_ARGS_MODELS, engine_args_to_cli_list
+
 from .config import AIMConfig
-from .engine_config import VALIDATORS, EngineConfig
+from .engine_config import EngineConfig
 from .model_cache_resolver import ModelCacheResolver
-from .object_model import Profile
+from .object_model import Engine, Profile
 from .profile_validator import ProfileValidator
 
 logger = logging.getLogger(__name__)
@@ -45,11 +46,11 @@ class CommandGenerator:
         self.cache_resolver = ModelCacheResolver(config.cache_path)
         self.profile_validator = ProfileValidator()
 
-        # Resolve engine arg validator
-        self._validator_fn = VALIDATORS.get(engine_config.validator)
+        # Resolve engine arg model
+        self._engine_args_model = ENGINE_ARGS_MODELS.get(engine_config.validator)
 
-        if self._validator_fn:
-            logger.info(f"Using '{engine_config.validator}' validator for engine_args")
+        if self._engine_args_model:
+            logger.info(f"Using '{engine_config.validator}' engine args model for validation")
 
     def generate_execution_params(self, profile: Profile) -> tuple[List[str], Dict[str, str]]:
         """
@@ -104,8 +105,7 @@ class CommandGenerator:
         For direct execution via os.execv(), use _build_command_list() instead.
         """
         command_list = self._build_command_list(profile)
-        # Use shlex.quote() to properly escape arguments for shell execution
-        return " ".join(shlex.quote(arg) for arg in command_list)
+        return shlex.join(command_list)
 
     def _build_command_list(self, profile: Profile) -> List[str]:
         """Build the command as a list of arguments."""
@@ -139,9 +139,10 @@ class CommandGenerator:
         # Add system overrides (always take precedence)
         engine_args["port"] = self.config.port
 
-        # Add served-model-name (as a list)
-        engine_args["served-model-name"] = served_model_name_list
-        logger.info(f"Setting served-model-name to: {served_model_name_list}")
+        # served-model-name is a vLLM-specific OpenAI-compatibility flag
+        if self.config.engine == Engine.VLLM:
+            engine_args["served-model-name"] = served_model_name_list
+            logger.info(f"Setting served-model-name to: {served_model_name_list}")
 
         args_list = self._build_engine_args(engine_args)
 
@@ -150,8 +151,11 @@ class CommandGenerator:
         if launch[0] == "python":
             launch[0] = "python" if shutil.which("python") else "python3"
 
-        # Construct the full command
-        command_list = launch + [self.engine_config.model_arg, model_path] + args_list
+        # Prepend model path when the engine uses a dedicated model flag
+        if self.engine_config.model_arg:
+            command_list = launch + [self.engine_config.model_arg, model_path] + args_list
+        else:
+            command_list = launch + args_list
 
         return command_list
 
@@ -223,36 +227,12 @@ class CommandGenerator:
 
     def _validate_engine_args(self, engine_args: Dict[str, Any]) -> None:
         """Validate engine args using the configured validator."""
-        if self._validator_fn:
-            self._validator_fn(engine_args)
+        if self._engine_args_model:
+            self._engine_args_model.model_validate(engine_args)
 
     def _build_engine_args(self, engine_args: Dict[str, Any]) -> List[str]:
         """Build engine arguments list from the engine_args dictionary."""
-        args_list = []
-
-        for key, value in engine_args.items():
-            if value is None:
-                # Flag without value
-                args_list.append(f"--{key}")
-            elif isinstance(value, bool):
-                # Boolean flags
-                if value:
-                    args_list.append(f"--{key}")
-                # Skip false boolean values
-            elif isinstance(value, (list, tuple)):
-                # Multiple values - add flag once followed by all values
-                args_list.append(f"--{key}")
-                for item in value:
-                    args_list.append(str(item))
-            elif isinstance(value, dict):
-                # YAML objects (dictionaries in Python) - JSON string
-                # No quotes needed since we use os.execv() which passes args directly
-                args_list.extend([f"--{key}", json.dumps(value)])
-            else:
-                # Regular key-value pairs
-                args_list.extend([f"--{key}", str(value)])
-
-        return args_list
+        return engine_args_to_cli_list(engine_args, self.engine_config.args_format)
 
     def _create_script_content(self, command: str, env_vars: Optional[Dict[str, Any]] = None) -> str:
         """Create the shell script content."""

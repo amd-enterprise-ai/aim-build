@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional, Type, Union
 
 from aim_common import EnumerationType
 
-from .object_model import Engine, GPUModel, Metric, Precision
+from .object_model import AcceleratorFamily, AcceleratorModel, AcceleratorType, Engine, Metric, Precision
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,10 @@ class AIMConfig:
     aim_id: Optional[str] = None  # The AIM container identifier (from AIM_ID, for model-specific containers)
     model_id: Optional[str] = None  # The model to deploy (from AIM_MODEL_ID, for base container)
     precision: Optional[Precision] = None  # None = auto-detect best precision
-    gpu_count: Union[int, str] = "auto"
-    gpu_model: Optional[GPUModel] = None
+    accelerator_type: AcceleratorType = AcceleratorType.GPU
+    accelerator_family: AcceleratorFamily = AcceleratorFamily.INSTINCT
+    accelerator_count: Union[int, str] = "auto"
+    accelerator_model: Optional[AcceleratorModel] = None
     engine: Engine = Engine.VLLM  # type: ignore[attr-defined]
     metric: Metric = Metric.LATENCY
     profile_id: Optional[str] = None
@@ -65,16 +67,23 @@ class AIMConfig:
             raise ValueError("Cannot set both AIM_ID and AIM_MODEL_ID. Only one should be set.")
 
     @classmethod
-    def _read_gpu_count(cls):
-        gpu_count = os.environ.get("AIM_GPU_COUNT", "auto")
+    def _read_accelerator_count(cls):
+        """Read accelerator count from AIM_ACCELERATOR_COUNT (or deprecated AIM_GPU_COUNT)."""
+        value = os.environ.get("AIM_ACCELERATOR_COUNT")
+        if value is None:
+            value = os.environ.get("AIM_GPU_COUNT")
+            if value is not None:
+                logger.warning("AIM_GPU_COUNT is deprecated, use AIM_ACCELERATOR_COUNT instead.")
+        if value is None:
+            return "auto"
 
-        if gpu_count == "auto":
+        if value == "auto":
             return "auto"
 
         try:
-            return int(gpu_count)
+            return int(value)
         except ValueError:
-            logger.warning(f"AIM_GPU_COUNT must be 'auto' or an integer. Was {gpu_count}. Defaulting to 'auto'.")
+            logger.warning(f"AIM_ACCELERATOR_COUNT must be 'auto' or an integer. Was {value}. Defaulting to 'auto'.")
             return "auto"
 
     @classmethod
@@ -87,14 +96,21 @@ class AIMConfig:
             return enum(default.lower())
 
     @classmethod
-    def _read_gpu_model(cls) -> Optional[GPUModel]:
-        """Read AIM_GPU_MODEL env var. Returns None if unset or unrecognized."""
-        value = os.environ.get("AIM_GPU_MODEL")
+    def _read_accelerator_model(cls) -> Optional[AcceleratorModel]:
+        """Read accelerator model from AIM_ACCELERATOR_MODEL (or deprecated AIM_GPU_MODEL)."""
+        value = os.environ.get("AIM_ACCELERATOR_MODEL")
+        if not value:
+            value = os.environ.get("AIM_GPU_MODEL")
+            if value:
+                logger.warning("AIM_GPU_MODEL is deprecated, use AIM_ACCELERATOR_MODEL instead.")
         if not value:
             return None
-        result = GPUModel.from_string_with_default(value)
+        result = AcceleratorModel.from_string_with_default(value)
         if result is None:
-            logger.warning(f"AIM_GPU_MODEL must be one of {[e.value for e in GPUModel]}. Was {value}. Ignoring.")
+            logger.warning(
+                f"AIM_ACCELERATOR_MODEL must be one of {[e.value for e in AcceleratorModel]}. "
+                f"Was {value}. Ignoring."
+            )
         return result
 
     @classmethod
@@ -188,9 +204,27 @@ class AIMConfig:
         """
         aim_id = os.environ.get("AIM_ID")
         model_id = os.environ.get("AIM_MODEL_ID")
+        accelerator_type_str = os.environ.get("AIM_ACCELERATOR_TYPE", "gpu").lower()
+        accelerator_family_str = os.environ.get("AIM_ACCELERATOR_FAMILY", "instinct").lower()
 
         logger.debug(f"Read AIM_ID: {aim_id}")
         logger.debug(f"Read AIM_MODEL_ID: {model_id}")
+        logger.debug(f"Read AIM_ACCELERATOR_TYPE: {accelerator_type_str}")
+        logger.debug(f"Read AIM_ACCELERATOR_FAMILY: {accelerator_family_str}")
+
+        try:
+            accelerator_type = AcceleratorType(accelerator_type_str)
+        except ValueError:
+            allowed_values = ", ".join(list(map(str, AcceleratorType)))
+            error_message = f"AIM_ACCELERATOR_TYPE must be one of [{allowed_values}]. Was '{accelerator_type_str}'."
+            raise ValueError(error_message)
+
+        try:
+            accelerator_family = AcceleratorFamily(accelerator_family_str)
+        except ValueError:
+            allowed_values = ", ".join(list(map(str, AcceleratorFamily)))
+            error_message = f"AIM_ACCELERATOR_FAMILY must be one of [{allowed_values}]. Was '{accelerator_family_str}'."
+            raise ValueError(error_message)
 
         # Validate that only one is set, not both
         if aim_id and model_id:
@@ -207,8 +241,10 @@ class AIMConfig:
             aim_id=aim_id,
             model_id=model_id,
             precision=cls._read_precision(),
-            gpu_count=cls._read_gpu_count(),
-            gpu_model=cls._read_gpu_model(),
+            accelerator_type=accelerator_type,
+            accelerator_family=accelerator_family,
+            accelerator_count=cls._read_accelerator_count(),
+            accelerator_model=cls._read_accelerator_model(),
             engine=cls._read_enum("AIM_ENGINE", "vllm", Engine),
             metric=cls._read_enum("AIM_METRIC", "latency", Metric),
             profile_id=os.environ.get("AIM_PROFILE_ID"),
@@ -229,8 +265,9 @@ class AIMConfig:
             "aim_id": self.aim_id,
             "model_id": self.model_id,
             "precision": self.precision,
-            "gpu_count": self.gpu_count,
-            "gpu_model": self.gpu_model,
+            "accelerator_type": self.accelerator_type,
+            "accelerator_count": self.accelerator_count,
+            "accelerator_model": self.accelerator_model,
             "engine": self.engine,
             "metric": self.metric,
             "profile_id": self.profile_id,

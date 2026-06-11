@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Open-weight 21B parameter MoE model with 3.6B active parameters for lower-latency use cases."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "unsloth/gpt-oss-20b-BF16"
+        tags:
+        - "text-generation"
+        - "conversational"
+        - "chat"
+        source: "https://huggingface.co/unsloth/gpt-oss-20b"
+        variants:
+        - "unsloth/gpt-oss-20b"
+        - "openai/gpt-oss-20b"
+        publisher: "OpenAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "GPT-OSS 20B is an open-weight mixture-of-experts (MoE) language model from OpenAI with 21 billion total parameters and 3.6 billion active parameters. The model features configurable reasoning effort across three levels (low, medium, high), full chain-of-thought access, and agentic capabilities including function calling, web browsing, and Python code execution. It supports structured outputs and fine-tuning on consumer hardware. Post-trained with MXFP4 quantization of MoE weights, enabling deployment within 16GB of memory. Designed for lower-latency and local or specialized use cases."
+      title: "GPT OSS 20B"

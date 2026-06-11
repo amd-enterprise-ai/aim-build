@@ -1,0 +1,60 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ARGs before FROM are used in the FROM instruction
+# these must be overridden via --build-arg
+ARG PARENT_REGISTRY_PREFIX=dummy_parent_registry_prefix
+ARG PARENT_REPOSITORY=dummy_parent_repository
+ARG PARENT_TAG=dummy_parent_tag
+FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
+
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG PARENT_REGISTRY_PREFIX
+ARG PARENT_REPOSITORY
+ARG PARENT_TAG
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONPATH="/workspace/aim-runtime/src"
+ENV HF_HOME="/workspace/model-cache"
+ENV HF_DATASETS_CACHE="/workspace/model-cache"
+ENV HF_HUB_DISABLE_TELEMETRY="1"
+ENV AIM_UPSTREAM_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
+ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="true"
+ENV AIM_CONFIG_PATH="/workspace/aim-runtime/config"
+ENV AIM_ACCELERATOR_FAMILY="cpu"
+ENV AIM_ACCELERATOR_TYPE="cpu"
+
+# Set VLLM_CPU_OMP_THREADS_BIND to "auto" by default to allow container environment to function correctly.
+# E.g. There is no way to bind to cpu 0-128 if the container is not given those cores...
+ENV VLLM_CPU_OMP_THREADS_BIND="auto"
+
+RUN echo "AIM Upstream Image: ${AIM_UPSTREAM_IMAGE_REF}"
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Copy AIM Runtime source code (only runtime packages, not developer tooling)
+COPY src/aim_runtime/ /workspace/aim-runtime/src/aim_runtime/
+COPY src/aim_common/ /workspace/aim-runtime/src/aim_common/
+COPY requirements/requirements.txt /workspace/aim-runtime/
+COPY src/entrypoint.py /workspace/entrypoint.py
+RUN chmod +x /workspace/entrypoint.py
+
+# Copy general profiles and engine config
+COPY assets/${AIM_ACCELERATOR_FAMILY}/base/profiles/general /workspace/aim-runtime/profiles/general
+COPY assets/${AIM_ACCELERATOR_FAMILY}/base/config /workspace/aim-runtime/config
+
+# Install runtime dependencies
+RUN cd /workspace/aim-runtime && \
+    pip3 install -r requirements.txt
+
+# Create cache directories
+RUN mkdir -p /workspace/model-cache
+
+# Copy License files (placed late to preserve build cache for expensive preceding layers)
+COPY LICENSE /workspace/LICENSE
+
+ENTRYPOINT ["./entrypoint.py"]

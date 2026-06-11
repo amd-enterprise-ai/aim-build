@@ -5,11 +5,14 @@ import logging
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, overload
 
 import yaml
+from pydantic import BaseModel, ValidationError
 
 from aim_common.compat import StrEnum
+
+T = TypeVar("T", bound=BaseModel)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -164,25 +167,52 @@ def save_yaml(
     return modified
 
 
-def read_yaml(path: Path) -> Dict[str, Any]:
+@overload
+def read_yaml(path: Path) -> Dict[str, Any]: ...
+
+
+@overload
+def read_yaml(path: Path, model: Type[T]) -> T: ...
+
+
+def read_yaml(path: Path, model: Optional[Type[T]] = None) -> Union[Dict[str, Any], T]:
     """
-    Read YAML data from a file
+    Read YAML data from a file, optionally validating against a Pydantic model.
 
     Args:
         path: Path to the YAML file
+        model: Optional Pydantic model class to validate and parse the data into.
 
     Returns:
-        Dictionary containing the parsed YAML data
+        Dictionary containing the parsed YAML data, or a validated Pydantic model instance.
     """
     if not path or not path.exists():
         error_message = f"YAML file does not exist: {path}"
         logger.error(error_message)
         raise ValueError(error_message)
 
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     logger.debug(f"Read YAML from {path}")
+
+    if model is not None:
+        try:
+            return model.model_validate(data)
+        except ValidationError:
+            logger.error(f"Validation failed for {path}")
+            raise
+
     return data
+
+
+def dump_yaml(data: Any, **kwargs) -> str:
+    """Serialize dict or a Python object to a YAML string (for stdout/logging, not file I/O)."""
+    return yaml.safe_dump(data, sort_keys=False, **kwargs)
+
+
+def load_yaml_string(content: str) -> Any:
+    """Parse a YAML string (not a file) into a dict or Python object."""
+    return yaml.safe_load(content)
 
 
 def get_yamls(yaml_dir_path: Path, subfolder: Optional[str] = None) -> List[Path]:
@@ -261,24 +291,3 @@ def sort_yaml_file(file_path: Path, file_type: FileType) -> bool:
         path=file_path,
         enforce_double_quotes=params.enforce_double_quotes,
     )
-
-
-def resolve_paths(
-    files: Optional[List[str]] = None, directory: Optional[str] = None, canonical_name: Optional[str] = None
-) -> List[Path]:
-    if files:
-        paths = [Path(file) for file in files]
-    else:
-        if not directory:
-            logger.error("Either 'files' or 'directory' params must be provided.")
-            return []
-
-        directory_path = Path(directory)
-        if not directory_path.exists() or not directory_path.is_dir():
-            logger.error(f"Directory does not exist: {directory_path}")
-            return []
-
-        paths = get_yamls(directory_path, canonical_name)
-        logger.debug(f"Found {len(paths)} files to process in {directory_path}")
-
-    return paths

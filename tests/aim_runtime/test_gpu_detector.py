@@ -3,16 +3,25 @@
 # SPDX-License-Identifier: MIT
 
 import sys
+from pathlib import Path
 from types import ModuleType
 
 from aim_runtime.gpu_detector import GPUDetector
 
 
 def test_model_mapping_and_normalization():
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d._normalize_device_id("74a1") == "0x74a1"
     assert d._normalize_device_id("0x74a1") == "0x74a1"
+    assert d._normalize_device_id("7551") == "0x7551"
+    assert d._normalize_device_id("0x7551") == "0x7551"
+    assert d._normalize_device_id("7448") == "0x7448"
+    assert d._normalize_device_id("0x7448") == "0x7448"
     assert d.get_gpu_model("0x74a1") == "MI300X"
+    assert d.get_gpu_model("0x7551") == "R9700"
+    assert d.get_gpu_model("0x7448") == "W7900"
+    assert d.get_gpu_model("0x744b") == "W7900"
     assert d.get_gpu_model("0x7000") is None
 
 
@@ -50,7 +59,8 @@ def test_library_path_idle(monkeypatch):
     fake_mod.amdsmi_shut_down = amdsmi_shut_down
     monkeypatch.setitem(sys.modules, "amdsmi", fake_mod)
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is True
     assert d.gpu_count == 2
     assert d.device_ids == ["0x74a1", "0x74a2"]
@@ -90,16 +100,19 @@ def test_library_path_busy_sets_idle_false(monkeypatch):
     fake_mod.amdsmi_shut_down = amdsmi_shut_down
     monkeypatch.setitem(sys.modules, "amdsmi", fake_mod)
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is True
     assert d.all_gpus_idle is False
 
 
 def test_no_gpus_when_library_returns_none(monkeypatch):
-    # Force library path to return None (no GPUs)
-    monkeypatch.setattr(GPUDetector, "_get_gpu_info", lambda self: None)
+    # Force both detection paths to return None (no GPUs)
+    monkeypatch.setattr(GPUDetector, "_get_gpu_info_sysfs", lambda self: None)
+    monkeypatch.setattr(GPUDetector, "_get_gpu_info_amdsmi", lambda self: None)
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is False
     assert d.device_ids is None
     assert d.total_free_vram is None
@@ -121,7 +134,8 @@ def test_library_empty_handles(monkeypatch):
 
     # Library returns empty handles; should report no GPUs
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is False
 
 
@@ -129,7 +143,8 @@ def test_library_importerror(monkeypatch):
     # Ensure amdsmi is not importable — detector should report no GPUs
     monkeypatch.delitem(sys.modules, "amdsmi", raising=False)
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is False
 
 
@@ -151,5 +166,6 @@ def test_library_generic_exception(monkeypatch):
     fake_mod.amdsmi_get_gpu_activity = lambda h: {"gfx_activity": 0, "umc_activity": 0}
     monkeypatch.setitem(sys.modules, "amdsmi", fake_mod)
 
-    d = GPUDetector()
+    # Force sysfs path to fail so amdsmi backend is used
+    d = GPUDetector(drm_base=Path("/nonexistent"))
     assert d.has_gpus is False

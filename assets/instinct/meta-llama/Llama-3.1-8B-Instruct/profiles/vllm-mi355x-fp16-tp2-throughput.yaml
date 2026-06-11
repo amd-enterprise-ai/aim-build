@@ -7,12 +7,16 @@
 aim_id: meta-llama/Llama-3.1-8B-Instruct
 model_id: meta-llama/Llama-3.1-8B-Instruct
 metadata:
+  accelerator_count: 2
+  accelerator_model: MI355X
+  accelerator_type: gpu
   engine: vllm
   gpu: MI355X
   gpu_count: 2
   manual_selection_only: true
   metric: throughput
   precision: fp16
+  primary: false
   type: unoptimized
 engine_args:
   async-scheduling: null

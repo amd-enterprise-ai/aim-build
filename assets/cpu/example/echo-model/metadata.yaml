@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "example/echo-model"
+        tags:
+        - "example"
+        - "harness-demo"
+        source: "https://github.com/amd-enterprise-ai/aim-build"
+        variants:
+        - "example/echo-model"
+        publisher: "AMD (example)"
+      hfToken:
+        required: false
+      release:
+        notes: "Example only — not a real model."
+      description:
+        full: >
+          A trivial echo model that returns its input reversed.
+          Exists solely to demonstrate how to implement a ModelHarness
+          for a specialized (non-vLLM) AIM image.
+      title: "Echo Model (harness example)"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Play model for harness pattern demonstration."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

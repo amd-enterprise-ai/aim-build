@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 # AIMs Overview
 
 AIM stands for AMD Inference Microservice. AIMs provide standardized, portable inference microservices for serving AI
-models on AMD Instinct™ GPUs. AIMs use ROCm 7 under the hood.
+models on AMD Instinct™ GPUs and AMD Radeon™ Pro GPUs. AIMs use ROCm under the hood.
 
 AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. Serving AI models
 in general and LLMs in particular is not a trivial task. AIMs abstract away the complexities involved in configuring
@@ -71,18 +71,34 @@ The following profiles are available for this model:
 |vllm-mi300x-fp16-tp1-throughput|MI300X|fp16|vllm|1|throughput|optimized|False|
 |vllm-mi300x-fp16-tp2-latency|MI300X|fp16|vllm|2|latency|preview|False|
 |vllm-mi300x-fp16-tp2-throughput|MI300X|fp16|vllm|2|throughput|preview|False|
+|vllm-mi300x-fp8-tp1-latency|MI300X|fp8|vllm|1|latency|optimized|False|
+|vllm-mi300x-fp8-tp1-throughput|MI300X|fp8|vllm|1|throughput|unoptimized|True|
+|vllm-mi300x-fp8-tp2-latency|MI300X|fp8|vllm|2|latency|unoptimized|True|
+|vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|unoptimized|True|
 |vllm-mi325x-fp16-tp1-latency|MI325X|fp16|vllm|1|latency|unoptimized|True|
 |vllm-mi325x-fp16-tp1-throughput|MI325X|fp16|vllm|1|throughput|unoptimized|True|
 |vllm-mi325x-fp16-tp2-latency|MI325X|fp16|vllm|2|latency|unoptimized|True|
 |vllm-mi325x-fp16-tp2-throughput|MI325X|fp16|vllm|2|throughput|unoptimized|True|
+|vllm-mi325x-fp8-tp1-latency|MI325X|fp8|vllm|1|latency|unoptimized|True|
+|vllm-mi325x-fp8-tp1-throughput|MI325X|fp8|vllm|1|throughput|unoptimized|True|
+|vllm-mi325x-fp8-tp2-latency|MI325X|fp8|vllm|2|latency|unoptimized|True|
+|vllm-mi325x-fp8-tp2-throughput|MI325X|fp8|vllm|2|throughput|unoptimized|True|
 |vllm-mi350x-fp16-tp1-latency|MI350X|fp16|vllm|1|latency|optimized|False|
-|vllm-mi350x-fp16-tp1-throughput|MI350X|fp16|vllm|1|throughput|unoptimized|True|
+|vllm-mi350x-fp16-tp1-throughput|MI350X|fp16|vllm|1|throughput|preview|False|
 |vllm-mi350x-fp16-tp2-latency|MI350X|fp16|vllm|2|latency|unoptimized|True|
-|vllm-mi350x-fp16-tp2-throughput|MI350X|fp16|vllm|2|throughput|preview|False|
+|vllm-mi350x-fp16-tp2-throughput|MI350X|fp16|vllm|2|throughput|unoptimized|True|
+|vllm-mi350x-fp8-tp1-latency|MI350X|fp8|vllm|1|latency|optimized|False|
+|vllm-mi350x-fp8-tp1-throughput|MI350X|fp8|vllm|1|throughput|preview|False|
+|vllm-mi350x-fp8-tp2-latency|MI350X|fp8|vllm|2|latency|unoptimized|True|
+|vllm-mi350x-fp8-tp2-throughput|MI350X|fp8|vllm|2|throughput|unoptimized|True|
 |vllm-mi355x-fp16-tp1-latency|MI355X|fp16|vllm|1|latency|optimized|False|
 |vllm-mi355x-fp16-tp1-throughput|MI355X|fp16|vllm|1|throughput|preview|False|
-|vllm-mi355x-fp16-tp2-latency|MI355X|fp16|vllm|2|latency|unoptimized|True|
+|vllm-mi355x-fp16-tp2-latency|MI355X|fp16|vllm|2|latency|preview|False|
 |vllm-mi355x-fp16-tp2-throughput|MI355X|fp16|vllm|2|throughput|preview|False|
+|vllm-mi355x-fp8-tp1-latency|MI355X|fp8|vllm|1|latency|optimized|False|
+|vllm-mi355x-fp8-tp1-throughput|MI355X|fp8|vllm|1|throughput|preview|False|
+|vllm-mi355x-fp8-tp2-latency|MI355X|fp8|vllm|2|latency|preview|False|
+|vllm-mi355x-fp8-tp2-throughput|MI355X|fp8|vllm|2|throughput|unoptimized|True|
 |vllm-mi250x-fp16-tp1-latency|MI250X|fp16|vllm|1|latency|general|False|
 |vllm-mi250x-fp16-tp1-throughput|MI250X|fp16|vllm|1|throughput|general|False|
 |vllm-mi250x-fp16-tp2-latency|MI250X|fp16|vllm|2|latency|general|False|

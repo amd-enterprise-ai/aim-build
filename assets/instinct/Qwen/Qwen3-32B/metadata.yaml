@@ -26,9 +26,9 @@ com:
         recommendedDeployments:
         - gpuModel: "MI300X"
           gpuCount: 1
-          precision: "fp16"
+          precision: "fp8"
           metric: "latency"
-          description: "Optimized for latency on MI300X using fp16 precision"
+          description: "Optimized for latency on MI300X using fp8 precision"
         - gpuModel: "MI300X"
           gpuCount: 1
           precision: "fp16"
@@ -37,38 +37,38 @@ com:
         - gpuModel: "MI325X"
           gpuCount: 1
           metric: "latency"
-          description: "Optimized for latency on MI325X using fp16 precision"
-          profileId: "vllm-mi325x-fp16-tp1-latency"
+          description: "Optimized for latency on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-latency"
         - gpuModel: "MI325X"
           gpuCount: 1
           metric: "throughput"
-          description: "Optimized for throughput on MI325X using fp16 precision"
-          profileId: "vllm-mi325x-fp16-tp1-throughput"
+          description: "Optimized for throughput on MI325X using fp8 precision"
+          profileId: "vllm-mi325x-fp8-tp1-throughput"
         - gpuModel: "MI350X"
           gpuCount: 1
-          precision: "fp16"
+          precision: "fp8"
           metric: "latency"
-          description: "Optimized for latency on MI350X using fp16 precision"
+          description: "Optimized for latency on MI350X using fp8 precision"
         - gpuModel: "MI350X"
-          gpuCount: 2
-          precision: "fp16"
+          gpuCount: 1
+          precision: "fp8"
           metric: "throughput"
-          description: "Optimized for throughput on MI350X using fp16 precision"
+          description: "Optimized for throughput on MI350X using fp8 precision"
         - gpuModel: "MI355X"
           gpuCount: 1
-          precision: "fp16"
+          precision: "fp8"
           metric: "latency"
-          description: "Optimized for latency on MI355X using fp16 precision"
+          description: "Optimized for latency on MI355X using fp8 precision"
         - gpuModel: "MI355X"
           gpuCount: 1
-          precision: "fp16"
+          precision: "fp8"
           metric: "throughput"
-          description: "Optimized for throughput on MI355X using fp16 precision"
+          description: "Optimized for throughput on MI355X using fp8 precision"
         publisher: "Qwen"
       hfToken:
         required: false
       release:
         notes: ""
       description:
-        full: "Qwen3-32B is a 32.8 billion parameter dense causal language model from the Qwen series by the Qwen Team at Alibaba Group. It features 64 layers with Grouped-Query Attention (GQA, 64 Q heads and 8 KV heads). The model supports seamless switching between thinking mode (for complex logical reasoning, math, and coding) and non-thinking mode (for efficient general-purpose dialogue). It provides tool calling and agentic capabilities, supports over 100 languages and dialects, and has a native context length of 32,768 tokens, extendable to 131,072 tokens with YaRN. Trained through pretraining and post-training stages."
+        full: "Qwen3-32B is a 32.8 billion parameter dense causal language model from the Qwen series by the Qwen Team at Alibaba Group. It features 64 layers with Grouped-Query Attention (GQA, 64 Q heads and 8 KV heads). The model supports seamless switching between thinking mode (for complex logical reasoning, math, and coding) and non-thinking mode (for efficient general-purpose dialogue). It provides tool calling and agentic capabilities, supports over 100 languages and dialects. Trained through pretraining and post-training stages."
       title: "Qwen3 32B"

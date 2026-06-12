@@ -78,7 +78,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0"
+          image: "amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.1"
           imagePullPolicy: Always
           env:
             - name: HF_TOKEN

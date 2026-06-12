@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Mixture-of-experts 30B (3B active) LLM with thinking/non-thinking mode switching, advanced reasoning, agent capabilities, and 100+ language support."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-30B-A3B"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "instruction"
+        source: "https://huggingface.co/Qwen/Qwen3-30B-A3B"
+        variants:
+        - "Qwen/Qwen3-30B-A3B"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-30B-A3B is a mixture-of-experts model with 30B total parameters and 3B active parameters, featuring seamless switching between thinking mode for complex logical reasoning, math, and coding, and non-thinking mode for efficient general-purpose dialogue. It delivers groundbreaking advancements in reasoning, instruction-following, and agent capabilities, with superior human preference alignment and support for 100+ languages and dialects."
+      title: "Qwen3 30B-A3B"

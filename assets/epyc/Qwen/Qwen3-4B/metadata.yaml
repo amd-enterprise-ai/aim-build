@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Reasoning-enhanced 4B parameter LLM with thinking/non-thinking mode switching, excelling in math, coding, and multi-turn conversations."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-4B"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "instruction"
+        source: "https://huggingface.co/Qwen/Qwen3-4B"
+        variants:
+        - "Qwen/Qwen3-4B"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-4B features unique dual-mode capabilities with switching between thinking mode for complex reasoning (math, coding, logic) and efficient dialogue mode, supporting 100+ languages with extended 32K context."
+      title: "Qwen3 4B"

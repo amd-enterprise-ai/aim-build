@@ -15,7 +15,6 @@ assumes MI300X GPU on the target system.
 
 * AMD GPU with ROCm support (e.g., MI300X, MI325X)
 * Docker installed and configured with GPU support
-* Access to model repositories (Hugging Face account with appropriate permissions for gated models)
 
 ## 1. Docker deployment
 
@@ -23,13 +22,11 @@ assumes MI300X GPU on the target system.
 
 ```bash
 docker run \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
   amdenterpriseai/aim-zai-org-glm-4-7:0.12.0
 ```
 
-Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for gated models)
 
 ### 1.2 Customizing deployment with environment variables
 
@@ -58,7 +55,6 @@ mkdir -p /path/to/model-cache
 
 # Download model using the download-to-cache command
 docker run --rm \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /path/to/model-cache:/workspace/model-cache \
   amdenterpriseai/aim-zai-org-glm-4-7:0.12.0 \
   download-to-cache --model-id zai-org/GLM-4.7
@@ -68,7 +64,6 @@ docker run --rm \
 
 ```bash
 docker run \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
@@ -122,11 +117,6 @@ spec:
               value: "INFO"
             - name: AIM_PORT
               value: "8000"
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: hf-token
-                  key: hf-token
           ports:
             - name: http
               containerPort: 8000
@@ -270,7 +260,6 @@ EOF
 
 # Run with custom profile
 docker run \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
@@ -285,7 +274,6 @@ desired profile identifier. Profile identifier is the filename of the profile wi
 
 ```bash
 docker run \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -e AIM_PROFILE_ID=vllm-mi325x-bf16-tp4-latency \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
@@ -317,7 +305,6 @@ docker run \
 ```bash
 docker run \
   -e AIM_LOG_LEVEL=DEBUG \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
   amdenterpriseai/aim-zai-org-glm-4-7:0.12.0
@@ -332,7 +319,6 @@ docker run \
   -e AIM_GPU_COUNT=2 \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
-  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   amdenterpriseai/aim-zai-org-glm-4-7:0.12.0 \
   dry-run
 ```
@@ -347,6 +333,5 @@ docker run \
 
 ## 7. Security considerations
 
-* Never include HF_TOKEN in Dockerfiles or commit it to version control
 * Use Kubernetes secrets or environment variables for sensitive credentials
 * Implement appropriate network policies to restrict access to your deployment

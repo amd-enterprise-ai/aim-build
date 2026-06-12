@@ -30,6 +30,7 @@ GPU_TO_GFX_ARCH = {
     "MI325X": "gfx942",
     # CDNA4 (gfx950)
     "MI350X": "gfx950",
+    "MI350P": "gfx950",
     "MI355X": "gfx950",
     # RDNA3 (gfx1100)
     "W7900": "gfx1100",

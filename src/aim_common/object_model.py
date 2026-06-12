@@ -360,8 +360,9 @@ class ProfileMetadata(BaseModel):
         return v
 
     def __str__(self) -> str:
-        """Generate the profile ID string."""
-        return self.profile_id
+        """Human-readable label for display purposes. Generally, matches profile file name. Currently, there is one case
+        where it is different, namely for gpt-oss models' precision (mxfp4 in file name and fp4 in the metadata)"""
+        return self.accelerator_label
 
     def __hash__(self) -> int:
         return hash(
@@ -381,9 +382,18 @@ class ProfileMetadata(BaseModel):
         )
 
     @property
-    def profile_id(self) -> str:
+    def accelerator_label(self) -> str:
+        """Human-readable label mirroring the profile id format (e.g. 'vllm-mi300x-fp16-tp1-latency').
+
+        Matches the profile filename stem convention
+        ``{engine}-{accelerator}-{precision}-tp{accelerator_count}-{metric}`` so the label
+        can be used interchangeably with profile ids in logs and UI surfaces.
+        """
         acc_segment = self.accelerator_model.value.lower() if self.accelerator_model else "none"
-        return f"{self.engine.value.lower()}-{acc_segment}-{self.precision.value.lower()}-tp{self.accelerator_count}-{self.metric.value.lower()}"
+        return (
+            f"{self.engine.value.lower()}-{acc_segment}-{self.precision.value.lower()}"
+            f"-tp{self.accelerator_count}-{self.metric.value.lower()}"
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the profile metadata to a dictionary for serialization."""

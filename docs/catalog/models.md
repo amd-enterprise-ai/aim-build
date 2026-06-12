@@ -22,7 +22,7 @@ SPDX-License-Identifier: MIT
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.11.0
+docker pull docker.io/amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025:0.11.1
 ```
 
 :::
@@ -43,7 +43,7 @@ Multilingual 405B parameter instruction-tuned language model for dialogue use ca
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-1-405b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-1-405b-instruct:0.11.1
 ```
 
 :::
@@ -57,7 +57,7 @@ Multilingual 8B parameter instruction-tuned language model for dialogue use case
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.1
 ```
 
 :::
@@ -71,7 +71,7 @@ Multilingual 1B parameter instruction-tuned language model for dialogue and on-d
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-2-1b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-2-1b-instruct:0.11.1
 ```
 
 :::
@@ -85,7 +85,7 @@ Multilingual 3B parameter instruction-tuned language model for dialogue and on-d
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-2-3b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-2-3b-instruct:0.11.1
 ```
 
 :::
@@ -99,7 +99,7 @@ Multilingual 70B parameter instruction-tuned language model for dialogue use cas
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct:0.11.1
 ```
 
 :::
@@ -141,7 +141,7 @@ docker pull docker.io/amdenterpriseai/aim-minimaxai-minimax-m2-5:0.12.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512:0.11.1
 ```
 
 :::
@@ -155,7 +155,7 @@ docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-251
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-reasoning-2512:0.11.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-ministral-3-14b-reasoning-2512:0.11.1
 ```
 
 :::
@@ -183,7 +183,7 @@ docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-large-3-675b-instruc
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506:0.11.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506:0.11.1
 ```
 
 :::
@@ -197,7 +197,7 @@ Sparse MoE language model with 141B total parameters across 8 experts and functi
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1:0.11.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1:0.11.1
 ```
 
 :::
@@ -211,7 +211,7 @@ Sparse MoE language model with 47B total parameters across 8 experts.
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.11.0
+docker pull docker.io/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1:0.11.1
 ```
 
 :::
@@ -232,7 +232,7 @@ Open-weight 117B parameter MoE model with 5.1B active parameters and configurabl
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-120b:0.11.0
+docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-120b:0.11.1
 ```
 
 :::
@@ -246,7 +246,7 @@ Open-weight 21B parameter MoE model with 3.6B active parameters for lower-latenc
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-20b:0.11.0
+docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-20b:0.11.1
 ```
 
 :::
@@ -267,7 +267,7 @@ docker pull docker.io/amdenterpriseai/aim-openai-gpt-oss-20b:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.11.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.11.1
 ```
 
 :::
@@ -281,7 +281,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-235b-a22b:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-32b:0.11.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-32b:0.11.1
 ```
 
 :::
@@ -295,7 +295,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-32b:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-coder-next:0.11.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-coder-next:0.11.1
 ```
 
 :::
@@ -309,7 +309,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-coder-next:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-instruct:0.11.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-instruct:0.11.1
 ```
 
 :::
@@ -323,7 +323,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-instruct:0.11.
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-thinking:0.11.0
+docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-thinking:0.11.1
 ```
 
 :::
@@ -344,7 +344,7 @@ docker pull docker.io/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-thinking:0.11.
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.11.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.11.1
 ```
 
 :::
@@ -358,7 +358,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.11.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.11.1
 ```
 
 :::
@@ -372,7 +372,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 :::
@@ -386,7 +386,7 @@ docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus:0.11.0
+docker pull docker.io/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus:0.11.1
 ```
 
 :::
@@ -421,7 +421,7 @@ Gemma 3 27B IT is a multimodal instruction-tuned model supporting text and image
 +++
 
 ```bash
-docker pull docker.io/amdenterpriseai/aim-google-gemma-3-27b-it:0.11.0
+docker pull docker.io/amdenterpriseai/aim-google-gemma-3-27b-it:0.11.1
 ```
 
 :::

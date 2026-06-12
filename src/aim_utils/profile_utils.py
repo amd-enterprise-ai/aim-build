@@ -5,6 +5,7 @@
 
 import logging
 import sys
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
@@ -251,12 +252,40 @@ def sync_profiles_with_file(
             logger.debug(f"Skipped profile '{profile}': profile_type is None.")
 
 
+class Mismatch(ABC):
+
+    @property
+    @abstractmethod
+    def has_mismatch(self) -> bool:
+        """Whether this represents a mismatch."""
+
+
 @dataclass
-class MetadataMismatch:
+class MetadataMismatch(Mismatch):
     profile_path: Path
     field_name: str
     expected_value: Optional[str]
     actual_value: Optional[str]
+
+    def __str__(self):
+        return f"Metadata mismatch in {self.field_name}. Expected: {self.expected_value}, Actual: {self.actual_value} for profile {self.profile_path}"
+
+    @property
+    def has_mismatch(self) -> bool:
+        return self.expected_value != self.actual_value
+
+
+@dataclass
+class FileNameFormatMismatch(Mismatch):
+    profile_path: Path
+    error_message: str
+
+    def __str__(self):
+        return f"File name format mismatch: {self.error_message} for profile {self.profile_path}"
+
+    @property
+    def has_mismatch(self) -> bool:
+        return len(self.error_message) > 0
 
 
 @cli.command("check-metadata")
@@ -281,38 +310,62 @@ def check_all_profile_metadata(assets_root: str = "assets", canonical_name: Opti
     sys.exit(1 if total_errors > 0 else 0)
 
 
+def _get_metadata_profile_id_mismatches(
+    profile_path: Path, metadata: ProfileMetadata, profile_id: str
+) -> List[MetadataMismatch | FileNameFormatMismatch]:
+    result: List[MetadataMismatch | FileNameFormatMismatch] = []
+    try:
+        engine, accelerator, precision, tp, metric = profile_id.split("-")
+
+        precision = precision.replace("mxfp4", "fp4")
+
+        result.extend(
+            [
+                MetadataMismatch(profile_path, "engine", engine, metadata.engine.value),
+                MetadataMismatch(
+                    profile_path,
+                    "accelerator_model",
+                    accelerator.lower(),
+                    metadata.accelerator_model.value.lower() if metadata.accelerator_model is not None else None,
+                ),
+                MetadataMismatch(profile_path, "precision", precision, metadata.precision.value),
+                MetadataMismatch(profile_path, "accelerator_count", tp, f"tp{metadata.accelerator_count}"),
+                MetadataMismatch(profile_path, "metric", metric, metadata.metric.value),
+            ]
+        )
+
+        return [r for r in result if r.has_mismatch]
+    except ValueError as e:
+        result.append(FileNameFormatMismatch(profile_path, str(e)))
+        return result
+
+
 def _check_profile_metadata(assets_path: str, canonical_name: Optional[str] = None) -> int:
     """Core logic: returns the number of mismatches found."""
     profiles = ProfileManager(assets_path=assets_path).get_yamls(canonical_name=canonical_name)  # type: ignore[arg-type]
 
-    mismatches: List[MetadataMismatch] = []
-    for profile in profiles:
-        profile_data = read_yaml(profile)
+    mismatches: List[MetadataMismatch | FileNameFormatMismatch] = []
+    for profile_path in profiles:
+        profile_data = read_yaml(profile_path)
         raw_metadata = profile_data.get("metadata", {})
 
         try:
             metadata = ProfileMetadata.model_validate(raw_metadata)
         except (ValidationError, ValueError) as e:
-            logger.error(f"{profile}: Failed to parse metadata: {e}")
-            mismatches.append(MetadataMismatch(profile, "metadata", profile.stem, str(e)))
+            logger.error(f"{profile_path}: Failed to parse metadata: {e}")
+            mismatches.append(MetadataMismatch(profile_path, "metadata", profile_path.stem, str(e)))
             continue
 
-        expected_stem = profile.stem
-        # The filename may use "mx" prefix for some precisions (e.g., mxfp8 -> fp8)
-        normalised_stem = expected_stem.replace("-mx", "-")
-        actual_id = metadata.profile_id
+        expected_stem = profile_path.stem
+        mismatches.extend(_get_metadata_profile_id_mismatches(profile_path, metadata, expected_stem))
 
-        if normalised_stem != actual_id:
-            logger.error(f"Filename/metadata mismatch: expected '{normalised_stem}', got '{actual_id}'")
-            mismatches.append(MetadataMismatch(profile, "profile_id", normalised_stem, actual_id))
-
-        if metadata.type == "general" and "general" not in profile.parts:
-            logger.error(f"{profile}: General profile not in a 'general' directory")
-            mismatches.append(MetadataMismatch(profile, "type", "general directory", str(profile.parent)))
+        if metadata.type == "general" and "general" not in profile_path.parts:
+            logger.error(f"{profile_path}: General profile not in a 'general' directory")
+            mismatches.append(MetadataMismatch(profile_path, "type", "general directory", str(profile_path.parent)))
 
     if len(mismatches) > 0:
         logger.error(f"❌ Found {len(mismatches)} errors out of {len(profiles)} profiles")
-        failed_profiles = sorted({str(m.profile_path) for m in mismatches})
+        failed_profiles = sorted(mismatches, key=lambda m: m.profile_path)
         for p in failed_profiles:
             logger.error(f"  - {p}")
     else:

@@ -41,7 +41,7 @@ spec:
   - name: aim-qwen3-32b
   containers:
   - name: kserve-container
-    image: amdenterpriseai/aim-qwen-qwen3-32b:0.11.0
+    image: amdenterpriseai/aim-qwen-qwen3-32b:0.11.1
     imagePullPolicy: Always
     ports:
     - name: http

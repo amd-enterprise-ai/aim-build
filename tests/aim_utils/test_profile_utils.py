@@ -9,10 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aim_common.object_model import ProfileType
+from aim_common.object_model import AcceleratorModel, Engine, Metric, Precision, ProfileMetadata, ProfileType
 from aim_utils.profile_utils import (
+    FileNameFormatMismatch,
     ProfileFileValueResolver,
     ProfileTypeEvaluator,
+    _get_metadata_profile_id_mismatches,
 )
 
 
@@ -218,3 +220,96 @@ class TestProfileFileValueResolver:
         resolver = ProfileFileValueResolver(profile_data_file)
         value = resolver.get_type_value("nonexistent-profile", "nonexistent-model")
         assert value is None
+
+
+def _make_metadata(**overrides) -> ProfileMetadata:
+    """Build a valid ProfileMetadata with sensible defaults, accepting field overrides."""
+    defaults = dict(
+        engine=Engine.VLLM,
+        accelerator_model=AcceleratorModel.MI300X,
+        precision=Precision.FP8,
+        accelerator_count=1,
+        metric=Metric.LATENCY,
+        manual_selection_only=False,
+        type=ProfileType.OPTIMIZED,
+    )
+    defaults.update(overrides)
+    return ProfileMetadata.model_validate(defaults)
+
+
+class TestGetMetadataProfileIdMismatches:
+    """Tests for _get_metadata_profile_id_mismatches."""
+
+    PROFILE_PATH = Path("assets/instinct/meta-llama/Llama-3.1-8B-Instruct/profiles/vllm-mi300x-fp8-tp1-latency.yaml")
+
+    def test_no_mismatches_when_profile_id_matches_metadata(self):
+        """Returns empty list when profile filename exactly matches all metadata fields."""
+        metadata = _make_metadata()
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        assert result == []
+
+    def test_engine_mismatch_detected(self):
+        """Returns a MetadataMismatch when engine in filename differs from metadata."""
+        metadata = _make_metadata(engine=Engine.BENTOML)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        names = [m.field_name for m in result]
+        assert "engine" in names
+        engine_mismatch = next(m for m in result if m.field_name == "engine")
+        assert engine_mismatch.expected_value == "vllm"
+        assert engine_mismatch.actual_value == "bentoml"
+
+    def test_precision_mismatch_detected(self):
+        """Returns a MetadataMismatch when precision in filename differs from metadata."""
+        metadata = _make_metadata(precision=Precision.FP16)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        names = [m.field_name for m in result]
+        assert "precision" in names
+
+    def test_tp_mismatch_detected(self):
+        """Returns a MetadataMismatch when tensor-parallel count in filename differs from metadata."""
+        metadata = _make_metadata(accelerator_count=8)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        names = [m.field_name for m in result]
+        assert "accelerator_count" in names
+        tp_mismatch = next(m for m in result if m.field_name == "accelerator_count")
+        assert tp_mismatch.expected_value == "tp1"
+        assert tp_mismatch.actual_value == "tp8"
+
+    def test_metric_mismatch_detected(self):
+        """Returns a MetadataMismatch when metric in filename differs from metadata."""
+        metadata = _make_metadata(metric=Metric.THROUGHPUT)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        names = [m.field_name for m in result]
+        assert "metric" in names
+
+    def test_multiple_mismatches_returned(self):
+        """Returns one MetadataMismatch entry per mismatched field."""
+        metadata = _make_metadata(engine=Engine.BENTOML, precision=Precision.FP16)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        mismatch_fields = {m.field_name for m in result}
+        assert {"engine", "precision"}.issubset(mismatch_fields)
+
+    def test_mxfp4_normalised_to_fp4(self):
+        """mxfp4 in the profile ID is normalised to fp4 before comparison."""
+        metadata = _make_metadata(precision=Precision.FP4)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-mxfp4-tp1-latency")
+        assert result == []
+
+    def test_invalid_profile_id_format_returns_file_name_format_mismatch(self):
+        """A profile ID that cannot be split into 5 parts returns a FileNameFormatMismatch."""
+        metadata = _make_metadata()
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "bad-profile-id")
+        assert len(result) == 1
+        assert isinstance(result[0], FileNameFormatMismatch)
+
+    def test_file_name_format_mismatch_has_mismatch_true(self):
+        """FileNameFormatMismatch.has_mismatch is True when error message is non-empty."""
+        metadata = _make_metadata()
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "only-three-parts")
+        assert result[0].has_mismatch is True
+
+    def test_metadata_mismatch_profile_path_is_preserved(self):
+        """MetadataMismatch entries carry the original profile path."""
+        metadata = _make_metadata(engine=Engine.BENTOML)
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        assert all(m.profile_path == self.PROFILE_PATH for m in result)

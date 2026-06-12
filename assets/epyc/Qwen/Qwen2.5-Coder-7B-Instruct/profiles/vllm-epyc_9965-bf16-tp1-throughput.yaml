@@ -9,11 +9,11 @@ metadata:
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: true
+  manual_selection_only: false
   metric: throughput
   precision: bf16
   primary: true
-  type: unoptimized
+  type: preview
 engine_args:
   dtype: bfloat16
   enable-auto-tool-choice: true
@@ -22,6 +22,7 @@ engine_args:
   max-num-seqs: 64
   tool-call-parser: qwen3_coder
 env_vars:
-  OMP_NUM_THREADS: '196'
+  OMP_NUM_THREADS: '192'
   VLLM_CPU_KVCACHE_SPACE: '80'
   VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNNL_MATMUL_ALGO: '1'

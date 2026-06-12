@@ -61,6 +61,7 @@ GPU_MODEL_TO_GFX = {
     "mi308x": "gfx942",
     "mi325x": "gfx942",
     "mi350x": "gfx950",
+    "mi350p": "gfx950",
     "mi355x": "gfx950",
 }
 
@@ -302,7 +303,7 @@ def build_kernels(archs: list[str], output_dir: Path):
       4. Copy the resulting .so files into <output_dir>/<arch>/
 
     The output directories are COPY'd into the Docker image at
-    /workspace/aiter-jit-prebuilt/<arch>/. At runtime, the matching
+    /workspace/aiter-jit-prebuilt/kernels/<arch>/. At runtime, the matching
     arch's kernels are copied into AITER's system JIT directory.
     """
     jit_dir = Path(os.environ.get("AITER_JIT_DIR", str(_get_aiter_jit_dir())))

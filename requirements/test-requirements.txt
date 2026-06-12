@@ -16,15 +16,15 @@ coverage[toml]==7.14.1
     # via
     #   aim-build (pyproject.toml)
     #   pytest-cov
-filelock==3.29.0
+filelock==3.29.1
     # via huggingface-hub
 fsspec==2026.4.0
     # via huggingface-hub
-hf-xet==1.5.0
+hf-xet==1.5.1
     # via huggingface-hub
 huggingface-hub==0.36.2
     # via aim-build (pyproject.toml)
-idna==3.17
+idna==3.18
     # via requests
 iniconfig==2.3.0
     # via pytest
@@ -72,7 +72,7 @@ pyyaml==6.0.3
     #   huggingface-hub
 requests==2.34.2
     # via huggingface-hub
-tqdm==4.67.3
+tqdm==4.68.2
     # via huggingface-hub
 typing-extensions==4.15.0
     # via

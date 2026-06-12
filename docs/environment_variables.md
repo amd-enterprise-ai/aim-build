@@ -30,7 +30,7 @@ For a model-specific container:
 ```bash
 docker run -e HF_TOKEN=your_token_here \
   --device=/dev/kfd --device=/dev/dri \
-  aim-meta-llama-llama-3-1-8b-instruct:0.11.0
+  aim-meta-llama-llama-3-1-8b-instruct:0.11.1
 ```
 
 ### Security Note

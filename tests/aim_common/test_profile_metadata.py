@@ -29,7 +29,7 @@ class TestProfileMetadata:
     """Test ProfileMetadata dataclass functionality."""
 
     def test_profile_str_representation(self):
-        """Test that ProfileMetadata generates correct string representation."""
+        """Test that str(ProfileMetadata) returns the accelerator_label."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
@@ -41,8 +41,8 @@ class TestProfileMetadata:
         )
         assert str(profile) == "vllm-mi300x-fp16-tp1-throughput"
 
-    def test_profile_id_property(self):
-        """Test that profile_id property returns the same as str()."""
+    def test_accelerator_label_property(self):
+        """Test that accelerator_label property returns the same as str()."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI325X,
@@ -52,11 +52,11 @@ class TestProfileMetadata:
             manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
-        assert profile.profile_id == str(profile)
-        assert profile.profile_id == "vllm-mi325x-fp8-tp2-latency"
+        assert profile.accelerator_label == str(profile)
+        assert profile.accelerator_label == "vllm-mi325x-fp8-tp2-latency"
 
-    def test_profile_id_none_accelerator(self):
-        """Test profile_id when accelerator is None (e.g. CPU-only profile)."""
+    def test_accelerator_label_none_accelerator(self):
+        """Test accelerator_label when accelerator is None (e.g. CPU-only profile)."""
         profile = ProfileMetadata(
             engine=Engine.VLLM,
             accelerator_model=None,
@@ -66,7 +66,7 @@ class TestProfileMetadata:
             manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
-        assert profile.profile_id == "vllm-none-bf16-tp0-latency"
+        assert profile.accelerator_label == "vllm-none-bf16-tp0-latency"
 
     def test_profile_to_dict(self):
         """Test ProfileMetadata serialization to dictionary."""

@@ -20,6 +20,7 @@ engine_args:
   max-num-batched-tokens: 4096
   tool-call-parser: qwen3_coder
 env_vars:
-  OMP_NUM_THREADS: '196'
+  OMP_NUM_THREADS: '192'
   VLLM_CPU_KVCACHE_SPACE: '80'
   VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNNL_MATMUL_ALGO: '1'

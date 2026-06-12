@@ -201,11 +201,12 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
     """Resolve CI build target metadata for all discovered base targets."""
     acc_lower = accelerator_family.lower()
     dockerfile = f"docker/Dockerfile.aim-{acc_lower}-base"
-    run_validation = acc_lower == "instinct"
+    default_run_validation = acc_lower == "instinct"
 
     ci_targets: list[CiBaseImageTarget] = []
     for target in resolve_base_image_targets(accelerator_family):
         image_name = get_base_image_name(acc_lower, target.target_id)
+        run_validation = default_run_validation and target.target_id != "bentoml"
         ci_targets.append(
             CiBaseImageTarget(
                 target_id=target.target_id,
@@ -257,31 +258,6 @@ class CiBaseImageConfig(BaseModel):
     def has_alias(self) -> bool:
         """Whether the public name differs from canonical (true if dual-tagging is needed)."""
         return self.image_name.has_alias
-
-    @classmethod
-    def from_accelerator_family(cls, accelerator_family: str) -> "CiBaseImageConfig":
-        """Create CiBaseImageConfig from the legacy-compatible normalized target."""
-        legacy_target = next(
-            (
-                target
-                for target in resolve_ci_base_image_targets(accelerator_family)
-                if target.target_id == LEGACY_VLLM_BASE_TARGET_ID
-            ),
-            None,
-        )
-        if legacy_target is None:
-            raise ValueError(
-                f"No '{LEGACY_VLLM_BASE_TARGET_ID}' base target found for accelerator family "
-                f"'{accelerator_family}'."
-            )
-
-        return cls(
-            base_target_id=legacy_target.target_id,
-            image_name=legacy_target.image_name,
-            dockerfile=legacy_target.dockerfile,
-            run_validation=legacy_target.run_validation,
-            upstream_image_ref=legacy_target.upstream_image_ref,
-        )
 
 
 class ConfigInitializer(Initializer):
@@ -419,15 +395,39 @@ def get_base_image_ref(canonical_name: Optional[str] = None, assets_path: str = 
     required=True,
     help="Accelerator family (e.g., instinct, epyc, radeon)",
 )
-def resolve_build_config(accelerator_family: str) -> None:
+@click.option(
+    "--base-target-id",
+    type=str,
+    required=False,
+    default=None,
+    help="Base image target identifier (e.g. legacy_vllm, bentoml). Defaults to legacy_vllm.",
+)
+def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] = None) -> None:
     """
-    Resolve all build configuration details for a given accelerator family.
+    Resolve all build configuration details for a given accelerator family and target.
 
     Outputs (for GitHub Actions):
     - config: JSON object with base_target_id, repository, dockerfile, run_validation, upstream_image_ref
     """
-    # Create CI configuration from accelerator family
-    ci_config = CiBaseImageConfig.from_accelerator_family(accelerator_family)
+    target_id = base_target_id or LEGACY_VLLM_BASE_TARGET_ID
+
+    ci_targets = resolve_ci_base_image_targets(accelerator_family)
+    ci_target = next((t for t in ci_targets if t.target_id == target_id), None)
+
+    if ci_target is None:
+        available = ", ".join(t.target_id for t in ci_targets)
+        raise click.UsageError(
+            f"No base target '{target_id}' found for accelerator family '{accelerator_family}'. "
+            f"Available targets: {available}"
+        )
+
+    ci_config = CiBaseImageConfig(
+        base_target_id=ci_target.target_id,
+        image_name=ci_target.image_name,
+        dockerfile=ci_target.dockerfile,
+        run_validation=ci_target.run_validation,
+        upstream_image_ref=ci_target.upstream_image_ref,
+    )
 
     # Output as JSON
     config_json = ci_config.model_dump_json()

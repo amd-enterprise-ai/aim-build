@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "2B parameter instruction-tuned language model with 128K context length and improved reasoning capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "ibm-granite/granite-3.3-2b-instruct"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "instruction"
+        source: "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct"
+        variants:
+        - "ibm-granite/granite-3.3-2b-instruct"
+        publisher: "IBM"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Granite 3.3 2B Instruct is a 2 billion parameter 128K context length language model developed by IBM's Granite Team, fine-tuned for improved reasoning and instruction-following capabilities. Built on top of Granite 3.3 2B Base, the model delivers significant gains on benchmarks for measuring generic performance including AlpacaEval 2.0 and Arena-Hard, and improvements in mathematics, coding, and instruction following. Supports structured reasoning through think/response tags, providing clear separation between internal thoughts and final outputs. Trained on a carefully balanced combination of permissively licensed data and curated synthetic tasks, supporting 12 languages including English, German, Spanish, French, Japanese, Portuguese, Arabic, Czech, Italian, Korean, Dutch, and Chinese."
+      title: "Granite 3.3 2B Instruct"

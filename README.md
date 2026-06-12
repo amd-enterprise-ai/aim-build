@@ -55,7 +55,7 @@ See the [latest AIMs](docs/latest_aims.md) page for a list of all available pre-
 ### Pull a Pre-Built Container
 
 ```bash
-docker pull amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0
+docker pull amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.1
 ```
 
 ### Run the Container
@@ -65,7 +65,7 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.0
+  amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct:0.11.1
 ```
 
 Sharing GPU with container is needed to run the models on GPU. Also, the port mapping is needed to access the inference

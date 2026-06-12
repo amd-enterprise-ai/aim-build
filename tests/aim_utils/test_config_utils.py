@@ -22,6 +22,7 @@ from aim_utils.config_utils import (
     cli,
     get_canonical_name,
     normalize_base_image_targets,
+    resolve_ci_base_image_targets,
 )
 from aim_utils.image_naming import ImageName
 
@@ -468,12 +469,22 @@ class TestConfigInitializer:
 
 class TestCiBaseImageConfig:
     @pytest.mark.parametrize(("accelerator", "case"), ACCELERATOR_CASES, ids=["instinct", "epyc", "radeon", "cpu"])
-    def test_from_accelerator_family(self, tmp_path, monkeypatch, accelerator, case):
-        """Test CiBaseImageConfig creation for supported accelerators."""
+    def test_legacy_target_from_resolve_ci_base_image_targets(self, tmp_path, monkeypatch, accelerator, case):
+        """Test CiBaseImageConfig creation via resolve_ci_base_image_targets for legacy target."""
         monkeypatch.chdir(tmp_path)
         write_base_config(tmp_path, accelerator, case)
 
-        ci_config = CiBaseImageConfig.from_accelerator_family(accelerator)
+        ci_targets = resolve_ci_base_image_targets(accelerator)
+        legacy_target = next((t for t in ci_targets if t.target_id == LEGACY_VLLM_BASE_TARGET_ID), None)
+        assert legacy_target is not None
+
+        ci_config = CiBaseImageConfig(
+            base_target_id=legacy_target.target_id,
+            image_name=legacy_target.image_name,
+            dockerfile=legacy_target.dockerfile,
+            run_validation=legacy_target.run_validation,
+            upstream_image_ref=legacy_target.upstream_image_ref,
+        )
 
         assert ci_config.repository == case["expected_repository"]
         assert ci_config.public_repository == case["expected_public_repository"]
@@ -693,6 +704,44 @@ class TestResolveBuildConfigCommand:
         assert output["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
         assert output["upstream_image_ref"] == case["expected_upstream_image_ref"]
 
+    def test_resolve_build_config_with_explicit_target_id(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="pytorch",
+            base_tag="rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0",
+        )
+
+        result = runner.invoke(
+            cli, ["resolve-build-config", "--accelerator-family", "instinct", "--base-target-id", "bentoml"]
+        )
+
+        assert result.exit_code == 0
+        output = json.loads(result.output.strip())
+        assert output["base_target_id"] == "bentoml"
+        assert output["upstream_image_ref"] == "docker.io/rocm/pytorch:rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0"
+
+    def test_resolve_build_config_with_unknown_target_id(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+
+        result = runner.invoke(
+            cli, ["resolve-build-config", "--accelerator-family", "instinct", "--base-target-id", "nonexistent"]
+        )
+
+        assert result.exit_code != 0
+        assert "nonexistent" in result.output
+        assert LEGACY_VLLM_BASE_TARGET_ID in result.output
+
     def test_resolve_build_config_fails_without_legacy_target(self, runner, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
@@ -709,8 +758,7 @@ class TestResolveBuildConfigCommand:
         result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "instinct"])
 
         assert result.exit_code != 0
-        assert result.exception is not None
-        assert LEGACY_VLLM_BASE_TARGET_ID in str(result.exception)
+        assert LEGACY_VLLM_BASE_TARGET_ID in result.output
 
 
 class TestResolveBuildTargetsCommand:

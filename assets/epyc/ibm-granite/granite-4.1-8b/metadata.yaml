@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "8B parameter long-context instruct model with 131K context length and enhanced capabilities for summarization, RAG, and code tasks."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "ibm-granite/granite-4.1-8b"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "instruction"
+        - "coding"
+        source: "https://huggingface.co/ibm-granite/granite-4.1-8b"
+        variants:
+        - "ibm-granite/granite-4.1-8b"
+        publisher: "IBM"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Granite 4.1 8B is an 8 billion parameter long-context instruct model developed by IBM's Granite Team, featuring 131,072 token context length and enhanced post-training pipeline including supervised finetuning and reinforcement learning alignment. The model uses a decoder-only dense transformer architecture with Grouped-Query Attention (GQA), RoPE position embeddings, MLP with SwiGLU activation, and RMSNorm. Excels at summarization, text classification, text extraction, QA, Retrieval Augmented Generation (RAG), code tasks, function-calling, multilingual dialog, and Fill-In-the-Middle (FIM) code completions. Trained on open source instruction datasets with permissive licenses plus internally collected synthetic datasets, supporting 12 languages including English, German, Spanish, French, Japanese, Portuguese, Arabic, Czech, Italian, Korean, Dutch, and Chinese."
+      title: "Granite 4.1 8B"

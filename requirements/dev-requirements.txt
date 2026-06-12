@@ -37,11 +37,11 @@ configobj==5.0.9
     #   pgcli
 coverage[toml]==7.14.1
     # via pytest-cov
-distlib==0.4.0
+distlib==0.4.2
     # via virtualenv
 et-xmlfile==2.0.0
     # via openpyxl
-filelock==3.29.0
+filelock==3.29.1
     # via
     #   huggingface-hub
     #   python-discovery
@@ -58,7 +58,7 @@ h2==4.3.0
     # via httpx
 hf-mem==0.5.5
     # via aim-build (pyproject.toml)
-hf-xet==1.5.0
+hf-xet==1.5.1
     # via huggingface-hub
 hpack==4.1.0
     # via h2
@@ -72,7 +72,7 @@ hyperframe==6.1.0
     # via h2
 identify==2.6.19
     # via pre-commit
-idna==3.17
+idna==3.18
     # via
     #   anyio
     #   httpx
@@ -112,7 +112,7 @@ pathspec==1.1.1
     # via
     #   black
     #   mypy
-pgcli==4.3.0
+pgcli==4.5.0
     # via aim-build (pyproject.toml)
 pgspecial==2.2.1
     # via pgcli
@@ -138,11 +138,11 @@ psycopg-binary==3.3.4
     # via psycopg
 pycodestyle==2.14.0
     # via flake8
-pydantic==2.13.3
+pydantic==2.13.4
     # via
     #   aim-build (pyproject.toml)
     #   sqlmodel
-pydantic-core==2.46.3
+pydantic-core==2.46.4
     # via pydantic
 pyflakes==3.4.0
     # via flake8
@@ -195,7 +195,7 @@ tabulate[widechars]==0.10.0
     # via cli-helpers
 tomli==2.4.1
     # via aim-build (pyproject.toml)
-tqdm==4.67.3
+tqdm==4.68.2
     # via huggingface-hub
 typing-extensions==4.15.0
     # via
@@ -218,7 +218,7 @@ urllib3==2.7.0
     # via requests
 virtualenv==21.4.2
     # via pre-commit
-wcwidth==0.7.0
+wcwidth==0.8.1
     # via
     #   prompt-toolkit
     #   tabulate

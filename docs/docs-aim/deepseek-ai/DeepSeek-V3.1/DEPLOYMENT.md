@@ -24,7 +24,7 @@ assumes MI300X GPU on the target system.
 docker run \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 
@@ -40,7 +40,7 @@ docker run \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 ## 2. Model caching for production
@@ -56,7 +56,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0 \
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1 \
   download-to-cache --model-id deepseek-ai/DeepSeek-V3.1
 ```
 
@@ -67,7 +67,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 ## 3. Kubernetes deployment
@@ -98,7 +98,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+          image: amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -264,7 +264,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 ### 5.2 Using profiles excluded from automatic selection
@@ -277,7 +277,7 @@ docker run \
   -e AIM_PROFILE_ID=vllm-mi325x-fp8-tp8-latency \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -288,7 +288,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0 \
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1 \
   --help
 ```
 
@@ -296,7 +296,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0 \
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1 \
   <subcommand> --help
 ```
 
@@ -307,7 +307,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1
 ```
 
 ### 6.3 Checking profile selection results
@@ -319,7 +319,7 @@ docker run \
   -e AIM_GPU_COUNT=8 \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0 \
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1 \
   dry-run
 ```
 
@@ -327,7 +327,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.0 \
+  amdenterpriseai/aim-deepseek-ai-deepseek-v3-1:0.11.1 \
   list-profiles
 ```
 

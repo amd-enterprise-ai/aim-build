@@ -138,33 +138,40 @@ class TestGPUDetection:
 class TestCPUDetection:
     """Tests for CPU detection via AcceleratorDetector."""
 
-    def test_cpu_detection_propagates_cpu_info(self):
-        """Test that EpycDetector results are correctly propagated."""
+    def test_cpu_detection_reports_node_capacity_with_cpuset(self):
+        """accelerator_count reflects node capacity; cpu_cores stays cpuset-limited.
+
+        This is the detect-hardware fix: under an 8-core cpuset on a 384-core node,
+        labelling reports 384 while serve/dry-run use the 8 available cores.
+        """
         mock_cpu_info = CPUInfo(
             vendor="AMD",
             model=AcceleratorModel.EPYC_9965,
             model_number="9965",
-            physical_cores=192,
-            available_cores=64,
-            cpuset_bind="0-63",
+            physical_cores=384,
+            available_cores=8,
+            cpuset_bind="0-7",
+            node_cores=384,
         )
 
         with patch("aim_runtime.accelerator_detector.EpycDetector") as mock_cls:
             instance = mock_cls.return_value
             instance.cpu_info = mock_cpu_info
-            instance.available_cores = 64
+            instance.available_cores = 8
+            instance.node_cores = 384
             instance.cpu_model = AcceleratorModel.EPYC_9965
-            instance.cpuset_bind = "0-63"
+            instance.cpuset_bind = "0-7"
 
             detector = AcceleratorDetector()
             result = detector.detect(accelerator_type=AcceleratorType.CPU, accelerator_family=AcceleratorFamily.EPYC)
 
         assert result.accelerator_type == AcceleratorType.CPU
         assert result.accelerator_model == AcceleratorModel.EPYC_9965
-        assert result.accelerator_count == 1
+        # Node capacity is reported for labelling, not the cpuset-limited count.
+        assert result.accelerator_count == 384
         assert result.cpu_info == mock_cpu_info
-        assert result.cpu_cores == 64
-        assert result.cpuset_bind == "0-63"
+        assert result.cpu_cores == 8
+        assert result.cpuset_bind == "0-7"
         assert result.gpu_info == []
 
     def test_cpu_detection_without_cpuset(self):
@@ -176,18 +183,21 @@ class TestCPUDetection:
             physical_cores=128,
             available_cores=128,
             cpuset_bind=None,
+            node_cores=128,
         )
 
         with patch("aim_runtime.accelerator_detector.EpycDetector") as mock_cls:
             instance = mock_cls.return_value
             instance.cpu_info = mock_cpu_info
             instance.available_cores = 128
+            instance.node_cores = 128
             instance.cpu_model = AcceleratorModel.EPYC_ZEN5
             instance.cpuset_bind = None
 
             detector = AcceleratorDetector()
             result = detector.detect(accelerator_type=AcceleratorType.CPU, accelerator_family=AcceleratorFamily.EPYC)
 
+        assert result.accelerator_count == 128
         assert result.cpu_cores == 128
         assert result.cpuset_bind is None
 
@@ -225,6 +235,7 @@ class TestDetectionDispatch:
         ):
             mock_cpu.return_value.cpu_info = None
             mock_cpu.return_value.available_cores = 8
+            mock_cpu.return_value.node_cores = 8
             mock_cpu.return_value.cpu_model = None
             mock_cpu.return_value.cpuset_bind = None
 
@@ -233,7 +244,7 @@ class TestDetectionDispatch:
 
         assert result.accelerator_type == AcceleratorType.CPU
         assert result.accelerator_model == AcceleratorModel.CPU
-        assert result.accelerator_count == 1
+        assert result.accelerator_count == 8
         mock_cpu.assert_called_once()
         mock_gpu.assert_not_called()
 
@@ -245,6 +256,7 @@ class TestDetectionDispatch:
         ):
             mock_cpu.return_value.cpu_info = None
             mock_cpu.return_value.available_cores = 16
+            mock_cpu.return_value.node_cores = 16
             mock_cpu.return_value.cpu_model = None
             mock_cpu.return_value.cpuset_bind = None
 
@@ -264,6 +276,7 @@ class TestDetectionDispatch:
         ):
             mock_cpu.return_value.cpu_info = None
             mock_cpu.return_value.available_cores = 8
+            mock_cpu.return_value.node_cores = 8
             mock_cpu.return_value.cpu_model = None
             mock_cpu.return_value.cpuset_bind = None
 
@@ -280,6 +293,7 @@ class TestDetectionDispatch:
         with patch("aim_runtime.accelerator_detector.EpycDetector") as mock_cls:
             mock_cls.return_value.cpu_info = None
             mock_cls.return_value.available_cores = 16
+            mock_cls.return_value.node_cores = 16
             mock_cls.return_value.cpu_model = None
             mock_cls.return_value.cpuset_bind = None
 
@@ -360,24 +374,28 @@ class TestToDetailDict:
             vendor="AuthenticAMD",
             model=AcceleratorModel.EPYC_9965,
             model_number="9965",
-            physical_cores=192,
-            available_cores=64,
-            cpuset_bind="0-63",
+            physical_cores=384,
+            available_cores=8,
+            cpuset_bind="0-7",
+            node_cores=384,
         )
         result = AcceleratorDetectionResult(
             accelerator_type=AcceleratorType.CPU,
             accelerator_model=AcceleratorModel.EPYC_9965,
-            accelerator_count=1,
+            accelerator_count=384,
             cpu_info=cpu,
-            cpu_cores=64,
-            cpuset_bind="0-63",
+            cpu_cores=8,
+            cpuset_bind="0-7",
         )
         detail = result.to_detail_dict()
         assert detail["accelerator_type"] == "cpu"
         assert detail["accelerator_model"] == "EPYC_9965"
+        assert detail["accelerator_count"] == 384
         assert detail["cpu_info"]["vendor"] == "AuthenticAMD"
-        assert detail["cpu_cores"] == 64
-        assert detail["cpuset_bind"] == "0-63"
+        assert detail["cpu_info"]["node_cores"] == 384
+        assert detail["cpu_cores"] == 8
+        assert detail["node_cores"] == 384
+        assert detail["cpuset_bind"] == "0-7"
         assert "gpu_info" not in detail
 
     def test_no_model(self):

@@ -13,6 +13,7 @@ import logging
 import os
 import shlex
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,12 +23,18 @@ from .command_generator import CommandGenerator
 from .config import AIMConfig
 from .cpu_detector import EpycDetector
 from .engine_config import load_engine_config
+from .engines import build_engine
 from .gpu_detector import get_gfx_arch
 from .model_storage import StorageBackendRegistry
 from .object_model import AcceleratorType
 from .profile_selector import ProfileSelector
 
 logger = logging.getLogger(__name__)
+
+# Grace period for a supervised engine to drain after a forwarded termination
+# signal before the runtime escalates to SIGKILL. Kept below a typical k8s
+# terminationGracePeriodSeconds (30s) so escalation happens in-pod first.
+_SHUTDOWN_GRACE_SECONDS = 20
 
 
 def _extract_models_from_profile(profile_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -132,7 +139,8 @@ class AIMRuntime:
         self.config = config
         self.profile_selector = ProfileSelector(config)
         engine_config = load_engine_config(config.engine, config.config_path)
-        self.command_generator = CommandGenerator(config, engine_config)
+        self.engine = build_engine(config, engine_config)
+        self.command_generator = CommandGenerator(config, self.engine)
         self.storage_registry = StorageBackendRegistry()
 
     @staticmethod
@@ -272,7 +280,8 @@ class AIMRuntime:
             raise ValueError("Model not specified in profile or configuration")
 
         # Install pre-built AITER kernels for the target GPU architecture
-        if profile.metadata and profile.metadata.accelerator_model:
+        # (only for engines that use them, e.g. vLLM).
+        if self.engine.requires_aiter_kernels and profile.metadata and profile.metadata.accelerator_model:
             _install_aiter_prebuilt_kernels(profile.metadata.accelerator_model)
 
         # Step 3: Generate execution parameters
@@ -304,8 +313,118 @@ class AIMRuntime:
         if not executable_path:
             raise FileNotFoundError(f"Could not find executable: {command_list[0]}")
 
-        # Execute the command directly (replaces current process)
-        os.execv(executable_path, command_list)
+        # Step 7: Run the engine.
+        # Dynamic adapter mode needs an in-pod watcher alongside the engine, so
+        # the runtime must outlive launch and supervise a child process. All
+        # other cases keep the zero-overhead os.execv replace.
+        if self.engine.needs_runtime_supervisor(profile):
+            self._serve_supervised(command_list)
+        else:
+            os.execv(executable_path, command_list)
+
+    def _serve_supervised(self, command_list: List[str]) -> None:
+        """Run the engine as a child and drive the dynamic-mode adapter watcher.
+
+        The runtime stays PID 1: it forwards SIGTERM/SIGINT to the engine,
+        polls the adapter source via the watcher, and exits with the engine's
+        return code so Kubernetes restart semantics are preserved.
+        """
+        import signal
+        import subprocess
+        import threading
+
+        from .engines.adapter_watcher import AdapterWatcher
+
+        logger.info("Starting engine under runtime supervision (dynamic adapter mode)...")
+        proc = subprocess.Popen(command_list, env=os.environ.copy())
+
+        # Set when we forward a termination signal, so the main thread switches
+        # from an unbounded wait to a bounded graceful-drain + SIGKILL escalation.
+        terminating = threading.Event()
+
+        def _forward(signum, _frame):
+            logger.info(f"Forwarding signal {signum} to engine (pid {proc.pid})")
+            terminating.set()
+            try:
+                proc.send_signal(signum)
+            except ProcessLookupError:
+                # Engine already exited between poll and signal; nothing to forward.
+                pass
+
+        signal.signal(signal.SIGTERM, _forward)
+        signal.signal(signal.SIGINT, _forward)
+
+        watcher = AdapterWatcher(
+            source=self.config.adapter_source,
+            max_rank=self.config.adapter_max_rank,
+            base_url=f"http://localhost:{self.config.port}",
+            refresh_interval=self.config.adapter_refresh_interval,
+        )
+
+        # Gate the watcher on engine readiness, then poll until the engine exits.
+        def _watch() -> None:
+            self._wait_for_engine_ready(proc)
+            watcher.run_forever(lambda: proc.poll() is not None)
+
+        threading.Thread(target=_watch, daemon=True).start()
+
+        returncode = self._wait_for_engine_exit(proc, terminating)
+        logger.info(f"Engine exited with code {returncode}; runtime shutting down.")
+        # subprocess reports signal death as a negative code (e.g. -15 for
+        # SIGTERM). Translate to the conventional 128 + signal so exit status
+        # matches the old os.execv path and k8s restart/alerting stays correct
+        # (a raw sys.exit(-15) would exit 241, not 143).
+        sys.exit(128 - returncode if returncode < 0 else returncode)
+
+    def _wait_for_engine_exit(self, proc, terminating) -> int:
+        """Wait for the engine to exit, bounding the wait once we're terminating.
+
+        Normal run: block on ``proc.wait()`` until the engine exits on its own.
+        After we forward a termination signal, bound the drain to
+        ``_SHUTDOWN_GRACE_SECONDS`` and escalate to ``SIGKILL`` if the engine
+        ignores it (e.g. vLLM hangs on shutdown) — otherwise the runtime would
+        block indefinitely and rely entirely on the k8s pod-level SIGKILL.
+        """
+        import subprocess
+
+        if not terminating.is_set():
+            # Wake periodically so a signal that arrives mid-wait flips us onto
+            # the bounded-drain path instead of blocking forever.
+            while not terminating.is_set():
+                try:
+                    return proc.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    continue
+        try:
+            return proc.wait(timeout=_SHUTDOWN_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                f"Engine did not exit within {_SHUTDOWN_GRACE_SECONDS}s of termination signal; "
+                f"escalating to SIGKILL (pid {proc.pid})."
+            )
+            proc.kill()
+            return proc.wait()
+
+    def _wait_for_engine_ready(self, proc, timeout_seconds: int = 600) -> None:
+        """Block until the engine answers /v1/models, the timeout elapses, or it dies."""
+        import time
+
+        import requests
+
+        url = f"http://localhost:{self.config.port}/v1/models"
+        deadline = time.time() + timeout_seconds
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                return  # engine died; supervisor loop will handle exit
+            try:
+                if requests.get(url, timeout=5).status_code == 200:
+                    logger.info("Engine ready; adapter watcher starting.")
+                    return
+            except requests.RequestException:
+                # Engine not accepting connections yet; retry until the deadline.
+                pass
+            time.sleep(2.0)
+        logger.warning(f"Engine not ready after {timeout_seconds}s; starting watcher anyway.")
 
     def dry_run(self) -> List[Dict[str, Any]]:
         """
@@ -330,7 +449,9 @@ class AIMRuntime:
             # Read and parse profile contents as YAML
             profile_data = read_yaml(Path(profile.profile_handling.path))
 
-            # Override CPU env vars in the profile data for dry-run output
+            # Override CPU env vars in the profile data for dry-run output so the
+            # rendered profile reflects the container's cpus (cpuset), matching serve.
+            script_env_override: Optional[Dict[str, Any]] = None
             if self.config.accelerator_type == AcceleratorType.CPU and hasattr(
                 self.profile_selector, "detected_cpu_cores"
             ):
@@ -340,6 +461,9 @@ class AIMRuntime:
                         self.profile_selector.detected_cpu_cores,
                         cpuset_bind=self.profile_selector.cpuset_bind,
                     )
+                    # Reuse the same cpuset-adjusted env vars when rendering the
+                    # script so the script block stays consistent with the profile.
+                    script_env_override = profile_data["env_vars"]
 
             # Step 3: Extract required models from profile
             models = _extract_models_from_profile(profile_data)
@@ -355,7 +479,7 @@ class AIMRuntime:
                 if "source" in model_info:
                     model_info["source"] = self.normalize_model_source(model_info["name"])
 
-            script_path = self.command_generator.generate_command_script(profile)
+            script_path = self.command_generator.generate_command_script(profile, env_vars=script_env_override)
             with open(script_path, "r", encoding="utf-8") as f:
                 output_script = f.read()
             # Step 6: Add storage estimates to models

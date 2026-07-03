@@ -21,6 +21,11 @@ CPUSET_V2_EFFECTIVE = "/sys/fs/cgroup/cpuset.cpus.effective"
 CPUSET_V2 = "/sys/fs/cgroup/cpuset.cpus"
 CPUSET_V1 = "/sys/fs/cgroup/cpuset/cpuset.cpus"
 
+# Node-level CPU inventory sources, unaffected by cpuset/cgroup limits.
+# Used to report the host's full capacity for node labelling (detect-hardware).
+CPU_PRESENT = "/sys/devices/system/cpu/present"
+PROC_CPUINFO = "/proc/cpuinfo"
+
 EPYC_MODEL_PATTERN = re.compile(r"EPYC\s+(9[\dA-Z]{2}[45][A-Z]?)")
 
 
@@ -40,6 +45,9 @@ class CPUInfo:
     available_cores: int
     # Raw cpuset string if detected from cpuset file, else None
     cpuset_bind: Optional[str]
+    # Node's full logical CPU capacity, independent of cpuset/cgroup limits
+    # (from /sys/devices/system/cpu/present). Used for node labelling.
+    node_cores: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -49,6 +57,7 @@ class CPUInfo:
             "physical_cores": self.physical_cores,
             "available_cores": self.available_cores,
             "cpuset_bind": self.cpuset_bind,
+            "node_cores": self.node_cores,
         }
 
 
@@ -76,6 +85,18 @@ class CpuDetector:
         return info.available_cores if info else (os.cpu_count() or 1)
 
     @cached_property
+    def node_cores(self) -> int:
+        """Node's full logical CPU capacity, independent of cpuset/cgroup limits.
+
+        Reflects the host's total cores (e.g. 384 on a dual-socket EPYC 9965) even
+        when the container is restricted via --cpuset-cpus or a Kubernetes static
+        CPU policy. Used by detect-hardware for node labelling, where presence and
+        full capacity matter rather than the pod's allocation.
+        """
+        info = self.cpu_info
+        return info.node_cores if info else (os.cpu_count() or 1)
+
+    @cached_property
     def cpuset_bind(self) -> Optional[str]:
         """Raw cpuset string when cores were detected from a cpuset file (e.g. '0-127', '16-47,64-95').
 
@@ -95,6 +116,7 @@ class CpuDetector:
         cpu_model = self._resolve_cpu_model(model_number, vendor)
         physical_cores = os.cpu_count() or 1
         available_cores, cpuset_bind = self._detect_available_cores(physical_cores)
+        node_cores = self._detect_node_cores(physical_cores)
 
         self._cpu_info = CPUInfo(
             vendor=vendor,
@@ -103,6 +125,7 @@ class CpuDetector:
             physical_cores=physical_cores,
             available_cores=available_cores,
             cpuset_bind=cpuset_bind,
+            node_cores=node_cores,
         )
         self._detected = True
 
@@ -160,6 +183,56 @@ class CpuDetector:
 
         logger.debug(f"Non-AMD CPU detected: {vendor}")
         return None
+
+    @classmethod
+    def _detect_node_cores(cls, physical_cores: int) -> int:
+        """Detect the node's full logical CPU capacity, ignoring cpuset/cgroup limits.
+
+        Unlike ``_detect_available_cores`` (which honours container restrictions),
+        this reports the host's total core count for node labelling. ``--cpuset-cpus``
+        and Kubernetes static CPU policies restrict scheduling affinity but do not
+        mask the node inventory exposed by ``/sys/devices/system/cpu/present`` or
+        ``/proc/cpuinfo``.
+
+        Priority: /sys present -> /proc/cpuinfo processor count -> os.cpu_count().
+        """
+        cores = cls._read_cpu_present()
+        if cores is not None:
+            logger.info(f"Detected {cores} node cores from {CPU_PRESENT}")
+            return cores
+
+        cores = cls._read_proc_cpuinfo_count()
+        if cores is not None:
+            logger.info(f"Detected {cores} node cores from {PROC_CPUINFO} processor count")
+            return cores
+
+        logger.info(f"Falling back to os.cpu_count() for node cores: {physical_cores}")
+        return physical_cores
+
+    @staticmethod
+    def _read_cpu_present() -> Optional[int]:
+        """Count CPUs listed in /sys/devices/system/cpu/present (e.g. '0-383' -> 384)."""
+        try:
+            content = Path(CPU_PRESENT).read_text().strip()
+            if not content:
+                return None
+            cores = len(CpuDetector._parse_cpuset_to_set(content))
+            return cores if cores > 0 else None
+        except (FileNotFoundError, OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _read_proc_cpuinfo_count() -> Optional[int]:
+        """Count 'processor' entries in /proc/cpuinfo (host-wide logical CPUs)."""
+        try:
+            count = 0
+            with open(PROC_CPUINFO, "r") as f:
+                for line in f:
+                    if line.startswith("processor"):
+                        count += 1
+            return count if count > 0 else None
+        except (FileNotFoundError, OSError):
+            return None
 
     @classmethod
     def _detect_available_cores(cls, physical_cores: int) -> tuple[int, Optional[str]]:

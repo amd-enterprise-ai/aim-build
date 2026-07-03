@@ -703,6 +703,13 @@ def _validate_recommended_deployments_profile_ids(assets_path: str, canonical_na
         rd["manual_selection_only"] = profile_metadata.manual_selection_only
         if "precision" not in rd:
             rd["precision"] = profile_metadata.precision
+        # Profile-intrinsic capabilities are not deployment-selection attributes and
+        # cannot be expressed in a recommendedDeployment entry, so inherit them from
+        # the referenced profile to keep the equality check focused on selection keys
+        # (gpu/metric/precision/...). Without this, any recommendedDeployment pointing
+        # at a profile that declares e.g. ``features: [adapters]`` (ADR-0004) fails.
+        rd["features"] = profile_metadata.features
+        rd["capabilities"] = profile_metadata.capabilities
 
         rd = rename_keys(rd, key_mapping)
         return ProfileMetadata.from_dict(rd)
@@ -739,6 +746,7 @@ def _validate_recommended_deployments_profile_ids(assets_path: str, canonical_na
                 profile_metadata = profile.get("metadata", {})
                 profile_metadata.pop("accelerator_type", None)
                 profile_metadata.pop("primary", None)
+                profile_metadata.pop("variant", None)
                 from_profile = ProfileMetadata.from_dict(profile_metadata)
                 from_metadata = rd_to_profile_metadata(rd, from_profile)
 

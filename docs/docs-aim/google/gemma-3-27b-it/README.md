@@ -76,7 +76,7 @@ The following profiles are available for this model:
 |vllm-mi350x-bf16-tp1-latency|MI350X|bf16|vllm|1|latency|optimized|False|
 |vllm-mi350x-bf16-tp1-throughput|MI350X|bf16|vllm|1|throughput|optimized|False|
 |vllm-mi355x-bf16-tp1-latency|MI355X|bf16|vllm|1|latency|optimized|False|
-|vllm-mi355x-bf16-tp1-throughput|MI355X|bf16|vllm|1|throughput|preview|False|
+|vllm-mi355x-bf16-tp1-throughput|MI355X|bf16|vllm|1|throughput|optimized|False|
 |vllm-mi250x-fp16-tp1-latency|MI250X|fp16|vllm|1|latency|general|False|
 |vllm-mi250x-fp16-tp1-throughput|MI250X|fp16|vllm|1|throughput|general|False|
 |vllm-mi250x-fp16-tp2-latency|MI250X|fp16|vllm|2|latency|general|False|

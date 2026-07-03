@@ -36,6 +36,7 @@ EXCLUDED_EXTENSIONS = {
     ".csv",
     ".doc",
     ".docx",
+    ".fasta",
     ".gif",
     ".gz",
     ".ico",

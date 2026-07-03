@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "label": "8gpp",
+    "description": "PDB 8GPP (624 residues, recipe=full)"
+  },
+  "data": {
+    "num_diffusion_samples": 1,
+    "use_msa_server": false,
+    "use_templates": false,
+    "queries": {
+      "8gpp": {
+        "chains": [
+          {
+            "molecule_type": "protein",
+            "chain_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "sequence": "MGHHHHHHPCYSIDGVIPVVSPDAFVHPTAVLIGDVIIEAGVYVGPFASLRADFGRIHINQNANIQDSCTVHGFPQSVTLVEEMGHIGHGAILHGCRIGKNVLVGMNSVILDYAEIGENTIIGANSLVKTKDIIPANVLAMGSPAKVARDLSEQEKKWKTRGTQEYMELAQRCLNSMQEVQPLSSESDDRLTYKDFSSSNYQIKQDSV"
+          }
+        ]
+      }
+    }
+  }
+}

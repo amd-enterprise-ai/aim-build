@@ -16,7 +16,6 @@ metadata:
   type: unoptimized
 engine_args:
   dtype: bfloat16
-  max-num-seqs: 128
 env_vars:
   OMP_NUM_THREADS: '128'
   VLLM_CPU_KVCACHE_SPACE: '80'

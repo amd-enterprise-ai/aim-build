@@ -8,9 +8,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from aim_common import Engine, GPUModel, Metric, Precision, ProfileType
+from aim_common import AcceleratorModel, AcceleratorType, Engine, GPUModel, Metric, Precision, ProfileType
 from aim_runtime.config import AIMConfig
-from aim_runtime.object_model import Profile
+from aim_runtime.object_model import Profile, ProfileMetadata
 from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileNotFound, ProfileSelector
 
 
@@ -902,3 +902,114 @@ class TestSerializeProfiles:
         # profile_id should be a non-empty string
         for entry in serialized:
             assert len(entry["profile_id"]) > 0
+
+
+class TestCPUProfileCompatibility:
+    """Tests for CPU-specific profile compatibility logic."""
+
+    @staticmethod
+    def _make_cpu_profile(accelerator_count: int = 188) -> Profile:
+        from aim_runtime.object_model import ProfileHandling
+
+        metadata = ProfileMetadata(
+            engine=Engine.VLLM,
+            accelerator_type=AcceleratorType.CPU,
+            accelerator_model=AcceleratorModel.EPYC_9965,
+            precision=Precision.BF16,
+            accelerator_count=accelerator_count,
+            metric=Metric.LATENCY,
+            manual_selection_only=False,
+            type=ProfileType.GENERAL,
+        )
+        return Profile(
+            profile_handling=ProfileHandling(
+                path="/test/general", filename="vllm-epyc_9965-bf16-tp1-latency.yaml", priority=1
+            ),
+            metadata=metadata,
+            aim_id="*",
+            model_id="*",
+        )
+
+    def test_cpu_profile_compatible_regardless_of_accelerator_count(self, profile_base_path: str) -> None:
+        """CPU profiles are compatible even when accelerator_count differs from detected count."""
+        from aim_runtime.accelerator_detector import AcceleratorDetectionResult
+
+        config = AIMConfig(
+            aim_id="*",
+            profile_base_path=profile_base_path,
+            accelerator_type=AcceleratorType.CPU,
+        )
+
+        with patch("aim_runtime.accelerator_detector.AcceleratorDetector.detect") as mock_detect:
+            mock_detect.return_value = AcceleratorDetectionResult(
+                accelerator_type=AcceleratorType.CPU,
+                accelerator_model=AcceleratorModel.EPYC_9965,
+                accelerator_count=1,
+                cpu_cores=192,
+            )
+            selector = ProfileSelector(config)
+
+        profile = self._make_cpu_profile(accelerator_count=188)
+        result = selector._assess_profile_compatibility(profile, Engine.VLLM, Metric.LATENCY)
+        assert result.state == ProfileCompatibilityState.COMPATIBLE
+
+    def test_gpu_profile_rejects_accelerator_count_mismatch(self, profile_base_path: str) -> None:
+        """GPU profiles are rejected when accelerator_count mismatches detected count."""
+        from aim_runtime.accelerator_detector import AcceleratorDetectionResult
+
+        config = AIMConfig(
+            aim_id="*",
+            profile_base_path=profile_base_path,
+            accelerator_type=AcceleratorType.GPU,
+        )
+
+        with patch("aim_runtime.accelerator_detector.AcceleratorDetector.detect") as mock_detect:
+            mock_detect.return_value = AcceleratorDetectionResult(
+                accelerator_type=AcceleratorType.GPU,
+                accelerator_model=AcceleratorModel.MI300X,
+                accelerator_count=1,
+            )
+            selector = ProfileSelector(config)
+
+        from aim_runtime.object_model import ProfileHandling
+
+        gpu_metadata = ProfileMetadata(
+            engine=Engine.VLLM,
+            accelerator_type=AcceleratorType.GPU,
+            accelerator_model=AcceleratorModel.MI300X,
+            precision=Precision.FP16,
+            accelerator_count=8,
+            metric=Metric.LATENCY,
+            manual_selection_only=False,
+            type=ProfileType.GENERAL,
+        )
+        gpu_profile = Profile(
+            profile_handling=ProfileHandling(
+                path="/test/general", filename="vllm-mi300x-fp16-tp8-latency.yaml", priority=1
+            ),
+            metadata=gpu_metadata,
+            aim_id="*",
+            model_id="*",
+        )
+
+        result = selector._assess_profile_compatibility(gpu_profile, Engine.VLLM, Metric.LATENCY)
+        assert result.state == ProfileCompatibilityState.ACCELERATOR_MISMATCH
+
+
+def test_find_profile_variant_tie_error_includes_aim_id(
+    selector_with_mock_gpu: ProfileSelector, aim_config: AIMConfig
+) -> None:
+    """When _resolve_variant_tie raises, find_profile should re-raise with aim_id context."""
+    inner_message = "Multiple profiles match ... Set AIM_PROFILE_ID to one of: a, b"
+    with patch(
+        "aim_runtime.profile_selector._resolve_variant_tie",
+        side_effect=ProfileNotFound(inner_message),
+    ):
+        with pytest.raises(ProfileNotFound) as exc_info:
+            selector_with_mock_gpu.find_profile()
+
+    message = str(exc_info.value)
+    # aim_id must be present so operators see which AIM produced the error
+    assert aim_config.aim_id in message
+    # original detail must be preserved
+    assert inner_message in message

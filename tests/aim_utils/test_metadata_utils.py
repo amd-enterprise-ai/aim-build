@@ -283,6 +283,52 @@ def test_add_recommended_deployments_deprioritize_manual_selection_only(tmp_path
         os.chdir(original_cwd)
 
 
+def test_validate_recommended_deployments_profile_ids_lora_profile(tmp_path):
+    """A recommendedDeployment pointing at a LoRA (``features: [adapters]``) profile
+    must validate. The rd entry cannot express profile-intrinsic capabilities, so the
+    validator inherits them from the referenced profile (ADR-0004 regression)."""
+    metadata_dir = tmp_path / "test-org" / "test-model"
+    metadata_dir.mkdir(parents=True)
+    metadata_file = metadata_dir / "metadata.yaml"
+
+    metadata = {"com": {"amd": {"aim": {"model": {"canonicalName": "test-org/test-model"}}}}}
+    yaml_utils.save_yaml(metadata, path=metadata_file)
+
+    profiles_dir = metadata_dir / "profiles"
+    profiles_dir.mkdir(parents=True)
+
+    # A manual-selection LoRA profile: the generator records it via ``profileId``.
+    profile = {
+        "aim_id": "test-org/test-model",
+        "metadata": {
+            "engine": "vllm",
+            "gpu": "MI300X",
+            "gpu_count": 1,
+            "metric": "latency",
+            "precision": "bf16",
+            "manual_selection_only": True,
+            "type": "unoptimized",
+            "features": ["adapters"],
+        },
+    }
+    yaml_utils.save_yaml(profile, path=profiles_dir / "vllm-mi300x-bf16-tp1-latency.yaml")
+
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        metadata_utils._add_recommended_deployments_for_model(metadata_file)
+
+        deployments = metadata_utils.get_value(
+            yaml_utils.read_yaml(metadata_file), "com.amd.aim.model.recommendedDeployments"
+        )
+        assert any(d.get("profileId") == "vllm-mi300x-bf16-tp1-latency" for d in deployments)
+
+        failed = metadata_utils._validate_recommended_deployments_profile_ids(".", "test-org/test-model")
+        assert failed is False
+    finally:
+        os.chdir(original_cwd)
+
+
 def test_add_recommended_deployments_precision_priority(tmp_path):
     """Test that precision priority is correctly applied."""
     # Create test metadata file

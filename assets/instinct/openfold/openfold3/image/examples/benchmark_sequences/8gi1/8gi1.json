@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "label": "8gi1",
+    "description": "PDB 8GI1 (1464 residues, recipe=full)"
+  },
+  "data": {
+    "num_diffusion_samples": 1,
+    "use_msa_server": false,
+    "use_templates": false,
+    "queries": {
+      "8gi1": {
+        "chains": [
+          {
+            "molecule_type": "protein",
+            "chain_ids": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F",
+              "G",
+              "H"
+            ],
+            "sequence": "MDYMELAKEAFSIICTFIAAYVAYYYAIKQLHQKSVENIEYAKYQAVLQAHKSLYKLLRFTTNTENEDSILIWEKTKDGKQEATYYFRKENIRKFIKELSKEIYNEGCGIFMSKEALSLISEYRNIVYGFMLSAQNNPQETIRITNRESVERMKKIHQNLSIEIRQAINLKKRDLRFENLYFQ"
+          }
+        ]
+      }
+    }
+  }
+}

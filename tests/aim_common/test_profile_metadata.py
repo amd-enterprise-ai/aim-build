@@ -13,6 +13,9 @@ src_dir = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(ci_dir))
 sys.path.insert(0, str(src_dir))
 
+import pytest  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
+
 from aim_common.object_model import (  # noqa: E402
     AcceleratorModel,
     AcceleratorType,
@@ -204,3 +207,117 @@ class TestProfileMetadata:
             type=ProfileType.GENERAL,
         )
         assert profile1 != profile2
+
+
+class TestProfileMetadataVariant:
+    """Tests for the variant field on ProfileMetadata."""
+
+    def _base_profile(self, **kwargs) -> ProfileMetadata:
+        defaults = dict(
+            engine=Engine.VLLM,
+            accelerator_model=AcceleratorModel.MI300X,
+            precision=Precision.FP16,
+            accelerator_count=1,
+            metric=Metric.LATENCY,
+            manual_selection_only=False,
+            type=ProfileType.OPTIMIZED,
+        )
+        defaults.update(kwargs)
+        return ProfileMetadata(**defaults)
+
+    def test_accelerator_label_without_variant_unchanged(self):
+        """Existing profiles that omit variant must produce the same five-segment label."""
+        profile = self._base_profile()
+        assert profile.accelerator_label == "vllm-mi300x-fp16-tp1-latency"
+
+    def test_accelerator_label_with_variant_appends_suffix(self):
+        """When variant is set, accelerator_label gains a sixth segment."""
+        profile = self._base_profile(variant="inductor-diff")
+        assert profile.accelerator_label == "vllm-mi300x-fp16-tp1-latency-inductor-diff"
+
+    def test_str_uses_accelerator_label_with_variant(self):
+        """str() should reflect the variant-extended accelerator_label."""
+        profile = self._base_profile(variant="short")
+        assert str(profile) == "vllm-mi300x-fp16-tp1-latency-short"
+
+    def test_hash_differs_between_variant_and_no_variant(self):
+        """Two profiles that differ only by variant must hash differently."""
+        p1 = self._base_profile(variant=None)
+        p2 = self._base_profile(variant="inductor-diff")
+        assert hash(p1) != hash(p2)
+
+    def test_hash_equal_for_same_variant(self):
+        """Two profiles with the same variant must hash the same."""
+        p1 = self._base_profile(variant="inductor-diff")
+        p2 = self._base_profile(variant="inductor-diff")
+        assert hash(p1) == hash(p2)
+
+    def test_from_dict_parses_variant(self):
+        """ProfileMetadata.from_dict should accept and parse the variant key."""
+        data = {
+            "engine": "vllm",
+            "accelerator_model": "MI300X",
+            "precision": "fp16",
+            "accelerator_count": 1,
+            "metric": "latency",
+            "manual_selection_only": False,
+            "type": "optimized",
+            "variant": "inductor-diff",
+        }
+        profile = ProfileMetadata.from_dict(data)
+        assert profile.variant == "inductor-diff"
+        assert profile.accelerator_label == "vllm-mi300x-fp16-tp1-latency-inductor-diff"
+
+    def test_from_dict_without_variant_defaults_to_none(self):
+        """YAML profiles without variant key must parse to variant=None."""
+        data = {
+            "engine": "vllm",
+            "accelerator_model": "MI300X",
+            "precision": "fp16",
+            "accelerator_count": 1,
+            "metric": "latency",
+            "manual_selection_only": False,
+            "type": "optimized",
+        }
+        profile = ProfileMetadata.from_dict(data)
+        assert profile.variant is None
+
+    def test_to_dict_excludes_variant_when_none(self):
+        """to_dict() should not emit a variant key when variant is None (preserve YAML round-trip)."""
+        profile = self._base_profile(variant=None)
+        result = profile.to_dict()
+        assert "variant" not in result
+
+    def test_to_dict_includes_variant_when_set(self):
+        """to_dict() should include variant when it is not None."""
+        profile = self._base_profile(variant="inductor-diff")
+        result = profile.to_dict()
+        assert result["variant"] == "inductor-diff"
+
+    @pytest.mark.parametrize(
+        "bad_variant",
+        [
+            "",  # empty string
+            " ",  # whitespace
+            "UPPER",  # uppercase
+            "Mixed-Case",  # mixed case
+            "-leading-hyphen",  # leading hyphen
+            "1leading-digit",  # leading digit
+            "has space",  # whitespace inside
+            "under_score",  # underscores not in slug pattern
+        ],
+    )
+    def test_invalid_variant_raises_validation_error(self, bad_variant):
+        """Invalid variant slugs (empty, whitespace, uppercase, etc.) must raise ValidationError."""
+        with pytest.raises(ValidationError):
+            self._base_profile(variant=bad_variant)
+
+    def test_valid_variant_accepted(self):
+        """A correctly formatted slug variant should validate without error."""
+        profile = self._base_profile(variant="inductor-diff")
+        assert profile.variant == "inductor-diff"
+
+    def test_none_variant_accepted(self):
+        """variant=None should always pass validation (pattern not applied to None)."""
+        profile = self._base_profile(variant=None)
+        assert profile.variant is None

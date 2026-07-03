@@ -1,0 +1,57 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "gemma, MIT"
+      description: "Gemma 3n E4B IT is a gated multimodal instruction-tuned model supporting text, image, video, and audio inputs."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-3n-E4B-it"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "audio-text-to-text"
+        - "video-text-to-text"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/google/gemma-3n-E4B-it"
+        variants:
+        - "google/gemma-3n-E4B-it"
+        recommendedDeployments:
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on W7900 using bf16 precision"
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on W7900 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on R9700 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on R9700 using bf16 precision"
+        publisher: "Google"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "Gemma 3n E4B IT is a Gemma 3n instruction-tuned multimodal model from Google DeepMind. It supports text, image, video, and audio inputs, generates text outputs, and uses selective parameter activation so the raw 8B-parameter architecture runs with an effective 4B memory footprint. The model is trained for multilingual use across more than 140 spoken languages."
+      title: "Gemma 3n E4B IT"

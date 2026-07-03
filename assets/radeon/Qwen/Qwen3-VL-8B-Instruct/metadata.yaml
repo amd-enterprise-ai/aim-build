@@ -1,0 +1,54 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "8B parameter vision-language model with advanced multimodal reasoning."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3-VL-8B-Instruct"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "vision"
+        source: "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct"
+        variants:
+        - "Qwen/Qwen3-VL-8B-Instruct"
+        recommendedDeployments:
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on W7900 using bf16 precision"
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on W7900 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on R9700 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on R9700 using bf16 precision"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3-VL-8B-Instruct is an 8 billion parameter vision-language model from the Qwen series by Alibaba Group. It features advanced multimodal reasoning with DeepStack architecture fusing multi-level ViT features, and enhanced OCR supporting 32 languages. The model excels at visual agent tasks, spatial perception with 2D/3D grounding, visual coding generation, and long-horizon video reasoning with text-timestamp alignment for precise event localization."
+      title: "Qwen3 VL 8B Instruct"

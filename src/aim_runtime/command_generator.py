@@ -13,19 +13,17 @@ argument, validation) are configured via engines.yaml rather than hardcoded.
 import logging
 import os
 import shlex
-import shutil
 import stat
 import tempfile
 from typing import Any, Dict, List, Optional
 
 from pydantic import ValidationError as PydanticValidationError
 
-from aim_common.engine_args_models import ENGINE_ARGS_MODELS, engine_args_to_cli_list
+from aim_runtime.engines.base import BaseEngine
 
 from .config import AIMConfig
-from .engine_config import EngineConfig
 from .model_cache_resolver import ModelCacheResolver
-from .object_model import Engine, Profile
+from .object_model import Profile
 from .profile_validator import ProfileValidator
 
 logger = logging.getLogger(__name__)
@@ -34,23 +32,23 @@ logger = logging.getLogger(__name__)
 class CommandGenerator:
     """Generates runtime commands from profile configurations."""
 
-    def __init__(self, config: AIMConfig, engine_config: EngineConfig):
+    def __init__(self, config: AIMConfig, engine: BaseEngine):
         """Initialize the command generator with configuration.
 
         Args:
             config: AIM runtime configuration.
-            engine_config: Engine-specific configuration loaded from engines.yaml.
+            engine: Concrete engine that owns launch, defaults, validation,
+                and CLI serialization.
         """
         self.config = config
-        self.engine_config = engine_config
+        self.engine = engine
         self.cache_resolver = ModelCacheResolver(config.cache_path)
         self.profile_validator = ProfileValidator()
-
-        # Resolve engine arg model
-        self._engine_args_model = ENGINE_ARGS_MODELS.get(engine_config.validator)
-
-        if self._engine_args_model:
-            logger.info(f"Using '{engine_config.validator}' engine args model for validation")
+        # Cache the (engine_args, env_vars) adapter runtime per profile so the
+        # command (args) and env (vars) halves come from a single enumeration of
+        # the adapter source — recomputing risks mismatched CLI vs env if the
+        # directory changes between calls, plus redundant disk I/O.
+        self._adapter_runtime_cache: dict[int, tuple[Dict[str, Any], Dict[str, str]]] = {}
 
     def generate_execution_params(self, profile: Profile) -> tuple[List[str], Dict[str, str]]:
         """
@@ -71,18 +69,21 @@ class CommandGenerator:
         # Build command as list (no shell interpretation)
         command_list = self._build_command_list(profile)
 
-        # Get environment variables
-        env_vars = profile.env_vars or {}
+        # Get environment variables (profile env + any adapter env)
+        env_vars = self._resolve_env_vars(profile)
 
         logger.info(f"Generated execution parameters: {len(command_list)} args, {len(env_vars)} env vars")
         return command_list, env_vars
 
-    def generate_command_script(self, profile: Profile) -> str:
+    def generate_command_script(self, profile: Profile, env_vars: Optional[Dict[str, Any]] = None) -> str:
         """
         Generate a shell script from a profile object (legacy method for dry-run).
 
         Args:
             profile: Profile object containing profile parameters
+            env_vars: Optional env var overrides to render in the script. When provided
+                (e.g. the cpuset-adjusted CPU env vars), these are used instead of
+                ``profile.env_vars`` so the dry-run script matches what ``serve`` runs.
 
         Returns:
             str: Path to the generated shell script
@@ -90,8 +91,11 @@ class CommandGenerator:
         # Generate the command components
         command = self._build_command(profile)
 
-        # Create the shell script
-        script_content = self._create_script_content(command, profile.env_vars)
+        # Create the shell script. Use the explicit override when provided (e.g. the
+        # cpuset-adjusted CPU env vars from dry-run) so the script matches what serve
+        # runs; otherwise fall back to the resolved profile env + any adapter env.
+        script_env_vars = env_vars if env_vars is not None else self._resolve_env_vars(profile)
+        script_content = self._create_script_content(command, script_env_vars)
         script_path = self._write_script_file(script_content)
 
         logger.info(f"Generated command script: {script_path}")
@@ -136,28 +140,67 @@ class CommandGenerator:
         # Merge and validate engine arguments
         engine_args = self._merge_and_validate_engine_args(profile)
 
+        # Merge LoRA adapter engine args when the profile declares support, so
+        # they flow through serialization (the env half is added in
+        # _resolve_env_vars). The gate is the feature flag, not the engine name;
+        # only LLM engines implement the hook.
+        adapter_args, _ = self._adapter_runtime(profile)
+        if adapter_args:
+            engine_args.update(adapter_args)
+            # Adapter args are injected after _merge_and_validate_engine_args, so
+            # re-validate to keep invalid adapter-derived flags from reaching the
+            # launch command undetected.
+            self.engine.validate_engine_args(engine_args)
+
         # Add system overrides (always take precedence)
         engine_args["port"] = self.config.port
 
-        # served-model-name is a vLLM-specific OpenAI-compatibility flag
-        if self.config.engine == Engine.VLLM:
-            engine_args["served-model-name"] = served_model_name_list
-            logger.info(f"Setting served-model-name to: {served_model_name_list}")
+        # Apply engine-specific argument defaults (e.g. vLLM served-model-name).
+        self.engine.apply_engine_defaults(engine_args, served_model_name_list)
 
-        args_list = self._build_engine_args(engine_args)
+        args_list = self.engine.serialize_engine_args(engine_args)
 
-        # Build launch command from engine config
-        launch = shlex.split(self.engine_config.launch)
-        if launch[0] == "python":
-            launch[0] = "python" if shutil.which("python") else "python3"
+        # Build launch command from the engine.
+        launch = self.engine.launch_prefix()
 
         # Prepend model path when the engine uses a dedicated model flag
-        if self.engine_config.model_arg:
-            command_list = launch + [self.engine_config.model_arg, model_path] + args_list
+        if self.engine.model_arg:
+            command_list = launch + [self.engine.model_arg, model_path] + args_list
         else:
             command_list = launch + args_list
 
         return command_list
+
+    def _resolve_env_vars(self, profile: Profile) -> Dict[str, str]:
+        """Return the env vars to set on the engine process.
+
+        Profile env vars plus any adapter env (e.g. the vLLM dynamic resolver
+        triplet) when the profile declares adapter support. Shared by serve and
+        dry-run so both surfaces show identical env.
+        """
+        env_vars: Dict[str, str] = dict(profile.env_vars or {})
+        _, adapter_env = self._adapter_runtime(profile)
+        env_vars.update(adapter_env)
+        return env_vars
+
+    def _adapter_runtime(self, profile: Profile) -> tuple[Dict[str, Any], Dict[str, str]]:
+        """Return (engine_args, env_vars) for the profile's LoRA adapters.
+
+        Memoized per profile so the command and env halves share one adapter
+        enumeration. Returns empty dicts when the profile declares no adapter
+        support or the engine has no adapter hook. The gate is the feature flag,
+        not the engine name; only LLM engines implement the hook.
+        """
+        key = id(profile)
+        cached = self._adapter_runtime_cache.get(key)
+        if cached is not None:
+            return cached
+        if profile.metadata and profile.metadata.supports_adapters and hasattr(self.engine, "build_adapter_runtime"):
+            result = self.engine.build_adapter_runtime(profile)
+        else:
+            result = ({}, {})
+        self._adapter_runtime_cache[key] = result
+        return result
 
     def _merge_and_validate_engine_args(self, profile: Profile) -> Dict[str, Any]:
         """
@@ -214,7 +257,7 @@ class CommandGenerator:
                 self.profile_validator.validate(profile_data, is_general_profile=is_general_profile)
 
                 # Validate engine args via engine-specific validator
-                self._validate_engine_args(engine_args)
+                self.engine.validate_engine_args(engine_args)
 
                 logger.debug(f"Successfully validated {len(engine_args)} merged engine arguments")
 
@@ -224,15 +267,6 @@ class CommandGenerator:
                 raise
 
         return engine_args
-
-    def _validate_engine_args(self, engine_args: Dict[str, Any]) -> None:
-        """Validate engine args using the configured validator."""
-        if self._engine_args_model:
-            self._engine_args_model.model_validate(engine_args)
-
-    def _build_engine_args(self, engine_args: Dict[str, Any]) -> List[str]:
-        """Build engine arguments list from the engine_args dictionary."""
-        return engine_args_to_cli_list(engine_args, self.engine_config.args_format)
 
     def _create_script_content(self, command: str, env_vars: Optional[Dict[str, Any]] = None) -> str:
         """Create the shell script content."""

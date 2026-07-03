@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Gemma 4 E4B is Google's efficient instruction-tuned model with a ~4B effective-parameter MatFormer architecture for low-latency on-device and CPU inference."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-4-E4B-it"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/google/gemma-4-E4B-it"
+        variants:
+        - "google/gemma-4-E4B-it"
+        publisher: "Google"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "Gemma 4 E4B is Google's efficient instruction-tuned model with a ~4B effective-parameter MatFormer architecture for low-latency on-device and CPU inference."
+      title: "Gemma 4 E4B"

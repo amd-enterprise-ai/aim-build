@@ -437,3 +437,64 @@ class TestAllowUnoptimizedConfig:
         config_dict = config.to_dict()
         assert "allow_unoptimized" in config_dict
         assert config_dict["allow_unoptimized"] is True
+
+
+class TestAcceleratorCountConfig:
+    """Tests for AIM_ACCELERATOR_COUNT env-var parsing (and deprecated AIM_GPU_COUNT).
+
+    The accelerator count is the only operator-supplied input to profile
+    selection that drives multi-GPU profile matching (profile_selector compares
+    ``metadata.gpu_count`` against this value).  Service-side code (e.g. the
+    OpenFold3 BentoML service) may also read this env var directly.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_count_env(self):
+        """Strip both count env vars before each test for deterministic state."""
+        clean = {k: v for k, v in os.environ.items() if k not in ("AIM_ACCELERATOR_COUNT", "AIM_GPU_COUNT")}
+        with patch.dict(os.environ, clean, clear=True):
+            yield
+
+    @pytest.mark.parametrize("count", [1, 2, 4, 8])
+    def test_accelerator_count_integer_values(self, count):
+        """AIM_ACCELERATOR_COUNT=N is parsed as int N for canonical multi-GPU values."""
+        env_vars = {"AIM_MODEL_ID": "test/model", "AIM_ACCELERATOR_COUNT": str(count)}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == count
+
+    def test_accelerator_count_auto(self):
+        """AIM_ACCELERATOR_COUNT=auto is preserved as the string 'auto' for detector fallback."""
+        env_vars = {"AIM_MODEL_ID": "test/model", "AIM_ACCELERATOR_COUNT": "auto"}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == "auto"
+
+    def test_accelerator_count_default_is_auto(self):
+        """Missing AIM_ACCELERATOR_COUNT defaults to 'auto'."""
+        env_vars = {"AIM_MODEL_ID": "test/model"}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == "auto"
+
+    def test_accelerator_count_invalid_falls_back_to_auto(self):
+        """Non-integer, non-'auto' values fall back to 'auto' with a warning."""
+        env_vars = {"AIM_MODEL_ID": "test/model", "AIM_ACCELERATOR_COUNT": "not-a-number"}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == "auto"
+
+    @pytest.mark.parametrize("count", [1, 2, 4, 8])
+    def test_deprecated_gpu_count_env_var(self, count):
+        """Deprecated AIM_GPU_COUNT is honored when AIM_ACCELERATOR_COUNT is unset."""
+        env_vars = {"AIM_MODEL_ID": "test/model", "AIM_GPU_COUNT": str(count)}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == count
+
+    def test_accelerator_count_takes_precedence_over_deprecated(self):
+        """When both env vars are set, AIM_ACCELERATOR_COUNT wins."""
+        env_vars = {"AIM_MODEL_ID": "test/model", "AIM_ACCELERATOR_COUNT": "4", "AIM_GPU_COUNT": "2"}
+        with patch.dict(os.environ, env_vars, clear=False):
+            config = AIMConfig.from_environment()
+            assert config.accelerator_count == 4

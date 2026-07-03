@@ -13,16 +13,11 @@ WARNING: This is SHARED CODE. Changes here may affect both teams.
 Please coordinate with both teams before making breaking changes.
 """
 
-from aim_common.engine_args_models import (
-    BentomlEngineArgsModel,
-    EngineArgsModel,
-    VllmEngineArgsModel,
-    VllmOmniEngineArgsModel,
-)
 from aim_common.object_model import (
     AcceleratorFamily,
     AcceleratorModel,
     AcceleratorType,
+    AdapterToken,
     CPUModel,
     Engine,
     EnumerationType,
@@ -40,10 +35,9 @@ __all__ = [
     "AcceleratorFamily",
     "AcceleratorModel",
     "AcceleratorType",
-    "BentomlEngineArgsModel",
+    "AdapterToken",
     "CPUModel",
     "Engine",
-    "EngineArgsModel",
     "EnumerationType",
     "GPUModel",
     "Metric",
@@ -53,6 +47,4 @@ __all__ = [
     "ProfileData",
     "ProfileMetadata",
     "ProfileType",
-    "VllmEngineArgsModel",
-    "VllmOmniEngineArgsModel",
 ]

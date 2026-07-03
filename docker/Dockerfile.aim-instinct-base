@@ -19,13 +19,15 @@ ARG PARENT_TAG
 # - rocm/vllm:rocm7.0.0_vllm_0.11.1_20251103                    = LMCache v0.3.9post2 = d5be14f
 # - vllm/vllm-openai-rocm:v0.16.0                               = LMCache v0.3.15     = 9dc3ab7
 # - vllm/vllm-openai-rocm:v0.19.0                               = LMCache v0.4.4      = 6fbec46
+# - vllm/vllm-openai-rocm:v0.21.0                               = LMCache v0.4.6      = a7f22be
+# - vllm/vllm-openai-rocm:v0.23.0                               = LMCache v0.4.7      = 307439a
 ARG INSTALL_LMCACHE=true
-ARG INSTALL_LMCACHE_COMMIT=6fbec46
+ARG INSTALL_LMCACHE_COMMIT=307439a
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONPATH="/workspace/aim-runtime/src"
+ENV PYTHONPATH="/workspace/aim-runtime/src${PYTHONPATH:+:${PYTHONPATH}}"
 ENV HF_HOME="/workspace/model-cache"
 ENV HF_DATASETS_CACHE="/workspace/model-cache"
 ENV HF_HUB_DISABLE_TELEMETRY="1"
@@ -44,16 +46,26 @@ WORKDIR /workspace
 COPY src/aim_runtime/ /workspace/aim-runtime/src/aim_runtime/
 COPY src/aim_common/ /workspace/aim-runtime/src/aim_common/
 COPY requirements/requirements.txt /workspace/aim-runtime/
+COPY requirements/${AIM_ACCELERATOR_FAMILY}-requirements.txt /workspace/aim-runtime/
 COPY src/entrypoint.py /workspace/entrypoint.py
 RUN chmod +x /workspace/entrypoint.py
 
+# Engine config and general-profile directories to copy into the image.
+# Defaults match the standard (legacy vLLM) base layout. Named/specialized base
+# targets override these via build args (see .github/actions/build-image) so each
+# ships only its own engines.yaml and general profiles — the generic vLLM general
+# profiles are not copied into non-legacy bases.
+ARG AIM_BASE_CONFIG_DIR=assets/instinct/base/config
+ARG AIM_BASE_PROFILES_DIR=assets/instinct/base/profiles/general
+
 # Copy general profiles and engine config
-COPY assets/${AIM_ACCELERATOR_FAMILY}/base/profiles/general /workspace/aim-runtime/profiles/general
-COPY assets/${AIM_ACCELERATOR_FAMILY}/base/config /workspace/aim-runtime/config
+COPY ${AIM_BASE_PROFILES_DIR} /workspace/aim-runtime/profiles/general
+COPY ${AIM_BASE_CONFIG_DIR} /workspace/aim-runtime/config
 
 # Install runtime dependencies
 RUN cd /workspace/aim-runtime && \
-    pip3 install -r requirements.txt
+    pip3 install -r requirements.txt && \
+    pip3 install -r ${AIM_ACCELERATOR_FAMILY}-requirements.txt
 
 # Install LMCache for KV-caching support (conditional based on INSTALL_LMCACHE)
 # We install from source using commit hash corresponding to a particular release tag, for supply-chain security (immutable reference).

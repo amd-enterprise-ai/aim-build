@@ -15,11 +15,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from aim_common import Engine, Metric, Precision
-from aim_common.engine_args_models import EngineArgsFormat
 from aim_runtime import ProfileRegistry
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import AIMConfig
 from aim_runtime.engine_config import EngineConfig
+from aim_runtime.engines import build_engine
 from aim_runtime.model_cache_resolver import ModelCacheResolver
 from aim_runtime.object_model import Profile
 from aim_runtime.profile_validator import ProfileValidator
@@ -31,7 +31,6 @@ def vllm_engine_config() -> EngineConfig:
     return EngineConfig(
         launch="python -m vllm.entrypoints.openai.api_server",
         model_arg="--model",
-        validator="vllm",
     )
 
 
@@ -40,7 +39,6 @@ def bentoml_engine_config() -> EngineConfig:
     """Create a BentoML EngineConfig for testing."""
     return EngineConfig(
         launch="python -m bentoml serve --working-dir /workspace/model",
-        args_format=EngineArgsFormat.FORWARDED,
     )
 
 
@@ -55,13 +53,13 @@ def bentoml_aim_config(aim_config: AIMConfig) -> AIMConfig:
 @pytest.fixture
 def bentoml_command_generator(bentoml_aim_config: AIMConfig, bentoml_engine_config: EngineConfig) -> CommandGenerator:
     """Create a CommandGenerator instance for BentoML engine."""
-    return CommandGenerator(bentoml_aim_config, bentoml_engine_config)
+    return CommandGenerator(bentoml_aim_config, build_engine(bentoml_aim_config, bentoml_engine_config))
 
 
 @pytest.fixture
 def command_generator(aim_config: AIMConfig, vllm_engine_config: EngineConfig) -> CommandGenerator:
     """Create a CommandGenerator instance."""
-    return CommandGenerator(aim_config, vllm_engine_config)
+    return CommandGenerator(aim_config, build_engine(aim_config, vllm_engine_config))
 
 
 @pytest.fixture
@@ -70,7 +68,7 @@ def command_generator_model_outside_profiles_path(
     vllm_engine_config: EngineConfig,
 ) -> CommandGenerator:
     """Create a CommandGenerator instance without a model."""
-    return CommandGenerator(general_aim_config, vllm_engine_config)
+    return CommandGenerator(general_aim_config, build_engine(general_aim_config, vllm_engine_config))
 
 
 @pytest.fixture
@@ -79,7 +77,9 @@ def command_generator_no_model(
     vllm_engine_config: EngineConfig,
 ) -> CommandGenerator:
     """Create a CommandGenerator instance without a model."""
-    return CommandGenerator(faulty_aim_config_with_no_model, vllm_engine_config)
+    return CommandGenerator(
+        faulty_aim_config_with_no_model, build_engine(faulty_aim_config_with_no_model, vllm_engine_config)
+    )
 
 
 @pytest.fixture
@@ -127,6 +127,24 @@ def test_generate_command_script_success(command_generator: CommandGenerator, mo
     assert "--model meta-llama/Llama-3.1-8B-Instruct" in content
 
     # Clean up
+    os.unlink(script_path)
+
+
+def test_generate_command_script_env_vars_override(command_generator: CommandGenerator, model_profile: Profile) -> None:
+    """An explicit env_vars override is rendered instead of profile.env_vars.
+
+    Used by dry-run so the script reflects the cpuset-adjusted CPU env vars
+    (e.g. OMP_NUM_THREADS scaled to the container's cpus), matching serve.
+    """
+    override = {"OMP_NUM_THREADS": "8", "VLLM_CPU_OMP_THREADS_BIND": "auto"}
+    script_path = command_generator.generate_command_script(model_profile, env_vars=override)
+
+    with open(script_path, "r") as f:
+        content = f.read()
+
+    assert "export OMP_NUM_THREADS=8" in content
+    assert "export VLLM_CPU_OMP_THREADS_BIND=auto" in content
+
     os.unlink(script_path)
 
 
@@ -240,7 +258,7 @@ def test_build_command_list_no_model(
 def test_build_engine_args_comprehensive(command_generator: CommandGenerator, model_profile: Profile) -> None:
     """Test comprehensive engine args building."""
     engine_args = model_profile.engine_args
-    args_list = command_generator._build_engine_args(engine_args)
+    args_list = command_generator.engine.serialize_engine_args(engine_args)
 
     # Check various argument types
     assert "--dtype" in args_list
@@ -258,14 +276,14 @@ def test_build_engine_args_comprehensive(command_generator: CommandGenerator, mo
     # Check boolean false (should not appear)
     # We need to test with explicit false value
     test_args = {"debug": False, "verbose": True}
-    result = command_generator._build_engine_args(test_args)
+    result = command_generator.engine.serialize_engine_args(test_args)
     assert "--debug" not in result
     assert "--verbose" in result
 
 
 def test_build_engine_args_empty(command_generator: CommandGenerator) -> None:
     """Test engine args building with empty args."""
-    args_list = command_generator._build_engine_args({})
+    args_list = command_generator.engine.serialize_engine_args({})
     assert args_list == []
 
 
@@ -282,7 +300,7 @@ def test_build_engine_args_various_types(command_generator: CommandGenerator) ->
         "tuple-arg": ("item3", "item4"),
     }
 
-    args_list = command_generator._build_engine_args(test_args)
+    args_list = command_generator.engine.serialize_engine_args(test_args)
 
     # String argument
     assert "--string-arg" in args_list
@@ -572,7 +590,7 @@ def test_build_command_list_with_local_dir_cache_different_aim_id(
         accelerator_count="1",
         accelerator_model=None,
     )
-    command_generator = CommandGenerator(config, vllm_engine_config)
+    command_generator = CommandGenerator(config, build_engine(config, vllm_engine_config))
 
     # Setup local directory cache
     cache_dir = tmp_path / "model-cache"
@@ -615,7 +633,7 @@ def test_build_command_list_general_profile_with_aim_id_fallback(
         model_id=None,  # No explicit model_id
         profile_base_path=general_profiles_path,
     )
-    command_generator = CommandGenerator(config, vllm_engine_config)
+    command_generator = CommandGenerator(config, build_engine(config, vllm_engine_config))
 
     # Load a general profile (no model_id in profile)
     registry = ProfileRegistry.discover_and_validate(search_paths=[general_profiles_path], validator=profile_validator)
@@ -639,7 +657,7 @@ def test_build_forwarded_args(bentoml_command_generator: CommandGenerator) -> No
         "use_cache": False,
         "debug": None,
     }
-    result = bentoml_command_generator._build_engine_args(args)
+    result = bentoml_command_generator.engine.serialize_engine_args(args)
     assert result == [
         "--arg",
         "accelerator=gpu",
@@ -671,10 +689,9 @@ def test_build_command_list_model_flag(
     request: pytest.FixtureRequest,
 ) -> None:
     """vLLM commands include --model; BentoML commands do not."""
-    generator = CommandGenerator(
-        request.getfixturevalue(aim_config_name),
-        request.getfixturevalue(engine_config_name),
-    )
+    aim_cfg = request.getfixturevalue(aim_config_name)
+    engine_cfg = request.getfixturevalue(engine_config_name)
+    generator = CommandGenerator(aim_cfg, build_engine(aim_cfg, engine_cfg))
     command_list = generator._build_command_list(model_profile)
     assert ("--model" in command_list) == expect_model_flag
 
@@ -694,9 +711,8 @@ def test_build_command_list_served_model_name(
     request: pytest.FixtureRequest,
 ) -> None:
     """vLLM commands include --served-model-name; BentoML commands do not."""
-    generator = CommandGenerator(
-        request.getfixturevalue(aim_config_name),
-        request.getfixturevalue(engine_config_name),
-    )
+    aim_cfg = request.getfixturevalue(aim_config_name)
+    engine_cfg = request.getfixturevalue(engine_config_name)
+    generator = CommandGenerator(aim_cfg, build_engine(aim_cfg, engine_cfg))
     command_list = generator._build_command_list(model_profile)
     assert ("--served-model-name" in command_list) == expect_served_model_name

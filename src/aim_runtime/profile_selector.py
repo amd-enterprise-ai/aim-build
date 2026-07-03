@@ -20,7 +20,7 @@ from aim_runtime.utils import read_yaml
 
 from .accelerator_detector import AcceleratorDetectionResult, AcceleratorDetector
 from .config import AIMConfig
-from .object_model import AcceleratorModel, Engine, Metric, Precision
+from .object_model import AcceleratorModel, AcceleratorType, Engine, Metric, Precision
 from .profile_registry import Profile, ProfileRegistry
 from .profile_validator import ProfileValidator
 
@@ -65,6 +65,65 @@ class ProfileCompatibilityResult:
     profile: Profile
     state: ProfileCompatibilityState
     reason: str = ""
+
+
+def _base_tuple(profile: "Profile") -> tuple:
+    """Return the invariant key for a profile — fields that define a unique hardware slot.
+
+    Two profiles with the same base tuple differ only in ``variant`` (or other
+    non-key fields like ``type``/``manual_selection_only``).
+    """
+    m = profile.metadata
+    return (m.engine, m.accelerator_model, m.precision, m.accelerator_count, m.metric)
+
+
+def _resolve_variant_tie(candidates: list) -> "Profile":
+    """Select the best profile from an ordered list of compatible candidates.
+
+    When the top-ranked candidate shares its base tuple with one or more other
+    candidates that differ only by ``variant``, the selection is ambiguous: the
+    profiles target the same hardware slot but ship different recipes, and there
+    is no reliable signal for which one the operator wants. (``primary`` cannot
+    serve here — it is computed by the ``set-primary-flags`` pre-commit hook, one
+    per accelerator/metric bucket, and among same-tuple variants it is assigned
+    arbitrarily.) In that case raise and ask the operator to choose explicitly via
+    ``AIM_PROFILE_ID``.
+
+    If there is no tie at the top, the first candidate is returned directly.
+
+    Args:
+        candidates: Compatible profiles in priority order (best first).
+
+    Returns:
+        The selected profile.
+
+    Raises:
+        ProfileNotFound: When multiple variant profiles share the top base tuple.
+    """
+    if not candidates:
+        raise ProfileNotFound("No compatible profiles to select from")
+
+    best = candidates[0]
+    top_key = _base_tuple(best)
+
+    # Collect all candidates that share the base tuple with the top-ranked one
+    tied = [p for p in candidates if _base_tuple(p) == top_key]
+
+    if len(tied) == 1:
+        # No tie — straightforward pick
+        return best
+
+    # Without any variant field the tied profiles are just duplicate hardware
+    # slots — preserve the historical first-wins behavior.
+    if all(p.metadata.variant is None for p in tied):
+        return best
+
+    # Distinct variants of the same hardware slot — the choice is the operator's.
+    raise ProfileNotFound(
+        "Multiple profiles match the same (engine, accelerator, precision, count, metric) "
+        "selection and differ only by variant. Set AIM_PROFILE_ID to one of: "
+        f"{', '.join(p.profile_id for p in tied)}"
+    )
 
 
 class ProfileSelector:
@@ -274,8 +333,15 @@ class ProfileSelector:
                     f"No compatible profile found for AIM {self.config.aim_id}. Profile breakdown: {error_detail}"
                 )
 
-        # Return the highest-priority auto-compatible profile
-        best_profile = auto_compatible_results[0].profile
+        # Return the highest-priority auto-compatible profile.
+        # If the top-ranked result shares its base tuple (engine/accelerator/precision/count/metric)
+        # with other compatible profiles that differ only by variant, use the primary flag to
+        # break the tie rather than silently picking the first one.
+        ordered_profiles = [r.profile for r in auto_compatible_results]
+        try:
+            best_profile = _resolve_variant_tie(ordered_profiles)
+        except ProfileNotFound as e:
+            raise ProfileNotFound(f"No profile selected for AIM {self.config.aim_id}: {e}") from e
         logger.info(f"Selected profile: {best_profile.profile_handling.path}")
         return best_profile
 
@@ -382,7 +448,13 @@ class ProfileSelector:
                 reason=f"Profile accelerator {profile.metadata.accelerator_model} != detected {self.detected_accelerator}",
             )
 
-        if profile.metadata.accelerator_count != self.detected_accelerator_count:
+        if self.config.accelerator_type == AcceleratorType.CPU:
+            if self.detected_cpu_cores < profile.metadata.accelerator_count:
+                logger.warning(
+                    f"Profile recommends {profile.metadata.accelerator_count} cores but only "
+                    f"{self.detected_cpu_cores} detected; OMP_NUM_THREADS will be scaled down at runtime"
+                )
+        elif profile.metadata.accelerator_count != self.detected_accelerator_count:
             return ProfileCompatibilityResult(
                 profile=profile,
                 state=ProfileCompatibilityState.ACCELERATOR_MISMATCH,

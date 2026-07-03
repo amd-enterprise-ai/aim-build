@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Type, Union
 
 from aim_common import EnumerationType
+from aim_common.compat import StrEnum
 
 from .object_model import AcceleratorFamily, AcceleratorModel, AcceleratorType, Engine, Metric, Precision
 
@@ -25,6 +26,25 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROFILE_BASE_PATH = "/workspace/aim-runtime/profiles"
 DEFAULT_CONFIG_PATH = "/workspace/aim-runtime/config"
 DEFAULT_CACHE_PATH = "/workspace/model-cache"
+
+# LoRA adapter contract (ADR-0004) defaults.
+DEFAULT_ADAPTER_SOURCE = "/workspace/cache/adapters/"
+DEFAULT_ADAPTER_REFRESH_INTERVAL = 30  # seconds
+MIN_ADAPTER_REFRESH_INTERVAL = 5
+DEFAULT_ADAPTER_MAX_COUNT = 8
+DEFAULT_ADAPTER_MAX_CPU_COUNT = 16
+DEFAULT_ADAPTER_MAX_RANK = 32
+# Allowed LoRA ranks — mirrors vLLM's MaxLoRARanks (vllm/config/lora.py,
+# identical at v0.16.0 and v0.21.0). Intentionally wider than ADR-0004's stated
+# {8,16,32,64} so the image never rejects a rank the engine would accept.
+ADAPTER_ALLOWED_RANKS = (1, 8, 16, 32, 64, 128, 256, 320, 512)
+
+
+class AdapterMode(StrEnum):
+    """How adapters are managed at runtime (ADR-0004)."""
+
+    STATIC = "static"
+    DYNAMIC = "dynamic"
 
 
 @dataclass
@@ -46,6 +66,13 @@ class AIMConfig:
     cache_path: str = DEFAULT_CACHE_PATH
     port: int = 8000
     engine_args_override: Optional[Dict[str, Any]] = None
+    # LoRA adapter contract (ADR-0004)
+    adapter_source: str = DEFAULT_ADAPTER_SOURCE
+    adapter_mode: AdapterMode = AdapterMode.STATIC
+    adapter_refresh_interval: int = DEFAULT_ADAPTER_REFRESH_INTERVAL
+    adapter_max_count: int = DEFAULT_ADAPTER_MAX_COUNT
+    adapter_max_cpu_count: int = DEFAULT_ADAPTER_MAX_CPU_COUNT
+    adapter_max_rank: int = DEFAULT_ADAPTER_MAX_RANK
     log_level_root: str = "WARNING"
     log_level: str = "INFO"
     allow_general_profile_fallback: bool = (
@@ -172,6 +199,58 @@ class AIMConfig:
             return default
 
     @classmethod
+    def _read_int_min(cls, name: str, default: int, minimum: int) -> int:
+        """Read an integer env var, clamping to a minimum; warn + default on bad input."""
+        raw = os.environ.get(name)
+        if raw is None:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning(f"{name} must be an integer. Was '{raw}'. Defaulting to {default}.")
+            return default
+        if value < minimum:
+            logger.warning(f"{name}={value} is below the minimum {minimum}. Using {minimum}.")
+            return minimum
+        return value
+
+    @classmethod
+    def _read_adapter_mode(cls) -> AdapterMode:
+        """Read AIM_ADAPTER_MODE; default static on missing/invalid."""
+        raw = os.environ.get("AIM_ADAPTER_MODE")
+        if not raw:
+            return AdapterMode.STATIC
+        try:
+            return AdapterMode(raw.lower())
+        except ValueError:
+            logger.warning(
+                f"AIM_ADAPTER_MODE must be one of {[m.value for m in AdapterMode]}. "
+                f"Was '{raw}'. Defaulting to static."
+            )
+            return AdapterMode.STATIC
+
+    @classmethod
+    def _read_adapter_max_rank(cls) -> int:
+        """Read AIM_ADAPTER_MAX_RANK; must be one of vLLM's allowed ranks."""
+        raw = os.environ.get("AIM_ADAPTER_MAX_RANK")
+        if raw is None:
+            return DEFAULT_ADAPTER_MAX_RANK
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning(
+                f"AIM_ADAPTER_MAX_RANK must be an integer. Was '{raw}'. Defaulting to {DEFAULT_ADAPTER_MAX_RANK}."
+            )
+            return DEFAULT_ADAPTER_MAX_RANK
+        if value not in ADAPTER_ALLOWED_RANKS:
+            logger.warning(
+                f"AIM_ADAPTER_MAX_RANK={value} is not one of the allowed ranks {ADAPTER_ALLOWED_RANKS}. "
+                f"Defaulting to {DEFAULT_ADAPTER_MAX_RANK}."
+            )
+            return DEFAULT_ADAPTER_MAX_RANK
+        return value
+
+    @classmethod
     def from_environment(cls, model_id_param: Optional[str] = None) -> "AIMConfig":
         """Create configuration from environment variables.
 
@@ -237,6 +316,16 @@ class AIMConfig:
             else:
                 raise ValueError("Either AIM_MODEL_ID or AIM_ID environment variable is required")
 
+        # Adapter caps: CPU cap must be >= GPU cap (vLLM/SGLang requirement).
+        adapter_max_count = cls._read_int_min("AIM_ADAPTER_MAX_COUNT", DEFAULT_ADAPTER_MAX_COUNT, minimum=1)
+        adapter_max_cpu_count = cls._read_int_min("AIM_ADAPTER_MAX_CPU_COUNT", DEFAULT_ADAPTER_MAX_CPU_COUNT, minimum=1)
+        if adapter_max_cpu_count < adapter_max_count:
+            logger.warning(
+                f"AIM_ADAPTER_MAX_CPU_COUNT={adapter_max_cpu_count} is below "
+                f"AIM_ADAPTER_MAX_COUNT={adapter_max_count}; raising it to match."
+            )
+            adapter_max_cpu_count = adapter_max_count
+
         return cls(
             aim_id=aim_id,
             model_id=model_id,
@@ -253,6 +342,14 @@ class AIMConfig:
             cache_path=os.environ.get("AIM_CACHE_PATH", DEFAULT_CACHE_PATH),
             port=int(os.environ.get("AIM_PORT", 8000)),
             engine_args_override=cls._read_engine_args_override(),
+            adapter_source=os.environ.get("AIM_ADAPTER_SOURCE", DEFAULT_ADAPTER_SOURCE),
+            adapter_mode=cls._read_adapter_mode(),
+            adapter_refresh_interval=cls._read_int_min(
+                "AIM_ADAPTER_REFRESH_INTERVAL", DEFAULT_ADAPTER_REFRESH_INTERVAL, minimum=MIN_ADAPTER_REFRESH_INTERVAL
+            ),
+            adapter_max_count=adapter_max_count,
+            adapter_max_cpu_count=adapter_max_cpu_count,
+            adapter_max_rank=cls._read_adapter_max_rank(),
             log_level_root=os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING"),
             log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
             allow_general_profile_fallback=cls._read_bool("AIM_ALLOW_GENERAL_PROFILE_FALLBACK", True),
@@ -276,6 +373,12 @@ class AIMConfig:
             "cache_path": self.cache_path,
             "port": self.port,
             "engine_args_override": self.engine_args_override,
+            "adapter_source": self.adapter_source,
+            "adapter_mode": self.adapter_mode,
+            "adapter_refresh_interval": self.adapter_refresh_interval,
+            "adapter_max_count": self.adapter_max_count,
+            "adapter_max_cpu_count": self.adapter_max_cpu_count,
+            "adapter_max_rank": self.adapter_max_rank,
             "log_level_root": self.log_level_root,
             "log_level": self.log_level,
             "allow_general_profile_fallback": self.allow_general_profile_fallback,

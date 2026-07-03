@@ -17,7 +17,7 @@ from typing import List, Optional
 from pydantic import ValidationError as PydanticValidationError
 
 from aim_common import ProfileMetadata
-from aim_common.engine_args_models import validate_vllm_env_vars
+from aim_runtime.engines import engine_class_for
 from aim_runtime.utils import read_yaml
 
 from .object_model import Profile, ProfileHandling
@@ -119,10 +119,12 @@ class ProfileRegistry:
         # Validate the profile using the already-loaded data (this will raise ValidationError if invalid)
         validator.validate(profile_data, is_general_profile=is_general)
 
-        # Validate VLLM_* env vars against vLLM's known environment variables
-        validate_vllm_env_vars(profile_data.get("env_vars", {}), source=profile_path)
-
         metadata = ProfileMetadata.from_dict(profile_data["metadata"])
+
+        # Validate env vars at load time using the profile's own engine, so
+        # issues surface during discovery. Dispatched per-engine (e.g. only
+        # vLLM validates VLLM_* env vars).
+        engine_class_for(metadata.engine).validate_env_vars(profile_data.get("env_vars", {}), source=profile_path)
 
         # Model-specific profiles have aim_id and model_id
         # General profiles don't have these fields

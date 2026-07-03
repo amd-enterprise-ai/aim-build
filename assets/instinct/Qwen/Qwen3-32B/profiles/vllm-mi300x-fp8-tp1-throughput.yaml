@@ -9,6 +9,8 @@ metadata:
   accelerator_model: MI300X
   accelerator_type: gpu
   engine: vllm
+  features:
+  - adapters
   gpu: MI300X
   gpu_count: 1
   manual_selection_only: true
@@ -27,10 +29,8 @@ engine_args:
   max-num-batched-tokens: 1024
   max-num-seqs: 512
   no-enable-log-requests: null
-  no-enable-prefix-caching: null
   no-trust-remote-code: null
   reasoning-parser: qwen3
-  swap-space: 64
   tensor-parallel-size: 1
   tool-call-parser: hermes
 env_vars:

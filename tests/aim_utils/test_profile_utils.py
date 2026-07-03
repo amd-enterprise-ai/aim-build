@@ -313,3 +313,35 @@ class TestGetMetadataProfileIdMismatches:
         metadata = _make_metadata(engine=Engine.BENTOML)
         result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
         assert all(m.profile_path == self.PROFILE_PATH for m in result)
+
+    def test_variant_suffix_matches_metadata(self):
+        """A variant-suffixed filename matches when metadata.variant equals the suffix."""
+        metadata = _make_metadata(variant="inductor-diff")
+        result = _get_metadata_profile_id_mismatches(
+            self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency-inductor-diff"
+        )
+        assert result == []
+
+    def test_variant_in_filename_but_not_metadata_detected(self):
+        """A variant suffix in the filename with no metadata.variant is a mismatch."""
+        metadata = _make_metadata()  # variant defaults to None
+        result = _get_metadata_profile_id_mismatches(
+            self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency-shortseqs"
+        )
+        variant_mismatch = next(m for m in result if m.field_name == "variant")
+        assert variant_mismatch.expected_value == "shortseqs"
+        assert variant_mismatch.actual_value is None
+
+    def test_variant_in_metadata_but_not_filename_detected(self):
+        """metadata.variant set while the filename omits the suffix is a mismatch."""
+        metadata = _make_metadata(variant="shortseqs")
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        variant_mismatch = next(m for m in result if m.field_name == "variant")
+        assert variant_mismatch.expected_value is None
+        assert variant_mismatch.actual_value == "shortseqs"
+
+    def test_no_variant_in_filename_or_metadata_no_mismatch(self):
+        """A five-segment filename with variant=None metadata reports no variant mismatch."""
+        metadata = _make_metadata()
+        result = _get_metadata_profile_id_mismatches(self.PROFILE_PATH, metadata, "vllm-mi300x-fp8-tp1-latency")
+        assert "variant" not in {m.field_name for m in result}

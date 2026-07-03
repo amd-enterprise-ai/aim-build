@@ -6,7 +6,9 @@
 Tests for AIMRuntime class including dry-run functionality.
 """
 
-from unittest.mock import Mock, patch
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -92,7 +94,8 @@ class TestAIMRuntimeDryRun:
         """Test that dry_run returns the profile YAML content."""
         script_path = script_file_factory(content="#!/bin/bash\necho 'test script'")
 
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     runtime = AIMRuntime(mock_config)
@@ -119,7 +122,8 @@ class TestAIMRuntimeDryRun:
         """Test that dry_run returns complex YAML content correctly."""
         script_path = script_file_factory(content="#!/bin/bash\necho 'complex test'")
 
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     runtime = AIMRuntime(mock_config)
@@ -143,7 +147,8 @@ class TestAIMRuntimeDryRun:
         """Test that dry_run includes profile path."""
         script_path = script_file_factory(content="#!/bin/bash\necho 'path test'")
 
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     runtime = AIMRuntime(mock_config)
@@ -162,7 +167,8 @@ class TestAIMRuntimeDryRun:
         script_content = "#!/bin/bash\nset -e\nexport TEST_VAR=value\nexec python -m vllm.entrypoints.openai.api_server"
         script_path = script_file_factory(content=script_content)
 
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     runtime = AIMRuntime(mock_config)
@@ -184,7 +190,8 @@ class TestAIMRuntimeServe:
 
     def test_serve_executes_command_successfully(self, mock_config, mock_profile):
         """Test that serve executes the inference server successfully."""
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     with patch("aim_runtime.aim_runtime.shutil.which") as mock_which:
@@ -207,7 +214,8 @@ class TestAIMRuntimeServe:
 
     def test_serve_logs_profile_selection(self, mock_config, mock_profile):
         """Test that serve logs profile selection information."""
-        with patch("aim_runtime.aim_runtime.load_engine_config"):
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     with patch("aim_runtime.aim_runtime.logger") as mock_logger:
@@ -234,7 +242,8 @@ class TestAIMRuntimeServe:
 @pytest.fixture
 def dry_run_json_mocks():
     """Patch ProfileSelector, CommandGenerator, and load_engine_config for dry_run tests."""
-    with patch("aim_runtime.aim_runtime.load_engine_config"):
+    with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+        mock_lec.return_value.engine = None
         with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
             with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                 mock_cg_return = Mock()
@@ -438,43 +447,58 @@ class TestAddStorageEstimates:
 class TestInstallAiterPrebuiltKernels:
     """Test suite for _install_aiter_prebuilt_kernels function."""
 
-    def test_installs_kernels_for_valid_gpu(self, tmp_path):
-        """Test that kernels are copied when GPU model and prebuilt dir exist."""
+    @staticmethod
+    def _inject_fake_aiter(monkeypatch, aiter_init_path):
+        """Pre-register a fake `aiter` module in sys.modules so the function-local
+        `import aiter` in _install_aiter_prebuilt_kernels picks up our mock.
+
+        Necessary because some upstream base images (e.g. vllm-openai-rocm v0.21+)
+        execute rocminfo at `aiter` import time, which fails on no-GPU CI runners.
+        Patching `aim_runtime.aim_runtime.aiter` does not help — the name is
+        imported inside the function body, not at module load time.
+        """
+        fake_aiter = MagicMock()
+        fake_aiter.__file__ = str(aiter_init_path)
+        monkeypatch.setitem(sys.modules, "aiter", fake_aiter)
+
+    @staticmethod
+    def _redirect_prebuilt_path(monkeypatch, target_dir):
+        """Patch `Path` inside aim_runtime.aim_runtime so the hard-coded
+        /workspace/aiter-jit-prebuilt/<arch> path resolves to a tmp dir,
+        while all other Path() calls (including Path(aiter.__file__)) pass
+        through to the real pathlib.Path unchanged.
+        """
+        real_path = Path
+
+        def fake_path(arg):
+            if isinstance(arg, str) and arg.startswith("/workspace/aiter-jit-prebuilt/"):
+                return target_dir
+            return real_path(arg)
+
+        monkeypatch.setattr("aim_runtime.aim_runtime.Path", fake_path)
+
+    def test_installs_kernels_for_valid_gpu(self, tmp_path, monkeypatch):
+        """All pre-built .so files should be copied into AITER's jit dir."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
 
-        # Setup mock directories
-        prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
-        prebuilt_dir.mkdir(parents=True)
-
-        # Create mock .so files
-        (prebuilt_dir / "kernel1.so").write_text("mock kernel 1")
-        (prebuilt_dir / "kernel2.so").write_text("mock kernel 2")
-
-        # Setup mock aiter package
         aiter_jit_dir = tmp_path / "aiter" / "jit"
         aiter_jit_dir.mkdir(parents=True)
+        aiter_init = tmp_path / "aiter" / "__init__.py"
+        aiter_init.touch()
 
-        with patch("aim_runtime.aim_runtime.get_gfx_arch", return_value="gfx942"):
-            with patch("aim_runtime.aim_runtime.Path") as mock_path:
-                # Mock prebuilt_dir to use our tmp_path
-                def path_side_effect(arg):
-                    if "/workspace/aiter-jit-prebuilt" in str(arg):
-                        return prebuilt_dir
-                    return tmp_path / arg
+        prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
+        prebuilt_dir.mkdir(parents=True)
+        (prebuilt_dir / "kernel1.so").write_text("kernel-1-content")
+        (prebuilt_dir / "kernel2.so").write_text("kernel-2-content")
 
-                mock_path.side_effect = path_side_effect
+        self._inject_fake_aiter(monkeypatch, aiter_init)
+        self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
+        monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: "gfx942")
 
-                with patch("aim_runtime.aim_runtime.aiter") as mock_aiter:
-                    mock_aiter.__file__ = str(tmp_path / "aiter" / "__init__.py")
+        _install_aiter_prebuilt_kernels("MI300X")
 
-                    # Also need to mock the Path class used in the function
-                    with patch(
-                        "aim_runtime.aim_runtime.Path", side_effect=lambda x: tmp_path / x if isinstance(x, str) else x
-                    ):
-                        _install_aiter_prebuilt_kernels("MI300X")
-
-                        # Verify kernels were copied (this is hard to verify with all the mocking, so test passes if no exception)
-                        assert True
+        assert (aiter_jit_dir / "kernel1.so").read_text() == "kernel-1-content"
+        assert (aiter_jit_dir / "kernel2.so").read_text() == "kernel-2-content"
 
     def test_returns_early_for_unknown_gpu(self):
         """Test that function returns early when GPU arch cannot be resolved."""
@@ -517,27 +541,108 @@ class TestInstallAiterPrebuiltKernels:
                         _install_aiter_prebuilt_kernels("MI300X")
                         # Should log debug message and return gracefully
 
-    def test_skips_existing_kernels(self, tmp_path):
-        """Test that existing .so files in jit dir are not overwritten."""
+    def test_skips_existing_kernels(self, tmp_path, monkeypatch):
+        """Existing .so files in AITER's jit dir must NOT be overwritten,
+        but new .so files should still be installed alongside them."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
 
-        # Setup mock directories
-        prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
-        prebuilt_dir.mkdir(parents=True)
-
-        # Create mock .so file in prebuilt
-        prebuilt_kernel = prebuilt_dir / "kernel1.so"
-        prebuilt_kernel.write_text("new kernel")
-
-        # Setup mock aiter package with existing kernel
         aiter_jit_dir = tmp_path / "aiter" / "jit"
         aiter_jit_dir.mkdir(parents=True)
-        existing_kernel = aiter_jit_dir / "kernel1.so"
-        existing_kernel.write_text("old kernel")
+        aiter_init = tmp_path / "aiter" / "__init__.py"
+        aiter_init.touch()
+        # Pre-existing kernel that must be preserved
+        (aiter_jit_dir / "kernel1.so").write_text("preserved-content")
 
-        with patch("aim_runtime.aim_runtime.get_gfx_arch", return_value="gfx942"):
-            # This test is complex due to Path mocking - simplified version
-            # The actual implementation checks dest.exists() before copying
-            # Just verify no exception is raised
-            _install_aiter_prebuilt_kernels("MI300X")
-            assert True
+        prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
+        prebuilt_dir.mkdir(parents=True)
+        (prebuilt_dir / "kernel1.so").write_text("would-overwrite-but-skipped")
+        (prebuilt_dir / "kernel2.so").write_text("freshly-installed")
+
+        self._inject_fake_aiter(monkeypatch, aiter_init)
+        self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
+        monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: "gfx942")
+
+        _install_aiter_prebuilt_kernels("MI300X")
+
+        assert (aiter_jit_dir / "kernel1.so").read_text() == "preserved-content"
+        assert (aiter_jit_dir / "kernel2.so").read_text() == "freshly-installed"
+
+
+class TestServeSupervisedExitCode:
+    """The dynamic-mode supervisor must preserve signal exit status."""
+
+    def _run_with_returncode(self, returncode: int):
+        runtime = AIMRuntime.__new__(AIMRuntime)
+        runtime.config = Mock()
+        runtime.config.adapter_source = "/adapters"
+        runtime.config.adapter_max_rank = 32
+        runtime.config.adapter_refresh_interval = 5
+        runtime.config.port = 8000
+
+        proc = Mock()
+        proc.pid = 1234
+        proc.wait.return_value = returncode
+
+        with (
+            patch("subprocess.Popen", return_value=proc),
+            patch("signal.signal"),
+            patch("threading.Thread"),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                runtime._serve_supervised(["python", "-m", "vllm"])
+        return exc_info.value.code
+
+    def test_clean_exit_code_passthrough(self):
+        assert self._run_with_returncode(0) == 0
+
+    def test_nonzero_exit_code_passthrough(self):
+        assert self._run_with_returncode(1) == 1
+
+    def test_sigterm_translated_to_143(self):
+        # -15 (SIGTERM) -> 128 + 15, not 241 (the raw -15 % 256).
+        assert self._run_with_returncode(-15) == 143
+
+    def test_sigkill_translated_to_137(self):
+        assert self._run_with_returncode(-9) == 137
+
+
+class TestWaitForEngineExit:
+    """Bounded graceful drain + SIGKILL escalation after a forwarded signal."""
+
+    def _runtime(self):
+        return AIMRuntime.__new__(AIMRuntime)
+
+    def test_normal_exit_returns_code(self):
+        import threading
+
+        proc = Mock()
+        proc.wait.return_value = 0
+        rc = self._runtime()._wait_for_engine_exit(proc, threading.Event())
+        assert rc == 0
+
+    def test_terminating_bounded_wait_returns_clean_exit(self):
+        import threading
+
+        terminating = threading.Event()
+        terminating.set()  # already terminating -> bounded drain path
+        proc = Mock()
+        proc.wait.return_value = -15
+        rc = self._runtime()._wait_for_engine_exit(proc, terminating)
+        assert rc == -15
+        proc.wait.assert_called_once()  # single bounded wait, no escalation
+        proc.kill.assert_not_called()
+
+    def test_hung_engine_escalated_to_sigkill(self):
+        import subprocess
+        import threading
+
+        terminating = threading.Event()
+        terminating.set()
+        proc = Mock()
+        proc.pid = 4321
+        # First (bounded) wait times out -> escalate; second wait reaps SIGKILL.
+        proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="vllm", timeout=20), -9]
+        rc = self._runtime()._wait_for_engine_exit(proc, terminating)
+        assert rc == -9
+        proc.kill.assert_called_once()
+        assert proc.wait.call_count == 2

@@ -1,0 +1,14 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Model-dedicated specialized base (Layer 2), built in CI from
+# assets/instinct/openfold/openfold3/image/.
+# Published to docker.io/silogenai/aim-instinct-openfold-openfold3-base
+# by the base image pipeline.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-openfold-openfold3-base
+  base_tag: "0.12"
+specialized: true

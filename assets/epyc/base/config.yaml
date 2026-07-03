@@ -5,6 +5,6 @@
 
 base_image:
   base_registry_namespace: amdih
-  base_repository: zendnn_zentorch
-  base_tag: vllm_v0.18.0_zentorch_v5.2.1_ubuntu22.04_r5.2.1
+  base_repository: zentorch_vllm_upstream
+  base_tag: v0.22.1_ubuntu22.04
   registry_host: docker.io

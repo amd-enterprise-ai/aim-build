@@ -1,0 +1,22 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openfold3-aim"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "AIM serving wrapper for OpenFold3"
+dependencies = [
+    "bentoml==1.4.35",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["service", "runner", "harness"]

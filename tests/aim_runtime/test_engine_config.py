@@ -3,59 +3,42 @@
 # SPDX-License-Identifier: MIT
 
 """
-Tests for engine_config.py — YAML-driven engine configuration and validator registry.
+Tests for engine_config.py — YAML-driven engine launch configuration.
 """
 
 import pytest
 from pydantic import ValidationError
 
 from aim_common import Engine
-from aim_common.engine_args_models import (
-    ENGINE_ARGS_MODELS,
-    EngineArgsFormat,
+from aim_runtime.engine_config import EngineConfig, load_engine_config
+from aim_runtime.engines import (
     VllmEngineArgsModel,
-    VllmOmniEngineArgsModel,
     engine_args_to_cli_list,
 )
-from aim_runtime.engine_config import EngineConfig, load_engine_config
 
 _VLLM_AVAILABLE = bool(VllmEngineArgsModel._vllm_parser())
 from aim_utils.yaml_utils import dump_yaml  # noqa: E402
 
 
 class TestEngineConfig:
-    """Test EngineConfig dataclass."""
+    """Test EngineConfig model (pure engines.yaml launch data)."""
 
     def test_create_with_all_fields(self):
         config = EngineConfig(
             launch="python -m vllm.entrypoints.openai.api_server",
             model_arg="--model",
-            validator="vllm",
         )
         assert config.launch == "python -m vllm.entrypoints.openai.api_server"
         assert config.model_arg == "--model"
-        assert config.validator == "vllm"
 
     def test_create_with_defaults(self):
         config = EngineConfig(launch="llama-server", model_arg="-m")
-        assert config.validator == ""
+        assert config.model_arg == "-m"
 
-    @pytest.mark.parametrize(
-        "engine,expected_format",
-        [
-            ("bentoml", EngineArgsFormat.FORWARDED),
-            ("vllm", EngineArgsFormat.STANDARD),
-        ],
-    )
-    def test_args_format_inferred_from_engine(self, engine, expected_format):
-        """args_format is derived from engine name when not explicitly set."""
-        config = EngineConfig(engine=engine, launch="dummy-launch-cmd")
-        assert config.args_format == expected_format
-
-    def test_args_format_explicit_overrides_inference(self):
-        """Explicit args_format takes precedence over the implicit mapping."""
-        config = EngineConfig(engine="bentoml", launch="python -m bentoml serve", args_format=EngineArgsFormat.STANDARD)
-        assert config.args_format == EngineArgsFormat.STANDARD
+    def test_unknown_keys_ignored(self):
+        """Legacy engines.yaml keys (e.g. validator) are ignored, not errors."""
+        config = EngineConfig(launch="x", model_arg="--model", validator="vllm")
+        assert not hasattr(config, "validator")
 
     def test_frozen(self):
         config = EngineConfig(launch="test", model_arg="--model")
@@ -84,7 +67,6 @@ class TestLoadEngineConfig:
 
         assert config.launch == "python -m vllm.entrypoints.openai.api_server"
         assert config.model_arg == "--model"
-        assert config.validator == "vllm"
 
     def test_load_minimal_engine(self, tmp_path):
         engines_yaml = tmp_path / "engines.yaml"
@@ -101,7 +83,7 @@ class TestLoadEngineConfig:
 
         config = load_engine_config(Engine.VLLM, str(tmp_path))
 
-        assert config.validator == ""
+        assert config.model_arg == "--model"
 
     def test_load_missing_engine_raises(self, tmp_path):
         engines_yaml = tmp_path / "engines.yaml"
@@ -124,23 +106,20 @@ class TestLoadEngineConfig:
             load_engine_config(Engine.VLLM, str(tmp_path))
 
     @pytest.mark.parametrize(
-        "accelerator,engine,config_subpath,expected_model_arg,expected_format",
+        "accelerator,engine,config_subpath,expected_model_arg",
         [
-            ("instinct", Engine.VLLM, "base/config", "--model", EngineArgsFormat.STANDARD),
-            ("radeon", Engine.VLLM, "base/config", "--model", EngineArgsFormat.STANDARD),
-            ("instinct", Engine.BENTOML, "base/bentoml/config", "", EngineArgsFormat.FORWARDED),
+            ("instinct", Engine.VLLM, "base/config", "--model"),
+            ("radeon", Engine.VLLM, "base/config", "--model"),
+            ("instinct", Engine.BENTOML, "base/bentoml/config", ""),
         ],
     )
-    def test_load_from_test_config(
-        self, assets_path, accelerator, engine, config_subpath, expected_model_arg, expected_format
-    ):
+    def test_load_from_test_config(self, assets_path, accelerator, engine, config_subpath, expected_model_arg):
         """Test loading engine configs from the test engines.yaml fixture."""
         config_dir = str(assets_path / accelerator / config_subpath)
         config = load_engine_config(engine, config_dir)
 
         assert engine.value in config.launch
         assert config.model_arg == expected_model_arg
-        assert config.args_format == expected_format
 
     def test_load_vllm_omni_from_yaml(self, tmp_path):
         """Load vllm_omni engine config from YAML."""
@@ -151,7 +130,6 @@ class TestLoadEngineConfig:
                     "vllm_omni": {
                         "launch": "vllm serve --omni",
                         "model_arg": "--model",
-                        "validator": "vllm_omni",
                     }
                 }
             )
@@ -159,38 +137,6 @@ class TestLoadEngineConfig:
         config = load_engine_config(Engine.VLLM_OMNI, str(tmp_path))
         assert "serve" in config.launch and "--omni" in config.launch
         assert config.model_arg == "--model"
-        assert config.validator == "vllm_omni"
-
-
-class TestEngineModelRegistry:
-    """Test ENGINE_ARGS_MODELS registry."""
-
-    def test_vllm_model_registered(self):
-        """vLLM model is always registered."""
-        assert "vllm" in ENGINE_ARGS_MODELS
-        assert issubclass(ENGINE_ARGS_MODELS["vllm"], VllmEngineArgsModel)
-
-    def test_vllm_omni_model_registered(self):
-        """vLLM-Omni model is registered for engines.yaml validator vllm_omni."""
-        assert "vllm_omni" in ENGINE_ARGS_MODELS
-        assert ENGINE_ARGS_MODELS["vllm_omni"] is VllmOmniEngineArgsModel
-
-    def test_vllm_model_rejects_invalid_dtype(self):
-        """Registered vLLM model rejects invalid engine args."""
-        with pytest.raises((ValueError, ValidationError)):
-            ENGINE_ARGS_MODELS["vllm"].model_validate({"dtype": "invalid-dtype"})
-
-    def test_vllm_model_accepts_frontend_args(self):
-        """Frontend args like disable-uvicorn-access-log should not cause validation errors."""
-        # These are FrontendArgs, not EngineArgs — should be accepted
-        ENGINE_ARGS_MODELS["vllm"].model_validate(
-            {
-                "dtype": "auto",
-                "disable-uvicorn-access-log": None,
-                "enable-auto-tool-choice": None,
-                "tool-call-parser": "hermes",
-            }
-        )
 
 
 class TestEngineArgsToCli:

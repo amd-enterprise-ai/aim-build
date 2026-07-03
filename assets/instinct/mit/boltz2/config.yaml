@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-# TODO: aim-bentoml-base image does not exist yet — update base_tag once the image is built and published.
+# Model-dedicated specialized base (Layer 2), built in CI from assets/instinct/mit/boltz2/image/.
+# Published to docker.io/silogenai/aim-instinct-mit-boltz2-base by the base image pipeline.
 base_image:
-  registry_host: ghcr.io
-  base_registry_namespace: silogen
-  base_repository: aim-bentoml-base
-  base_tag: "0.12"
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-mit-boltz2-base
+  base_tag: "0.12-rc1"
 specialized: true

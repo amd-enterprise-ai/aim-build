@@ -496,6 +496,49 @@ class TestCiBaseImageConfig:
         assert ci_config.run_validation is case["expected_run_validation"]
         assert ci_config.upstream_image_ref == case["expected_upstream_image_ref"]
 
+    def test_named_target_wins_over_colliding_specialized_target(self, tmp_path, monkeypatch, caplog):
+        """A specialized image/ target sharing a named base/ target's id is skipped (no duplicates)."""
+        monkeypatch.chdir(tmp_path)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "monai",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="vllm",
+            base_tag="named",
+        )
+        # Specialized engine target with the same id ("monai").
+        image_dir = tmp_path / "assets" / "instinct" / "engines" / "monai" / "image"
+        image_dir.mkdir(parents=True)
+        (image_dir / "Dockerfile").write_text("FROM rocm/pytorch:latest\n")
+
+        with caplog.at_level("WARNING"):
+            ci_targets = resolve_ci_base_image_targets("instinct")
+
+        monai_targets = [t for t in ci_targets if t.target_id == "monai"]
+        assert len(monai_targets) == 1
+        # The named base/ target wins: it has a fixed upstream, not Layer 1 metadata.
+        assert monai_targets[0].upstream_image_ref != ""
+        assert monai_targets[0].layer1_repository == ""
+        assert any("Skipping specialized base target 'monai'" in r.message for r in caplog.records)
+
+    def test_specialized_target_run_validation_independent_of_named_targets(self, tmp_path, monkeypatch):
+        """Specialized targets derive run_validation from the accelerator, not a leftover loop value."""
+        monkeypatch.chdir(tmp_path)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        image_dir = tmp_path / "assets" / "instinct" / "engines" / "monai" / "image"
+        image_dir.mkdir(parents=True)
+        (image_dir / "Dockerfile").write_text("FROM rocm/pytorch:latest\n")
+
+        ci_targets = resolve_ci_base_image_targets("instinct")
+        specialized = next(t for t in ci_targets if t.target_id == "monai")
+        # instinct enables validation by default.
+        assert specialized.run_validation is True
+
     def test_model_dump_json(self):
         """Test JSON serialization of CiBaseImageConfig."""
         ci_config = CiBaseImageConfig(
@@ -742,6 +785,45 @@ class TestResolveBuildConfigCommand:
         assert "nonexistent" in result.output
         assert LEGACY_VLLM_BASE_TARGET_ID in result.output
 
+    def test_resolve_build_config_engine_specialized_target(self, runner, tmp_path, monkeypatch):
+        """A specialized engine target resolves with Layer 1 metadata and an empty upstream."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+        image_dir = tmp_path / "assets" / "instinct" / "engines" / "monai" / "image"
+        image_dir.mkdir(parents=True)
+        (image_dir / "Dockerfile").write_text("FROM rocm/pytorch:latest\n")
+
+        result = runner.invoke(
+            cli, ["resolve-build-config", "--accelerator-family", "instinct", "--base-target-id", "monai"]
+        )
+
+        assert result.exit_code == 0, result.output
+        output = json.loads(result.output.strip())
+        assert output["base_target_id"] == "monai"
+        assert output["repository"] == "aim-instinct-monai-base"
+        assert output["layer1_repository"] == "aim-instinct-specialized-monai"
+        # Paths are repo-relative (matching the dockerfile convention), not absolute.
+        assert output["layer1_context_path"] == "assets/instinct/engines/monai/image"
+        assert output["layer1_dockerfile"] == "assets/instinct/engines/monai/image/Dockerfile"
+        assert output["upstream_image_ref"] == ""
+
+    def test_resolve_build_config_legacy_target_is_not_specialized(self, runner, tmp_path, monkeypatch):
+        """The standard legacy target has empty Layer 1 fields (not specialized)."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        case = get_accelerator_case("instinct")
+        write_base_config(tmp_path, "instinct", case)
+
+        result = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "instinct"])
+
+        assert result.exit_code == 0, result.output
+        output = json.loads(result.output.strip())
+        assert output["layer1_repository"] == ""
+        assert output["layer1_context_path"] == ""
+        assert output["layer1_dockerfile"] == ""
+
     def test_resolve_build_config_fails_without_legacy_target(self, runner, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
@@ -933,7 +1015,11 @@ class TestBaseImageConfigTagValidator:
         )
         assert config.base_tag == "0.11"
 
-    @pytest.mark.parametrize("tag", ["0.11-rc1", "0.11-preview", "1.0"])
+    @pytest.mark.parametrize(
+        "tag",
+        # Two-part legacy tags plus three-part tags emitted since PR #1188.
+        ["0.11-rc1", "0.11-preview", "1.0", "0.11.0", "0.11.0-rc1", "0.11.0-preview"],
+    )
     @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
     def test_aim_repo_valid_base_version_with_suffix(self, tag, base_repository):
         config = BaseImageConfig(
@@ -944,7 +1030,7 @@ class TestBaseImageConfigTagValidator:
         )
         assert config.base_tag == tag
 
-    @pytest.mark.parametrize("tag", ["BROKEN", "0.11.0", "0.11-rc0", "abc"])
+    @pytest.mark.parametrize("tag", ["BROKEN", "0.11.0.1", "0.11-rc0", "0.11.0-rc0", "abc"])
     @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
     def test_aim_repo_invalid_base_version_rejected(self, tag, base_repository):
         with pytest.raises(Exception, match="Invalid version format"):

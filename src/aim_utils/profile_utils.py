@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 import click
 from pydantic import ValidationError
 
-from aim_common.object_model import CanonicalName, GPUModel, ProfileMetadata, ProfileType
+from aim_common.object_model import AcceleratorType, CanonicalName, GPUModel, ProfileMetadata, ProfileType
 from aim_runtime.object_model import ProfileHandling
 from aim_utils.asset_utils import (
     AssetDescriptor,
@@ -315,7 +315,10 @@ def _get_metadata_profile_id_mismatches(
 ) -> List[MetadataMismatch | FileNameFormatMismatch]:
     result: List[MetadataMismatch | FileNameFormatMismatch] = []
     try:
-        engine, accelerator, precision, tp, metric = profile_id.split("-")
+        # The stem is {engine}-{accelerator}-{precision}-tp{count}-{metric} with an
+        # optional -{variant} suffix. The variant slug may itself contain hyphens.
+        engine, accelerator, precision, tp, metric, *maybe_variant = profile_id.split("-")
+        variant = "-".join(maybe_variant) if maybe_variant else None
 
         precision = precision.replace("mxfp4", "fp4")
 
@@ -329,8 +332,14 @@ def _get_metadata_profile_id_mismatches(
                     metadata.accelerator_model.value.lower() if metadata.accelerator_model is not None else None,
                 ),
                 MetadataMismatch(profile_path, "precision", precision, metadata.precision.value),
-                MetadataMismatch(profile_path, "accelerator_count", tp, f"tp{metadata.accelerator_count}"),
+                MetadataMismatch(
+                    profile_path,
+                    "accelerator_count",
+                    tp,
+                    f"tp{1 if metadata.accelerator_type == AcceleratorType.CPU else metadata.accelerator_count}",
+                ),
                 MetadataMismatch(profile_path, "metric", metric, metadata.metric.value),
+                MetadataMismatch(profile_path, "variant", variant, metadata.variant),
             ]
         )
 

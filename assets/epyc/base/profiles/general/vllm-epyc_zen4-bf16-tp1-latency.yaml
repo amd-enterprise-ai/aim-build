@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 metadata:
-  accelerator_count: 1
+  accelerator_count: 92
   accelerator_model: EPYC_ZEN4
   accelerator_type: cpu
   engine: vllm

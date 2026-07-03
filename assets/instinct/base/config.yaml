@@ -5,5 +5,5 @@
 base_image:
   base_registry_namespace: vllm
   base_repository: vllm-openai-rocm
-  base_tag: v0.19.0
+  base_tag: v0.23.0
   registry_host: docker.io

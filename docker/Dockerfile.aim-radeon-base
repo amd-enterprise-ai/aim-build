@@ -41,16 +41,26 @@ WORKDIR /workspace
 COPY src/aim_runtime/ /workspace/aim-runtime/src/aim_runtime/
 COPY src/aim_common/ /workspace/aim-runtime/src/aim_common/
 COPY requirements/requirements.txt /workspace/aim-runtime/
+COPY requirements/${AIM_ACCELERATOR_FAMILY}-requirements.txt /workspace/aim-runtime/
 COPY src/entrypoint.py /workspace/entrypoint.py
 RUN chmod +x /workspace/entrypoint.py
 
+# Engine config and general-profile directories to copy into the image.
+# Defaults match the standard (legacy vLLM) base layout. Named/specialized base
+# targets override these via build args (see .github/actions/build-image) so each
+# ships only its own engines.yaml and general profiles — the generic vLLM general
+# profiles are not copied into non-legacy bases.
+ARG AIM_BASE_CONFIG_DIR=assets/radeon/base/config
+ARG AIM_BASE_PROFILES_DIR=assets/radeon/base/profiles/general
+
 # Copy general profiles and engine config
-COPY assets/${AIM_ACCELERATOR_FAMILY}/base/profiles/general /workspace/aim-runtime/profiles/general
-COPY assets/${AIM_ACCELERATOR_FAMILY}/base/config /workspace/aim-runtime/config
+COPY ${AIM_BASE_PROFILES_DIR} /workspace/aim-runtime/profiles/general
+COPY ${AIM_BASE_CONFIG_DIR} /workspace/aim-runtime/config
 
 # Install runtime dependencies
 RUN cd /workspace/aim-runtime && \
-    pip3 install -r requirements.txt
+    pip3 install -r requirements.txt && \
+    pip3 install -r ${AIM_ACCELERATOR_FAMILY}-requirements.txt
 
 # TODO: Explore feasibility of enabling LMCache on Radeon (currently Instinct-only)
 # Install LMCache for KV-caching support (conditional based on INSTALL_LMCACHE)

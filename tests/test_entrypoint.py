@@ -326,7 +326,19 @@ class TestDownloadToCacheCommand:
 
 
 class TestBenchmarkCommand:
-    """Test suite for benchmark command."""
+    """Test suite for benchmark command (legacy AIMBenchmark path)."""
+
+    @pytest.fixture(autouse=True)
+    def _no_custom_harness(self):
+        """Force the legacy AIMBenchmark path for this suite.
+
+        The benchmark command delegates to a custom ModelHarness when one
+        exists at /workspace/model/src/harness.py. These tests target the
+        legacy path, so pin discovery to "no custom harness" regardless of
+        what is actually on disk (e.g. when running inside a specialized image).
+        """
+        with patch("aim_runtime.harness.discovery.has_custom_harness", return_value=False):
+            yield
 
     def _make_benchmark_mock(self, overall_success=True):
         mock_runner = Mock()

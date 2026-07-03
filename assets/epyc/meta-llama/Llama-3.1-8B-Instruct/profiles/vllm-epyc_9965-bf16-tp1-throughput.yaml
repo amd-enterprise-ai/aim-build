@@ -5,20 +5,22 @@
 aim_id: meta-llama/Llama-3.1-8B-Instruct
 model_id: meta-llama/Llama-3.1-8B-Instruct
 metadata:
-  accelerator_count: 1
+  accelerator_count: 188
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: true
+  manual_selection_only: false
   metric: throughput
   precision: bf16
   primary: true
-  type: unoptimized
+  type: preview
 engine_args:
-  disable-log-requests: true
   dtype: bfloat16
+  max-num-batched-tokens: 4096
+  max-num-seqs: 128
 env_vars:
   OMP_NUM_THREADS: '192'
   VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_NUM_OF_RESERVED_CPU: '12'
   VLLM_CPU_OMP_THREADS_BIND: auto
   ZENDNNL_MATMUL_ALGO: '1'

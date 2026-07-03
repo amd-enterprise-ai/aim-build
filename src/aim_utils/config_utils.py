@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_fie
 
 from aim_common.object_model import AcceleratorFamily
 from aim_utils.image_naming import LEGACY_VLLM_BASE_TARGET_ID, ImageName, get_base_image_name
+from aim_utils.specialized_utils import enumerate_specialized_base_targets, resolve_base_assets_dir
 
 from .asset_utils import AssetDescriptor, Initializer, assets_path_option
 from .dict_utils import get_value
@@ -21,6 +22,19 @@ from .version_utils import validate_version_tag
 from .yaml_utils import read_yaml, save_yaml
 
 logger = logging.getLogger(__name__)
+
+# TEMPORARY: base targets that don't ship vLLM. Because they lack vLLM they can't
+# run the generic vLLM model-service smoke test, don't carry AITER kernels, and are
+# validated by their own model pipeline instead. Keyed by base target id. This is the
+# single source of truth for the "non-vLLM base" signal: it drives run_validation here,
+# and model_service_validation_supported / aiter_supported in
+# ci/discover_base_build_targets.py.
+#
+# REGISTER HERE: every new non-vLLM engine-level or model-level base must add its
+# target_id to this set. Otherwise it defaults to "vLLM" and will silently run the
+# generic vLLM smoke test (and fail). Remove this set once an engine-agnostic,
+# harness-based base smoke test exists — see docs/plans/engine-agnostic-base-validation.md.
+NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset({"bentoml", "mit-boltz2", "openfold-openfold3"})
 
 
 class BaseImageConfig(BaseModel):
@@ -108,7 +122,14 @@ class CiBaseImageTarget(BaseModel):
         description="Path to Dockerfile (e.g., docker/Dockerfile.aim-instinct-base, docker/Dockerfile.aim-radeon-base)",
     )
     run_validation: bool = Field(..., description="Whether to run validation after build")
+    # Empty for standard targets (a pull-able vendor upstream). For specialized
+    # targets CI builds Layer 1 from the image/ dir and uses it as the upstream.
     upstream_image_ref: str = Field(..., description="Full upstream image reference")
+    # Set only for specialized targets: a non-empty layer1_repository is the single
+    # signal that CI must build a Layer 1 image before the base.
+    layer1_repository: str = Field(default="", description="Layer 1 specialized image repository")
+    layer1_context_path: str = Field(default="", description="Layer 1 build context (the image/ dir)")
+    layer1_dockerfile: str = Field(default="", description="Layer 1 Dockerfile path")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -204,9 +225,10 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
     default_run_validation = acc_lower == "instinct"
 
     ci_targets: list[CiBaseImageTarget] = []
+    seen_target_ids: set[str] = set()
     for target in resolve_base_image_targets(accelerator_family):
         image_name = get_base_image_name(acc_lower, target.target_id)
-        run_validation = default_run_validation and target.target_id != "bentoml"
+        run_validation = default_run_validation and target.target_id not in NON_VLLM_BASE_TARGET_IDS
         ci_targets.append(
             CiBaseImageTarget(
                 target_id=target.target_id,
@@ -216,6 +238,34 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
                 upstream_image_ref=target.image_ref,
             )
         )
+        seen_target_ids.add(target.target_id)
+
+    # Specialized targets (engine-level + model-level image/ directories).
+    # These have no fixed upstream: CI builds their Layer 1 image from the
+    # image/ Dockerfile and uses it as the parent for the Layer 2 base build.
+    for specialized in enumerate_specialized_base_targets(acc_lower):
+        if specialized.target_id in seen_target_ids:
+            # A named base/ target already claims this id; skip the specialized
+            # one so the build matrix never contains duplicate targets that would
+            # push to the same image name.
+            logger.warning(
+                f"Skipping specialized base target '{specialized.target_id}' for '{acc_lower}': "
+                "a base/ target already uses this id."
+            )
+            continue
+        ci_targets.append(
+            CiBaseImageTarget(
+                target_id=specialized.target_id,
+                image_name=specialized.base_image_name,
+                dockerfile=dockerfile,
+                run_validation=default_run_validation,
+                upstream_image_ref="",
+                layer1_repository=specialized.layer1_repository,
+                layer1_context_path=specialized.context_path,
+                layer1_dockerfile=specialized.dockerfile,
+            )
+        )
+        seen_target_ids.add(specialized.target_id)
 
     return ci_targets
 
@@ -240,6 +290,11 @@ class CiBaseImageConfig(BaseModel):
     )
     run_validation: bool = Field(..., description="Whether to run validation after build")
     upstream_image_ref: str = Field(..., description="Full upstream image reference")
+    # A non-empty layer1_repository is the single signal that this is a specialized
+    # target: CI builds Layer 1 from the image/ dir and uses it as the base upstream.
+    layer1_repository: str = Field(default="", description="Layer 1 specialized image repository")
+    layer1_context_path: str = Field(default="", description="Layer 1 build context (the image/ dir)")
+    layer1_dockerfile: str = Field(default="", description="Layer 1 Dockerfile path")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -427,6 +482,9 @@ def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] 
         dockerfile=ci_target.dockerfile,
         run_validation=ci_target.run_validation,
         upstream_image_ref=ci_target.upstream_image_ref,
+        layer1_repository=ci_target.layer1_repository,
+        layer1_context_path=ci_target.layer1_context_path,
+        layer1_dockerfile=ci_target.layer1_dockerfile,
     )
 
     # Output as JSON
@@ -440,6 +498,32 @@ def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] 
     else:
         # Print JSON for local testing
         print(config_json)
+
+
+@cli.command(name="resolve-base-assets-dir")
+@click.option(
+    "--accelerator-family",
+    type=click.Choice([af.value for af in AcceleratorFamily]),
+    required=True,
+    help="Accelerator family (e.g., instinct, epyc, radeon)",
+)
+@click.option(
+    "--base-target-id",
+    type=str,
+    required=False,
+    default=None,
+    help="Base image target identifier (e.g. legacy_vllm, bentoml, mit-boltz2). Defaults to legacy_vllm.",
+)
+def resolve_base_assets_dir_command(accelerator_family: str, base_target_id: Optional[str] = None) -> None:
+    """Print the assets dir a base build copies its engine config + general profiles from.
+
+    For model-dedicated specialized bases the engine (and thus the source dir) is
+    inferred from the model's profiles, so no extra field is needed in the
+    specialized image's config.yaml. The printed path contains ``config/`` and
+    ``profiles/general/`` for the base Dockerfile to COPY.
+    """
+    target_id = base_target_id or LEGACY_VLLM_BASE_TARGET_ID
+    print(resolve_base_assets_dir(accelerator_family, target_id))
 
 
 @cli.command(name="resolve-build-targets")

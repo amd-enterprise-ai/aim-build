@@ -12,44 +12,29 @@ YAML entry in engines.yaml.
 
 import logging
 from pathlib import Path
-from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from aim_common import Engine
-from aim_common.engine_args_models import EngineArgsFormat
 from aim_runtime.utils import read_yaml
 
 logger = logging.getLogger(__name__)
 
 
 class EngineConfig(BaseModel):
-    """Engine launch and validation configuration, loaded from engines.yaml."""
+    """Engine launch configuration, loaded from engines.yaml.
 
-    model_config = ConfigDict(frozen=True)
+    Holds only the per-deployment launch data. Engine-arg validation and CLI
+    serialization format are owned by the engine class (see
+    ``aim_runtime.engines``), selected from ``engine`` via ``build_engine``.
+    Unknown keys in engines.yaml (e.g. a legacy ``validator``) are ignored.
+    """
 
-    # Implicit args_format per engine; engines not listed default to STANDARD.
-    ENGINE_ARGS_FORMATS: ClassVar[dict[str, EngineArgsFormat]] = {
-        "bentoml": EngineArgsFormat.FORWARDED,
-    }
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     engine: Engine | None = None
     launch: str
     model_arg: str = ""
-    validator: str = ""
-    args_format: EngineArgsFormat = EngineArgsFormat.STANDARD
-
-    @model_validator(mode="after")
-    def _infer_args_format(self) -> "EngineConfig":
-        """Infer args_format from engine name when not explicitly set.
-
-        object.__setattr__ is the standard pattern for mutating frozen Pydantic
-        models inside a mode="after" validator — it bypasses __setattr__ without
-        disabling the frozen constraint for external callers.
-        """
-        if "args_format" not in self.model_fields_set and self.engine in self.ENGINE_ARGS_FORMATS:
-            object.__setattr__(self, "args_format", self.ENGINE_ARGS_FORMATS[self.engine])
-        return self
 
 
 # ---------------------------------------------------------------------------

@@ -5,5 +5,5 @@
 base_image:
   base_registry_namespace: rocm
   base_repository: pytorch
-  base_tag: rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.8.0
+  base_tag: rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.10.0
   registry_host: docker.io

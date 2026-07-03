@@ -1,0 +1,54 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "meta-llama/Llama-3.1-8B-Instruct"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "instruction"
+        source: "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct"
+        variants:
+        - "meta-llama/Llama-3.1-8B-Instruct"
+        recommendedDeployments:
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on W7900 using bf16 precision"
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on W7900 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on R9700 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on R9700 using bf16 precision"
+        publisher: "Meta"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "Llama 3.1 8B Instruct is part of the Meta Llama 3.1 collection of multilingual large language models, available in 8B, 70B, and 405B sizes. It is an 8 billion parameter auto-regressive language model using an optimized transformer architecture with Grouped-Query Attention (GQA). The instruction-tuned version uses supervised fine-tuning (SFT) and reinforcement learning with human feedback (RLHF) to align with human preferences for helpfulness and safety. The model supports multilingual dialogue across 8 languages (English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai). Pre-trained on over 15 trillion tokens of publicly available data with a knowledge cutoff of December 2023. Intended for assistant-like chat, with support for tool use and multilingual capabilities."
+      title: "Llama 3.1 8B Instruct"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "llama3.1, MIT"
+      description: "Multilingual 8B parameter instruction-tuned language model for dialogue use cases."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

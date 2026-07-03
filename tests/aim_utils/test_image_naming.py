@@ -89,6 +89,32 @@ class TestModelImageNaming:
         assert name.public == "aim-instinct-target-bentoml-model-meta-llama-llama-3-1-8b-instruct"
         assert name.has_alias is False
 
+    def test_model_dedicated_base_is_target_qualified(self):
+        """A model-dedicated base (target_id == model canonical name) is still target-qualified.
+
+        Every named target uses one uniform scheme; because the target id equals the model key,
+        it repeats on both sides: aim-instinct-target-mit-boltz2-model-mit-boltz2. No public alias.
+        """
+        name = get_model_image_name(
+            AcceleratorFamily.INSTINCT.value,
+            canonical_name_sanitized="mit-boltz2",
+            target_id="mit-boltz2",
+        )
+        assert name.canonical == "aim-instinct-target-mit-boltz2-model-mit-boltz2"
+        assert name.public == "aim-instinct-target-mit-boltz2-model-mit-boltz2"
+        assert name.has_alias is False
+
+    def test_model_dedicated_base_target_qualified_non_legacy_accelerator(self):
+        """Non-instinct model-dedicated base is also target-qualified, no public alias."""
+        name = get_model_image_name(
+            AcceleratorFamily.EPYC.value,
+            canonical_name_sanitized="example-echo-model",
+            target_id="example-echo-model",
+        )
+        assert name.canonical == "aim-epyc-target-example-echo-model-model-example-echo-model"
+        assert name.public == "aim-epyc-target-example-echo-model-model-example-echo-model"
+        assert name.has_alias is False
+
 
 class TestUnifiedGetImageName:
     """Test unified get_image_name function."""

@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "0.12"
+version = "0.13"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -22,16 +22,39 @@ classifiers = [
 # Core dependencies (aim_runtime)
 dependencies = [
     "click>=8.4.0",
-    "huggingface-hub>=0.34.0,<1.0",
     "pydantic>=2.13.3,<3.0",
     "PyYAML==6.0.3",
+    # Used at top-level import in engines/adapter_watcher.py (dynamic LoRA mode)
+    # and aim_runtime.py; it is present transitively via huggingface-hub, but
+    # declare it explicitly since the runtime imports it directly.
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
+instinct = [
+    "huggingface-hub>=0.34.0,<1.0",
+]
+
+epyc = [
+    # huggingface-hub is intentionally not pinned here: the zentorch vLLM 0.22.1
+    # base image ships huggingface-hub 1.x (with transformers 5.x). Pinning the
+    # PyPI-stable 0.x line downgrades hub and breaks transformers
+    # (ImportError: is_offline_mode). aim_runtime only uses the stable
+    # HfApi/snapshot_download APIs, which the base image's hub already provides.
+]
+
+radeon = [
+    "huggingface-hub>=0.34.0,<=1.5.0",
+]
+
+cpu = [
+    "huggingface-hub>=0.34.0,<1.0",
+]
+
 # Dependencies for running tests
 test = [
     "pytest-cov>=7.1.0",
-    "pytest==9.0.3",
+    "pytest==9.1.1",
     "pytest-mock>=3.14.0",
     "coverage",
     "pytest-html",
@@ -60,7 +83,7 @@ dev = [
     "mypy>=2.1.0",
     "pre-commit>=4.6.0",
     "pytest-cov>=7.1.0",
-    "pytest==9.0.3",
+    "pytest==9.1.1",
     "pytest-mock>=3.14.0",
     # Added for development scripts and tests that require HTTP requests.
     "requests>=2.34.2",
@@ -93,7 +116,7 @@ aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["aim_runtime", "aim_runtime.harness", "aim_common", "aim_utils"]
+packages = ["aim_runtime", "aim_runtime.harness", "aim_runtime.engines", "aim_common", "aim_utils"]
 py-modules = ["entrypoint"]
 
 [tool.setuptools.package-data]

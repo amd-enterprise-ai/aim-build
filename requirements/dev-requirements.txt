@@ -37,19 +37,16 @@ configobj==5.0.9
     #   pgcli
 coverage[toml]==7.14.1
     # via pytest-cov
-distlib==0.4.2
+distlib==0.4.3
     # via virtualenv
 et-xmlfile==2.0.0
     # via openpyxl
-filelock==3.29.1
+filelock==3.29.4
     # via
-    #   huggingface-hub
     #   python-discovery
     #   virtualenv
 flake8==7.3.0
     # via aim-build (pyproject.toml)
-fsspec==2026.4.0
-    # via huggingface-hub
 greenlet==3.5.1
     # via sqlalchemy
 h11==0.16.0
@@ -58,16 +55,12 @@ h2==4.3.0
     # via httpx
 hf-mem==0.5.5
     # via aim-build (pyproject.toml)
-hf-xet==1.5.1
-    # via huggingface-hub
 hpack==4.1.0
     # via h2
 httpcore==1.0.9
     # via httpx
 httpx[http2]==0.28.1
     # via hf-mem
-huggingface-hub==0.36.2
-    # via aim-build (pyproject.toml)
 hyperframe==6.1.0
     # via h2
 identify==2.6.19
@@ -104,7 +97,6 @@ openpyxl==3.1.5
 packaging==26.2
     # via
     #   black
-    #   huggingface-hub
     #   pytest
 pandas==2.3.3
     # via aim-build (pyproject.toml)
@@ -162,7 +154,7 @@ pytest-mock==3.15.1
     # via aim-build (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via pandas
-python-discovery==1.4.0
+python-discovery==1.4.2
     # via virtualenv
 pytokens==0.4.1
     # via black
@@ -171,12 +163,9 @@ pytz==2026.2
 pyyaml==6.0.3
     # via
     #   aim-build (pyproject.toml)
-    #   huggingface-hub
     #   pre-commit
 requests==2.34.2
-    # via
-    #   aim-build (pyproject.toml)
-    #   huggingface-hub
+    # via aim-build (pyproject.toml)
 semver==3.0.4
     # via aim-build (pyproject.toml)
 setproctitle==1.3.7
@@ -195,12 +184,9 @@ tabulate[widechars]==0.10.0
     # via cli-helpers
 tomli==2.4.1
     # via aim-build (pyproject.toml)
-tqdm==4.68.2
-    # via huggingface-hub
 typing-extensions==4.15.0
     # via
     #   anyio
-    #   huggingface-hub
     #   mypy
     #   psycopg
     #   pydantic
@@ -216,7 +202,7 @@ tzlocal==5.3.1
     # via pgcli
 urllib3==2.7.0
     # via requests
-virtualenv==21.4.2
+virtualenv==21.5.0
     # via pre-commit
 wcwidth==0.8.1
     # via

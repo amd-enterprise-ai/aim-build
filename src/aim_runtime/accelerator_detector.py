@@ -61,6 +61,7 @@ class AcceleratorDetectionResult:
         if self.cpu_info:
             result["cpu_info"] = self.cpu_info.to_dict()
             result["cpu_cores"] = self.cpu_cores
+            result["node_cores"] = self.cpu_info.node_cores
             result["cpuset_bind"] = self.cpuset_bind
         return result
 
@@ -158,13 +159,13 @@ class AcceleratorDetector:
     # ------------------------------------------------------------------
 
     def _detect_cpu(self, accelerator_family: AcceleratorFamily = AcceleratorFamily.EPYC) -> AcceleratorDetectionResult:
-        """Detect EPYC CPU model and available cores.
+        """Detect EPYC CPU model and core counts.
 
-        For profile matching, ``accelerator_count`` is always set to ``1``
-        because CPU profiles use ``accelerator_count: 1`` (the GPU "TP"
-        convention — one logical accelerator device).  The actual number of
-        available cores is stored separately in ``cpu_cores`` and used at
-        runtime by ``EpycDetector.override_cpu_env_vars`` for thread binding.
+        ``accelerator_count`` reports the node's full CPU capacity (``node_cores``),
+        independent of cpuset/cgroup limits, so node labelling via ``detect-hardware``
+        reflects the host rather than the pod's allocation.  ``cpu_cores`` keeps the
+        cpuset-limited count used by ``serve``/``dry-run`` to size OMP threads and
+        bind vLLM to the container's cpus only.
 
         Falls back to ``AcceleratorModel.CPU`` when no EPYC CPU is detected.
         """
@@ -175,8 +176,10 @@ class AcceleratorDetector:
         cpu_detector = cpu_detectors_map.get(accelerator_family, CpuDetector)()
 
         cpu_cores = cpu_detector.available_cores
+        node_cores = cpu_detector.node_cores
         cpu_model = cpu_detector.cpu_model
-        logger.info(f"Auto-detected CPU cores: {cpu_cores}")
+        logger.info(f"Auto-detected CPU cores available to container: {cpu_cores}")
+        logger.info(f"Auto-detected node CPU capacity: {node_cores}")
         logger.info(f"Auto-detected CPU model: {cpu_model}")
         logger.debug(f"CPU cpuset bind: {cpu_detector.cpuset_bind}")
 
@@ -184,11 +187,12 @@ class AcceleratorDetector:
             logger.warning("No known CPU detected, falling back to generic CPU model")
             cpu_model = AcceleratorModel.CPU
             cpu_cores = cpu_cores or 1
+            node_cores = node_cores or 1
 
         return AcceleratorDetectionResult(
             accelerator_type=AcceleratorType.CPU,
             accelerator_model=cpu_model,
-            accelerator_count=1,
+            accelerator_count=node_cores,
             cpu_info=cpu_detector.cpu_info,
             cpu_cores=cpu_cores,
             cpuset_bind=cpu_detector.cpuset_bind,

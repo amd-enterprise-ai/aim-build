@@ -1,0 +1,53 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "zai-org/GLM-4.7-Flash"
+        tags:
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/zai-org/GLM-4.7-Flash"
+        variants:
+        - "zai-org/GLM-4.7-Flash"
+        recommendedDeployments:
+        - gpuModel: "W7900"
+          gpuCount: 2
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on W7900 using bf16 precision with tensor parallelism"
+        - gpuModel: "W7900"
+          gpuCount: 2
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on W7900 using bf16 precision with tensor parallelism"
+        - gpuModel: "R9700"
+          gpuCount: 4
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on R9700 using bf16 precision with tensor parallelism"
+        - gpuModel: "R9700"
+          gpuCount: 4
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on R9700 using bf16 with tensor parallelism"
+        publisher: "Z.ai"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "GLM-4.7-Flash is a 30B-A3B Mixture of Experts (MoE) language model developed by THUDM and published by Z.ai. It is positioned as a strong model in the 30B class, offering lightweight deployment with balanced performance and efficiency. The model features configurable reasoning and excels across benchmarks including AIME, GPQA, and SWE-bench. It supports deployment via vLLM, SGLang, and Transformers."
+      title: "GLM 4.7 Flash"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "30B-A3B MoE language model with balanced performance and efficiency for lightweight deployment."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

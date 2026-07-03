@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "label": "7qsj",
+    "description": "PDB 7QSJ (373 residues, recipe=full)"
+  },
+  "data": {
+    "num_diffusion_samples": 1,
+    "use_msa_server": false,
+    "use_templates": false,
+    "queries": {
+      "7qsj": {
+        "chains": [
+          {
+            "molecule_type": "protein",
+            "chain_ids": "A",
+            "sequence": "MVLRDDLDAVPGVPGVLTPEQCRQTAQAIADAQEPSGALPWFEGGHTDPWDHVENAMALTVAGLLEPARAAFDWCRTTQRPDGSWPIQIRNGVVEDANSDSNFCAYVATGVWHHVLITGDRRFAETMWPVVAKAIDFVIDMQLPGGEIAWARSPSGLYEEALLTGCASIYHSIRCALALADYMGEPQPEWEVAVGRLGHAIAEHPEAFVTKDRWSMEWYYPVLGGALRGEAARARINRRWNDFVVPGLGIRCVDDRPWVTGAETCELVLALDAIGDLTRAHEQFAAMHHLREEDGSYWTGLVYDDGKRWPIERTTWTGAAMILAADALSRTTPGNGIFRGVDLPRGLEGEYDCACATSERKLAAALEHHHHHH"
+          }
+        ]
+      }
+    }
+  }
+}

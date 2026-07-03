@@ -1,0 +1,79 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "HAI-DEF, MIT"
+      description: "Gemma 3-based 27B multimodal model fine-tuned for medical text and image tasks (X-ray, dermatology, ophthalmology, pathology, radiology reports)."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/medgemma-27b-it"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "chat"
+        - "instruction"
+        - "medical"
+        - "radiology"
+        - "pathology"
+        - "dermatology"
+        source: "https://huggingface.co/google/medgemma-27b-it"
+        variants:
+        - "google/medgemma-27b-it"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using bf16 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using bf16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using bf16 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using bf16 precision"
+        publisher: "Google"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "MedGemma is part of Google's Health AI Developer Foundations (HAI-DEF), built on Gemma 3 and further trained on medical images and text. The 27B instruction-tuned multimodal variant supports text and image inputs (chest X-rays, pathology, dermatology, fundus images) with a 128K context window. Intended for research and developer prototyping in medical AI applications — not for direct clinical use without further validation. Distributed under the HAI-DEF license; access requires accepting the gating terms on Hugging Face."
+      title: "MedGemma 27B IT"

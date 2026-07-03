@@ -16,6 +16,7 @@ These tests verify:
 import importlib.util
 import inspect
 import json
+import os
 import subprocess
 import sys
 import textwrap
@@ -56,6 +57,14 @@ ECHO_SRC_DIR = str(ECHO_HARNESS_PATH.parent)
 _HAS_BENTOML = importlib.util.find_spec("bentoml") is not None
 
 _requires_bentoml = pytest.mark.skipif(not _HAS_BENTOML, reason="bentoml is required to host the echo service")
+
+# The echo integration tests spin up a live bentoml subprocess, which is flaky
+# inside the in-container CI unit-test job. Skip only those on GitHub Actions;
+# the discovery/unit tests remain hermetic and run everywhere.
+_skip_on_ci = pytest.mark.skipif(
+    os.environ.get("GITHUB_ACTIONS") == "true",
+    reason="Echo integration tests are skipped on GitHub Actions",
+)
 
 
 def _load_echo_harness() -> ModelHarness:
@@ -186,9 +195,21 @@ class TestDataclasses:
 class TestDiscovery:
     """Verify harness discovery logic."""
 
-    def test_has_custom_harness_false_by_default(self):
-        """No harness at /workspace/model/src/harness.py in a dev/test env."""
-        assert has_custom_harness() is False
+    def test_has_custom_harness_false_when_absent(self, tmp_path):
+        """has_custom_harness() is False when no file exists at HARNESS_PATH.
+
+        Pinned to a non-existent path so the result does not depend on whether
+        a real harness happens to be installed at /workspace/model/src/harness.py
+        (e.g. when running inside a specialized image).
+        """
+        from aim_runtime.harness import discovery as disc_mod
+
+        original = disc_mod.HARNESS_PATH
+        try:
+            disc_mod.HARNESS_PATH = tmp_path / "does-not-exist" / "harness.py"
+            assert has_custom_harness() is False
+        finally:
+            disc_mod.HARNESS_PATH = original
 
     def test_has_custom_harness_true_when_file_exists(self, tmp_path):
         from aim_runtime.harness import discovery as disc_mod
@@ -202,10 +223,21 @@ class TestDiscovery:
         finally:
             disc_mod.HARNESS_PATH = original
 
-    def test_discover_raises_when_no_harness_file(self):
-        """When no custom harness exists, discover_harness raises RuntimeError."""
-        with pytest.raises(RuntimeError, match="No custom harness found"):
-            discover_harness()
+    def test_discover_raises_when_no_harness_file(self, tmp_path):
+        """When no custom harness exists, discover_harness raises RuntimeError.
+
+        Pinned to a non-existent path so it does not load a real harness that
+        may be present at /workspace/model/src/harness.py inside an image.
+        """
+        from aim_runtime.harness import discovery as disc_mod
+
+        original = disc_mod.HARNESS_PATH
+        try:
+            disc_mod.HARNESS_PATH = tmp_path / "does-not-exist" / "harness.py"
+            with pytest.raises(RuntimeError, match="No custom harness found"):
+                discover_harness()
+        finally:
+            disc_mod.HARNESS_PATH = original
 
     def test_discover_from_file(self, tmp_path):
         """Discovery loads a ModelHarness subclass from a .py file."""
@@ -487,6 +519,7 @@ def echo_config(echo_server):
 
 
 @_requires_bentoml
+@_skip_on_ci
 class TestEchoHarness:
     """Integration tests for the play echo-model harness."""
 

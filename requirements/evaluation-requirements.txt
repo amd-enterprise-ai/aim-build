@@ -14,6 +14,8 @@ aiohttp==3.14.1
     #   lm-eval
 aiosignal==1.4.0
     # via aiohttp
+annotated-doc==0.0.4
+    # via typer
 annotated-types==0.7.0
     # via pydantic
 anyio==4.13.0
@@ -32,7 +34,9 @@ charset-normalizer==3.4.7
 click==8.4.1
     # via
     #   aim-build (pyproject.toml)
+    #   huggingface-hub
     #   nltk
+    #   typer
 colorama==0.4.6
     # via sacrebleu
 dataproperty==1.1.1
@@ -51,11 +55,10 @@ dill==0.4.1
     #   multiprocess
 evaluate==0.4.6
     # via lm-eval
-filelock==3.29.1
+filelock==3.29.4
     # via
     #   datasets
     #   huggingface-hub
-    #   transformers
 frozenlist==1.8.0
     # via
     #   aiohttp
@@ -74,10 +77,11 @@ hf-xet==1.5.1
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
-    # via datasets
-huggingface-hub==0.36.2
     # via
-    #   aim-build (pyproject.toml)
+    #   datasets
+    #   huggingface-hub
+huggingface-hub==1.19.0
+    # via
     #   datasets
     #   evaluate
     #   tokenizers
@@ -98,6 +102,8 @@ lm-eval[api]==0.4.12
     # via aim-build (pyproject.toml)
 lxml==6.1.1
     # via sacrebleu
+markdown-it-py==4.2.0
+    # via rich
 markupsafe==3.0.3
     # via jinja2
 mbstrdecoder==1.1.5
@@ -105,6 +111,8 @@ mbstrdecoder==1.1.5
     #   dataproperty
     #   pytablewriter
     #   typepy
+mdurl==0.1.2
+    # via markdown-it-py
 more-itertools==11.1.0
     # via lm-eval
 multidict==6.7.1
@@ -155,6 +163,8 @@ pydantic==2.13.4
     # via aim-build (pyproject.toml)
 pydantic-core==2.46.4
     # via pydantic
+pygments==2.20.0
+    # via rich
 pytablewriter==1.2.1
     # via lm-eval
 python-dateutil==2.9.0.post0
@@ -179,10 +189,10 @@ requests==2.34.2
     # via
     #   datasets
     #   evaluate
-    #   huggingface-hub
     #   lm-eval
     #   tiktoken
-    #   transformers
+rich==15.0.0
+    # via typer
 rouge-score==0.1.2
     # via lm-eval
 sacrebleu==2.6.0
@@ -193,6 +203,8 @@ scikit-learn==1.9.0
     # via lm-eval
 scipy==1.17.1
     # via scikit-learn
+shellingham==1.5.4
+    # via typer
 six==1.17.0
     # via
     #   python-dateutil
@@ -221,13 +233,17 @@ tqdm==4.68.2
     #   lm-eval
     #   nltk
     #   transformers
-transformers==4.57.6
+transformers==5.12.0
     # via aim-build (pyproject.toml)
 typepy[datetime]==1.3.5
     # via
     #   dataproperty
     #   pytablewriter
     #   tabledata
+typer==0.25.1
+    # via
+    #   huggingface-hub
+    #   transformers
 typing-extensions==4.15.0
     # via
     #   aiohttp

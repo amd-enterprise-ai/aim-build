@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: google/gemma-4-31B-it
+model_id: google/gemma-4-31B-it
+metadata:
+  engine: vllm
+  gpu: MI355X
+  gpu_count: 4
+  manual_selection_only: true
+  metric: throughput
+  precision: bf16
+  primary: false
+  type: unoptimized
+engine_args:
+  disable-uvicorn-access-log: null
+  dtype: bfloat16
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.92
+  load-format: runai_streamer
+  max-model-len: 32768
+  max-num-batched-tokens: 2048
+  model-loader-extra-config: '{"memory_limit": 8589934592}'
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-enable-prefix-caching: null
+  reasoning-parser: gemma4
+  tensor-parallel-size: 4
+  tool-call-parser: gemma4
+  trust-remote-code: null
+env_vars:
+  HSA_NO_SCRATCH_RECLAIM: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

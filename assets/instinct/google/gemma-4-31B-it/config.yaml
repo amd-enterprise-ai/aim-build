@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+base_image:
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-base
+  base_tag: "0.13"
+  registry_host: docker.io

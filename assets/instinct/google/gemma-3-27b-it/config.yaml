@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 base_image:
-  base_registry_namespace: silogen
+  base_registry_namespace: silogenai
   base_repository: aim-base
-  base_tag: "0.11"
-  registry_host: ghcr.io
+  base_tag: "0.13.1"
+  registry_host: docker.io

@@ -1,0 +1,73 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "24B parameter instruction-tuned language model (Mistral Small 3) with native function calling. Text-only."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "mistralai/Mistral-Small-24B-Instruct-2501"
+        tags:
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501"
+        variants:
+        - "mistralai/Mistral-Small-24B-Instruct-2501"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using bf16 precision"
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI300X using bf16 precision"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "latency"
+          description: "Optimized for latency on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-latency"
+        - gpuModel: "MI325X"
+          gpuCount: 1
+          metric: "throughput"
+          description: "Optimized for throughput on MI325X using bf16 precision"
+          profileId: "vllm-mi325x-bf16-tp1-throughput"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI350X using bf16 precision"
+        - gpuModel: "MI350X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI350X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Optimized for latency on MI355X using bf16 precision"
+        - gpuModel: "MI355X"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Optimized for throughput on MI355X using bf16 precision"
+        publisher: "Mistral AI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Mistral-Small-24B-Instruct-2501 (Mistral Small 3) is a 24 billion parameter instruction-tuned language model from Mistral AI. It is a text-only model offering low-latency, agent-centric performance with native function calling and JSON output, a 32k context window, a Tekken tokenizer (131k vocab), and multilingual support across 24+ languages. Apache-2.0 licensed. Suitable for general-purpose dialogue and function calling tasks."
+      title: "Mistral Small 24B Instruct 2501"

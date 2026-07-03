@@ -1,0 +1,11 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Points BentoML at the OpenFold3 service when launched via
+#   python -m bentoml serve --working-dir /workspace/model
+# (the engine launch template in the bentoml engine config).
+#
+# Without this, `bentoml serve` looks for ./service.py at the working-dir root
+# and fails: our src/ layout puts the service at src/service.py.
+service: "src.service:OpenFold3Prediction"

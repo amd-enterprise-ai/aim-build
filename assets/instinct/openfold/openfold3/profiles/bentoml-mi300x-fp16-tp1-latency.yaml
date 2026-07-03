@@ -1,0 +1,51 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Long-sequence TorchInductor champion: compiles PairFormerBlock
+# (max-autotune-no-cudagraphs) + diffusion_transformer +
+# diffusion_conditioning (default mode), with global Triton GEMM
+# max-autotune (OPENFOLD3_INDUCTOR_GEMM_BACKENDS=TRITON). Targets the
+# medium / med_high / high request sizes that dominate large-complex
+# inference; expected ~-13% to -18% warm e2e-forward latency vs eager on
+# those tiers (see OF3-TORCH-COMPILE.md). CD_TUNE is intentionally
+# omitted - it erodes the gain at the longest sequences.
+#
+# First /predict per distinct sequence length pays a one-time
+# torch.compile + Triton/GEMM autotune cost (tens of seconds, up to ~80s
+# on large shapes); subsequent same-shape requests run compiled. The
+# harness benchmark's mean-of-3 absorbs one cold compile per PDB, so its
+# reported ratio runs higher than the steady-state (min_s) latency.
+#
+# TunableOp (PYTORCH_TUNABLEOP_*) is a further long-seq lever (~-6%) but
+# needs a per-shape tuned CSV on a writable mount; deferred until the
+# serving image ships a tuning/cache path.
+#
+# Eager baseline is not available via this profile - profile-exported
+# env vars dominate the subprocess environment, so `docker run -e
+# OPENFOLD3_COMPILE_*=none` cannot disable the compile. To benchmark
+# eager, run bentoml directly (bypassing aim-runtime) or revert this
+# profile's OPENFOLD3_COMPILE_* lines locally.
+
+aim_id: openfold/openfold3
+model_id: openfold/openfold3
+metadata:
+  engine: bentoml
+  gpu: MI300X
+  gpu_count: 1
+  manual_selection_only: false
+  metric: latency
+  precision: fp16
+  primary: true
+  type: optimized
+engine_args: {}
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  OPENFOLD3_ACCELERATOR: gpu
+  OPENFOLD3_COMPILE_DIFFUSION_CONDITIONING: inductor
+  OPENFOLD3_COMPILE_DIFFUSION_TRANSFORMER: inductor
+  OPENFOLD3_COMPILE_PAIRFORMER_BLOCK: inductor
+  OPENFOLD3_COMPILE_PAIRFORMER_BLOCK_MODE: max-autotune-no-cudagraphs
+  OPENFOLD3_INDUCTOR_GEMM_BACKENDS: TRITON
+  OPENFOLD3_NUM_WORKERS: '0'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

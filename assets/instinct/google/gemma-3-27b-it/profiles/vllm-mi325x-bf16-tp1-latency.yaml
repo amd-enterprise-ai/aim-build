@@ -9,6 +9,8 @@ metadata:
   accelerator_model: MI325X
   accelerator_type: gpu
   engine: vllm
+  features:
+  - adapters
   gpu: MI325X
   gpu_count: 1
   manual_selection_only: true
@@ -22,7 +24,6 @@ engine_args:
   gpu-memory-utilization: 0.95
   max-model-len: -1
   no-enable-log-requests: null
-  no-enable-prefix-caching: null
   no-trust-remote-code: null
   tensor-parallel-size: 1
 env_vars:

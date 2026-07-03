@@ -21,6 +21,7 @@ com:
         - "chat"
         - "reasoning"
         - "instruction"
+        - "moe"
         source: "https://huggingface.co/Qwen/Qwen3-30B-A3B"
         variants:
         - "Qwen/Qwen3-30B-A3B"

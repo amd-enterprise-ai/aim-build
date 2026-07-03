@@ -16,6 +16,7 @@ from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata, Pro
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, AIMConfig
 from aim_runtime.engine_config import EngineConfig
+from aim_runtime.engines import build_engine
 from aim_runtime.object_model import Profile, ProfileHandling
 
 
@@ -25,8 +26,13 @@ def vllm_engine_config() -> EngineConfig:
     return EngineConfig(
         launch="python -m vllm.entrypoints.openai.api_server",
         model_arg="--model",
-        validator="vllm",
     )
+
+
+@pytest.fixture
+def vllm_engine(mock_config, vllm_engine_config):
+    """Create a built vLLM engine for CommandGenerator construction."""
+    return build_engine(mock_config, vllm_engine_config)
 
 
 @pytest.fixture
@@ -71,9 +77,9 @@ def mock_profile():
 class TestCommandGeneratorEngineArgsOverride:
     """Test engine arguments override in CommandGenerator."""
 
-    def test_no_override(self, mock_config, mock_profile, vllm_engine_config):
+    def test_no_override(self, mock_config, mock_profile, vllm_engine):
         """Test command generation without user overrides."""
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         merged_args = generator._merge_and_validate_engine_args(mock_profile)
 
@@ -82,13 +88,13 @@ class TestCommandGeneratorEngineArgsOverride:
         assert merged_args["dtype"] == "float16"
         assert merged_args["tensor-parallel-size"] == 1
 
-    def test_with_override(self, mock_config, mock_profile, vllm_engine_config):
+    def test_with_override(self, mock_config, mock_profile, vllm_engine):
         """Test command generation with user overrides."""
         mock_config.engine_args_override = {
             "gpu-memory-utilization": 0.85,  # Override existing
             "max-model-len": 4096,  # Add new
         }
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         merged_args = generator._merge_and_validate_engine_args(mock_profile)
 
@@ -99,10 +105,10 @@ class TestCommandGeneratorEngineArgsOverride:
         # New arg added
         assert merged_args["max-model-len"] == 4096
 
-    def test_override_validation_success(self, mock_config, mock_profile, vllm_engine_config):
+    def test_override_validation_success(self, mock_config, mock_profile, vllm_engine):
         """Test that valid overrides pass validation."""
         mock_config.engine_args_override = {"max-model-len": 8192, "enforce-eager": True, "kv-cache-dtype": "fp8"}
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         # Should not raise
         merged_args = generator._merge_and_validate_engine_args(mock_profile)
@@ -110,23 +116,23 @@ class TestCommandGeneratorEngineArgsOverride:
         assert merged_args["max-model-len"] == 8192
         assert merged_args["enforce-eager"] is True
 
-    def test_override_validation_failure_wrong_type(self, mock_config, mock_profile, vllm_engine_config):
+    def test_override_validation_failure_wrong_type(self, mock_config, mock_profile, vllm_engine):
         """Test that invalid types in overrides are caught."""
         mock_config.engine_args_override = {"max-model-len": "not-a-number"}  # Should be integer
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         with pytest.raises((ValidationError, ValueError)):
             generator._merge_and_validate_engine_args(mock_profile)
 
-    def test_override_validation_failure_invalid_enum(self, mock_config, mock_profile, vllm_engine_config):
+    def test_override_validation_failure_invalid_enum(self, mock_config, mock_profile, vllm_engine):
         """Test that invalid enum values are caught."""
         mock_config.engine_args_override = {"dtype": "invalid-dtype"}  # Not in enum
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         with pytest.raises((ValidationError, ValueError)):
             generator._merge_and_validate_engine_args(mock_profile)
 
-    def test_empty_profile_args(self, mock_config, vllm_engine_config):
+    def test_empty_profile_args(self, mock_config, vllm_engine):
         """Test with profile that has no engine args."""
         mock_config.engine_args_override = {"max-model-len": 4096}
 
@@ -147,23 +153,23 @@ class TestCommandGeneratorEngineArgsOverride:
             env_vars={},
         )
 
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
         merged_args = generator._merge_and_validate_engine_args(empty_profile)
 
         # Should only have user override
         assert merged_args["max-model-len"] == 4096
 
-    def test_complex_nested_override(self, mock_config, mock_profile, vllm_engine_config):
+    def test_complex_nested_override(self, mock_config, mock_profile, vllm_engine):
         """Test override with complex nested structures."""
         mock_config.engine_args_override = {"rope-scaling": {"type": "linear", "factor": 2.0}}
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         merged_args = generator._merge_and_validate_engine_args(mock_profile)
 
         assert "rope-scaling" in merged_args
         assert merged_args["rope-scaling"]["type"] == "linear"
 
-    def test_logging_override_info(self, mock_config, mock_profile, vllm_engine_config, caplog):
+    def test_logging_override_info(self, mock_config, mock_profile, vllm_engine, caplog):
         """Test that overrides are logged appropriately."""
         import logging
 
@@ -178,7 +184,7 @@ class TestCommandGeneratorEngineArgsOverride:
         caplog.set_level(logging.INFO)
 
         mock_config.engine_args_override = {"gpu-memory-utilization": 0.80, "max-model-len": 4096}
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         # Clear caplog before the operation we want to test
         caplog.clear()
@@ -193,11 +199,11 @@ class TestCommandGeneratorEngineArgsOverride:
         generator._merge_and_validate_engine_args(mock_profile)
         assert any("gpu-memory-utilization" in record.message for record in caplog.records)
 
-    def test_integration_with_build_command_list(self, mock_config, mock_profile, vllm_engine_config):
+    def test_integration_with_build_command_list(self, mock_config, mock_profile, vllm_engine):
         """Test full integration with _build_command_list."""
         mock_config.engine_args_override = {"max-model-len": 4096}
 
-        generator = CommandGenerator(mock_config, vllm_engine_config)
+        generator = CommandGenerator(mock_config, vllm_engine)
 
         # Mock the cache resolver
         with patch.object(generator.cache_resolver, "resolve_model_path", return_value=None):

@@ -1,0 +1,471 @@
+diff --git a/openfold3/core/model/layers/triangular_multiplicative_update.py b/openfold3/core/model/layers/triangular_multiplicative_update.py
+index 2f33b6d..5f9b61c 100644
+--- a/openfold3/core/model/layers/triangular_multiplicative_update.py
++++ b/openfold3/core/model/layers/triangular_multiplicative_update.py
+@@ -19,6 +19,7 @@ Triangle multiplicative update layers. Includes TriangleMultiplicativeUpdate fro
+ and FusedTriangleMultiplicativeUpdate from AF2-Multimer.
+ """
+ 
++import os
+ import warnings
+ from abc import ABC, abstractmethod
+ from functools import partialmethod
+@@ -44,6 +45,45 @@ except ImportError:
+ 
+ warnings.filterwarnings("once")
+ 
++
++# --- AMD AIM torch.compile trunk-unblock helpers (Step 7) -------------------
++# Keeping the triangle matmul and the hand-written Triton kernels opaque to
++# Inductor lets an enclosing torch.compile (e.g. PAIRFORMER_BLOCK) succeed on
++# MI300: the eager Triton kernels stay single-stage (49 KB LDS) instead of
++# being re-autotuned at num_stages=2 (98 KB > 64 KB -> OutOfResources). Both
++# are behavior-preserving (plain torch.matmul / unchanged blocks) in eager.
++def _bmm_impl(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
++    """Batched matmul == torch.einsum('...ij,...jk->...ik', a, b)."""
++    return torch.matmul(a, b)
++
++
++_TRIMUL_BMM_VISIBLE = os.environ.get(
++    "OPENFOLD3_TRIMUL_BMM_VISIBLE", "0"
++).strip().lower() in ("1", "true", "yes", "on")
++if _TRIMUL_BMM_VISIBLE:
++    _opaque_bmm = _bmm_impl
++else:
++    _opaque_bmm = torch.compiler.disable(_bmm_impl)
++
++
++_TRIMUL_TRITON_LDS_SAFE = os.environ.get(
++    "OPENFOLD3_TRIMUL_TRITON_LDS_SAFE", "0"
++).strip().lower() in ("1", "true", "yes", "on")
++
++
++def _lds_safe_blocks(block_m, block_n, block_k):
++    """Optionally shrink Triton GEMM blocks to fit MI300's 64 KB LDS.
++
++    Default off (no-op). Only used if OPENFOLD3_TRIMUL_TRITON_LDS_SAFE=1, an
++    alternative to the opaque-kernel path for debugging.
++    """
++    if not _TRIMUL_TRITON_LDS_SAFE:
++        return block_m, block_n, block_k
++    _cap_m = int(os.environ.get("OPENFOLD3_TRIMUL_MAX_BLOCK_M", "64"))
++    _cap_k = int(os.environ.get("OPENFOLD3_TRIMUL_MAX_BLOCK_K", "32"))
++    return min(block_m, _cap_m), block_n, min(block_k, _cap_k)
++
++
+ if TRITON_AVAILABLE:
+ 
+     @triton.jit
+@@ -386,6 +426,7 @@ def triton_sigmoid_mul(x: torch.Tensor, gate: torch.Tensor) -> torch.Tensor:
+     return output_flat.reshape(broadcasted_shape)
+ 
+ 
++@torch.compiler.disable
+ def triton_layernorm(
+     x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, eps: float = 1e-5
+ ) -> torch.Tensor:
+@@ -427,6 +468,7 @@ def triton_layernorm(
+     return output_2d.reshape(input_shape)
+ 
+ 
++@torch.compiler.disable
+ def triton_linear(
+     x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor | None = None
+ ) -> torch.Tensor:
+@@ -452,6 +494,7 @@ def triton_linear(
+     BLOCK_M = min(128, triton.next_power_of_2(M))
+     BLOCK_N = min(64, triton.next_power_of_2(N))
+     BLOCK_K = min(64, triton.next_power_of_2(K))
++    BLOCK_M, BLOCK_N, BLOCK_K = _lds_safe_blocks(BLOCK_M, BLOCK_N, BLOCK_K)
+ 
+     grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
+ 
+@@ -481,6 +524,7 @@ def triton_linear(
+     return output_2d.reshape(output_shape)
+ 
+ 
++@torch.compiler.disable
+ def triton_linear_fused(
+     x: torch.Tensor,
+     weight: torch.Tensor,
+@@ -518,6 +562,7 @@ def triton_linear_fused(
+     BLOCK_M = min(128, triton.next_power_of_2(M))
+     BLOCK_N = min(64, triton.next_power_of_2(N))
+     BLOCK_K = min(64, triton.next_power_of_2(K))
++    BLOCK_M, BLOCK_N, BLOCK_K = _lds_safe_blocks(BLOCK_M, BLOCK_N, BLOCK_K)
+ 
+     grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
+ 
+@@ -656,13 +701,13 @@ class BaseTriangleMultiplicativeUpdate(nn.Module, ABC):
+             for i in range(0, a.shape[-3], _inplace_chunk_size):
+                 a_chunk = a[..., i : i + _inplace_chunk_size, :, :]
+                 b_chunk = b[..., i : i + _inplace_chunk_size, :, :]
+-                a[..., i : i + _inplace_chunk_size, :, :] = torch.einsum(
+-                    "...ij,...jk->...ik", a_chunk, b_chunk
++                a[..., i : i + _inplace_chunk_size, :, :] = _opaque_bmm(
++                    a_chunk, b_chunk
+                 )
+ 
+             p = a
+         else:
+-            p = torch.einsum("...ij,...jk->...ik", a, b)
++            p = _opaque_bmm(a, b)
+ 
+         return permute_final_dims(p, (1, 2, 0))
+ 
+@@ -975,7 +1020,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+                 del z_chunk_b
+ 
+                 if use_triton_triangle_kernels:
+-                    x_chunk = torch.einsum("...ij,...jk->...ik", a, b_chunk)
++                    x_chunk = _opaque_bmm(a, b_chunk)
+                     x_chunk = permute_final_dims(x_chunk, (1, 2, 0))
+                     x_chunk = triton_layernorm(
+                         x_chunk,
+@@ -1020,7 +1065,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+                             apply_sigmoid=True,
+                         )
+                 else:
+-                    x_chunk = torch.einsum("...ij,...jk->...ik", a, b_chunk)
++                    x_chunk = _opaque_bmm(a, b_chunk)
+                     x_chunk = permute_final_dims(x_chunk, (1, 2, 0))
+                     x_chunk = self.layer_norm_out(x_chunk)
+                     x_chunk = self.linear_z(x_chunk)
+@@ -1047,7 +1092,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+                 z, mask, False, False, use_triton=use_triton_triangle_kernels
+             )
+             if use_triton_triangle_kernels:
+-                x = torch.einsum("...ij,...jk->...ik", a, b)
++                x = _opaque_bmm(a, b)
+                 x = triton_layernorm(
+                     x,
+                     self.layer_norm_out.weight,
+@@ -1074,7 +1119,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+                         apply_sigmoid=True,
+                     )
+             else:
+-                x = torch.einsum("...ij,...jk->...ik", a, b)
++                x = _opaque_bmm(a, b)
+                 x = self.layer_norm_out(x)
+                 x = self.linear_z(x)
+                 g = self.linear_g(z)
+@@ -1277,13 +1322,13 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+             for i in range(0, a.shape[-3], _inplace_chunk_size):
+                 a_chunk = a[..., i : i + _inplace_chunk_size, :, :]
+                 b_chunk = b[..., i : i + _inplace_chunk_size, :, :]
+-                a[..., i : i + _inplace_chunk_size, :, :] = torch.einsum(
+-                    "...ij,...jk->...ik", a_chunk, b_chunk
++                a[..., i : i + _inplace_chunk_size, :, :] = _opaque_bmm(
++                    a_chunk, b_chunk
+                 )
+ 
+             x = a
+         else:
+-            x = torch.einsum("...ij,...jk->...ik", a, b)
++            x = _opaque_bmm(a, b)
+ 
+         x = permute_final_dims(x, (1, 2, 0))
+         x = triton_layernorm(
+diff --git a/openfold3/core/utils/atomize_utils.py b/openfold3/core/utils/atomize_utils.py
+index 7943698..8818fa5 100644
+--- a/openfold3/core/utils/atomize_utils.py
++++ b/openfold3/core/utils/atomize_utils.py
+@@ -160,17 +160,17 @@ def aggregate_atom_feat_to_tokens(
+         + n_token * torch.ones_like(atom_to_token_index) * (1 - atom_mask.int())
+     )
+ 
+-    # Prepare atom to token index for aggregation
+-    # Check for broadcasting and repeat accordingly
+-    if batch_dims == feat_batch_dims:
+-        repeated_atom_to_token_index = atom_to_token_index.reshape(
+-            *atom_to_token_index.shape + (1,) * len(feat_dims)
+-        ).repeat(*((1,) * (len(batch_dims) + 1) + feat_dims))
+-    else:
+-        batch_n_repeat = feat_batch_dims[-1]
+-        repeated_atom_to_token_index = atom_to_token_index.reshape(
+-            *atom_to_token_index.shape + (1,) * len(feat_dims)
+-        ).repeat(*((1,) * (len(batch_dims) - 1) + (batch_n_repeat,) + (1,) + feat_dims))
++    # Prepare atom to token index for aggregation.
++    # Stride-only broadcast via .expand() avoids materializing a large
++    # repeat()-ed index tensor. scatter_add_ accepts non-contiguous
++    # indices, so the expanded view is sufficient. Required so the small
++    # torch.compile champion (which wraps atom_attn_dec) avoids a
++    # 770-deep concat chain that blows the HIP kernel-compiler stack on
++    # MI300. No behavior change vs. the prior repeat() path.
++    view_shape = atom_to_token_index.shape + (1,) * len(feat_dims)
++    repeated_atom_to_token_index = (
++        atom_to_token_index.reshape(view_shape).long().expand(atom_feat.shape)
++    )
+ 
+     if aggregate_fn not in ["mean", "sum"]:
+         raise ValueError(f"Invalid aggregation function: {aggregate_fn}")
+@@ -181,7 +181,7 @@ def aggregate_atom_feat_to_tokens(
+         device=atom_feat.device,
+         dtype=atom_feat.dtype,
+     ).scatter_add_(
+-        index=repeated_atom_to_token_index.long(), src=atom_feat, dim=atom_dim
++        index=repeated_atom_to_token_index, src=atom_feat, dim=atom_dim
+     )
+     token_feat = token_feat.reshape((*feat_batch_dims, n_token + 1, -1))[
+         ..., :n_token, :
+diff --git a/openfold3/projects/of3_all_atom/model.py b/openfold3/projects/of3_all_atom/model.py
+index 28a9b24..6d76492 100644
+--- a/openfold3/projects/of3_all_atom/model.py
++++ b/openfold3/projects/of3_all_atom/model.py
+@@ -17,6 +17,7 @@
+ The main inference and training loops for AlphaFold3.
+ """
+ 
++import os
+ import random
+ from enum import Enum
+ 
+@@ -48,6 +49,127 @@ from openfold3.core.utils.tensor_utils import add, tensor_tree_map
+ MODEL_VERSION = torch.tensor([1, 0, 0], dtype=torch.float32)
+ 
+ 
++# torch.compile dispatcher. Gated by OPENFOLD3_COMPILE_* env vars read
++# at first forward(). Applied at AMD AIM image build time; not part of
++# upstream OF3.
++
++# Raise dynamo's per-frame recompile cache from the 8 default. With
++# dynamic=False (static-shape compile per recipe) every distinct input
++# length is a new entry; serving 21+ sequence sizes back-to-back blows
++# the default and falls back to eager for the rest of the workload.
++# 64 gives 3x headroom over the 21-PDB benchmark suite and a healthy
++# margin for production protein-length diversity, while keeping the
++# compile-cache footprint well under 10 GB HBM and disk per wrapped
++# submodule.
++torch._dynamo.config.recompile_limit = 64
++
++_OF3_VALID_BACKENDS = ("none", "inductor")
++_VALID_INDUCTOR_MODES = (
++    "default",
++    "reduce-overhead",
++    "max-autotune",
++    "max-autotune-no-cudagraphs",
++)
++
++
++def _get_compile_backend(env_var: str) -> str:
++    val = os.environ.get(env_var, "none").strip().lower()
++    if val not in _OF3_VALID_BACKENDS:
++        print(
++            f"[OF3_COMPILE] WARNING: {env_var}={val!r} not in "
++            f"{_OF3_VALID_BACKENDS}; using 'none'.",
++            flush=True,
++        )
++        return "none"
++    return val
++
++
++def _maybe_compile(module, env_var, *, inductor_mode=None, mode_env_var=None, label=None):
++    backend = _get_compile_backend(env_var)
++    tag = label or module.__class__.__name__
++    if backend == "none":
++        return module
++    effective_mode = inductor_mode
++    if mode_env_var is not None:
++        override = os.environ.get(mode_env_var, "").strip().lower()
++        if override in _VALID_INDUCTOR_MODES:
++            effective_mode = override
++        elif override:
++            print(
++                f"[OF3_COMPILE] WARNING: {mode_env_var}={override!r} invalid; "
++                f"using {effective_mode!r}.",
++                flush=True,
++            )
++    kwargs = {"backend": backend, "fullgraph": False, "dynamic": False}
++    if effective_mode is not None:
++        kwargs["mode"] = effective_mode
++    print(
++        f"[OF3_COMPILE] Compiling {tag} via {env_var}: backend={backend} "
++        f"mode={kwargs.get('mode', '<default>')}",
++        flush=True,
++    )
++    return torch.compile(module, **kwargs)
++
++
++def _compile_submodule_attr(
++    parent, attr_name, env_var, *, inductor_mode_default=None, label_prefix=""
++):
++    if _get_compile_backend(env_var) == "none":
++        return False
++    child = getattr(parent, attr_name, None)
++    if child is None:
++        print(
++            f"[OF3_COMPILE] WARNING: {env_var} requested but "
++            f"{parent.__class__.__name__!r} has no {attr_name!r}.",
++            flush=True,
++        )
++        return False
++    setattr(
++        parent,
++        attr_name,
++        _maybe_compile(
++            child,
++            env_var,
++            inductor_mode=inductor_mode_default,
++            mode_env_var=f"{env_var}_MODE",
++            label=f"{label_prefix}{attr_name}",
++        ),
++    )
++    return True
++
++
++def _apply_inductor_config_overrides() -> None:
++    """Opt-in TorchInductor knobs, applied once before any torch.compile wrap.
++
++    Used by the medium+ GEMM-maxautotune champion. Both are no-ops unless the
++    env var is set, so small / diff-only recipes are unaffected.
++
++    OPENFOLD3_INDUCTOR_GEMM_BACKENDS=<csv> -> max_autotune_gemm_backends (also
++                                              forces max_autotune_gemm=True). The
++                                              champion uses "TRITON".
++    OPENFOLD3_INDUCTOR_CD_TUNE=1           -> coordinate_descent_tuning.
++    """
++    flags = {"OPENFOLD3_INDUCTOR_CD_TUNE": "coordinate_descent_tuning"}
++    requested = {e: a for e, a in flags.items() if os.environ.get(e, "") == "1"}
++    gemm_backends = os.environ.get("OPENFOLD3_INDUCTOR_GEMM_BACKENDS", "").strip()
++    if not requested and not gemm_backends:
++        return
++    from torch._inductor import config as _ind_cfg
++
++    if gemm_backends:
++        _ind_cfg.max_autotune_gemm = True
++        _ind_cfg.max_autotune_gemm_backends = gemm_backends
++        print(
++            f"[OF3_COMPILE] Inductor config: max_autotune_gemm=True, "
++            f"max_autotune_gemm_backends={gemm_backends!r}",
++            flush=True,
++        )
++    for env, attr in requested.items():
++        if hasattr(_ind_cfg, attr):
++            setattr(_ind_cfg, attr, True)
++            print(f"[OF3_COMPILE] Inductor config: {attr}=True (via {env})", flush=True)
++
++
+ class OffloadModules(Enum):
+     MSA_MODULE = "msa_module"
+     CONFIDENCE_HEADS = "confidence_heads"
+@@ -112,6 +234,109 @@ class OpenFold3(nn.Module):
+ 
+         self.register_buffer("version_tensor", MODEL_VERSION)
+ 
++        # Deferred torch.compile (see _apply_pending_compile). Wrapping at
++        # __init__ would break checkpoint loading's strict param-name match;
++        # we defer to the first forward() instead.
++        self._of3_compile_applied = False
++
++    def _apply_pending_compile(self) -> None:
++        """Apply torch.compile wrappers on first forward(), once.
++
++        Reads OPENFOLD3_COMPILE_* env vars. Submodule wraps only apply
++        when the enclosing whole-module env var is 'none'.
++        """
++        if self._of3_compile_applied:
++            return
++        self._of3_compile_applied = True
++
++        # Process-wide TorchInductor knobs (GEMM max-autotune / coordinate
++        # descent) for the medium+ champion. No-op unless the env vars are set.
++        _apply_inductor_config_overrides()
++
++        # Layer 1 — optional whole-module wraps.
++        diffusion_top = _get_compile_backend("OPENFOLD3_COMPILE_DIFFUSION_MODULE")
++        self.diffusion_module = _maybe_compile(
++            self.diffusion_module,
++            "OPENFOLD3_COMPILE_DIFFUSION_MODULE",
++            inductor_mode="reduce-overhead",
++            mode_env_var="OPENFOLD3_COMPILE_DIFFUSION_MODE",
++            label="DiffusionModule",
++        )
++        # Keep the SampleDiffusion alias pointing at the (possibly wrapped) module.
++        self.sample_diffusion.diffusion_module = self.diffusion_module
++
++        pairformer_top = _get_compile_backend("OPENFOLD3_COMPILE_PAIRFORMER")
++        self.pairformer_stack = _maybe_compile(
++            self.pairformer_stack,
++            "OPENFOLD3_COMPILE_PAIRFORMER",
++            inductor_mode="default",
++            mode_env_var="OPENFOLD3_COMPILE_PAIRFORMER_MODE",
++            label="PairFormerStack",
++        )
++
++        # Layer 2 — per-submodule diffusion wraps (only when whole-module is none).
++        if diffusion_top == "none":
++            dm = self.diffusion_module
++            _compile_submodule_attr(
++                dm,
++                "diffusion_conditioning",
++                "OPENFOLD3_COMPILE_DIFFUSION_CONDITIONING",
++                inductor_mode_default="default",
++            )
++            _compile_submodule_attr(
++                dm,
++                "atom_attn_enc",
++                "OPENFOLD3_COMPILE_ATOM_ATTN_ENC",
++                inductor_mode_default="default",
++            )
++            _compile_submodule_attr(
++                dm,
++                "diffusion_transformer",
++                "OPENFOLD3_COMPILE_DIFFUSION_TRANSFORMER",
++                inductor_mode_default="default",
++            )
++            _compile_submodule_attr(
++                dm,
++                "atom_attn_dec",
++                "OPENFOLD3_COMPILE_ATOM_ATTN_DEC",
++                inductor_mode_default="default",
++            )
++
++        # Per-block wraps (only when the whole-stack var is none).
++        if pairformer_top == "none":
++            blocks = getattr(self.pairformer_stack, "blocks", None)
++            if blocks is not None:
++                pairformer_block = _get_compile_backend(
++                    "OPENFOLD3_COMPILE_PAIRFORMER_BLOCK"
++                )
++                if pairformer_block != "none":
++                    # Whole-block wrap — the MEDIUM+ champion's key lever. Each
++                    # PairFormerBlock carries the triangle kernels, so this
++                    # REQUIRES the triangular_multiplicative_update.py opaque /
++                    # LDS-safe patch below (else Inductor re-autotunes those
++                    # kernels at num_stages=2 -> >64 KB LDS -> OutOfResources).
++                    for bi in range(len(blocks)):
++                        blocks[bi] = _maybe_compile(
++                            blocks[bi],
++                            "OPENFOLD3_COMPILE_PAIRFORMER_BLOCK",
++                            inductor_mode="default",
++                            mode_env_var="OPENFOLD3_COMPILE_PAIRFORMER_BLOCK_MODE",
++                            label=f"PairFormerBlock[{bi}]",
++                        )
++                else:
++                    # Per-block pair_transition leaf wrap — used by the SMALL
++                    # champion (mutually exclusive with the whole-block wrap).
++                    for bi, blk in enumerate(blocks):
++                        ps = getattr(blk, "pair_stack", None)
++                        if ps is not None:
++                            _compile_submodule_attr(
++                                ps,
++                                "pair_transition",
++                                "OPENFOLD3_COMPILE_PAIR_TRANSITION",
++                                inductor_mode_default="default",
++                                label_prefix=f"PairFormerBlock[{bi}].pair_stack.",
++                            )
++
+     def _disable_activation_checkpointing(self):
+         """
+         Disable activation checkpointing for the TemplateEmbedder, MSAModule,
+@@ -630,6 +855,10 @@ class OpenFold3(nn.Module):
+                     Training only, predicted atom positions
+ 
+         """
++        # Apply OPENFOLD3_COMPILE_* wrappers on first forward (deferred from
++        # __init__ so checkpoint loading sees the un-wrapped module).
++        self._apply_pending_compile()
++
+         # Controls whether the model uses in-place operations throughout
+         # The dual condition accounts for activation checkpoints
+         inplace_safe = not (self.training or torch.is_grad_enabled())

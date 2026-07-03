@@ -5,6 +5,7 @@
 metadata:
   accelerator_count: 1
   accelerator_model: R9700
+  accelerator_type: gpu
   engine: vllm
   manual_selection_only: false
   metric: latency
@@ -12,6 +13,7 @@ metadata:
   type: general
 engine_args:
   gpu-memory-utilization: 0.9
+  max-model-len: 32768
   tensor-parallel-size: 1
 env_vars:
   FLASH_ATTENTION_TRITON_AMD_ENABLE: 'TRUE'

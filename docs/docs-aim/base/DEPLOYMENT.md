@@ -25,7 +25,7 @@ docker run \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 Where <ANY_SUPPORTED_MODEL> is the model ID of any supported model (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
@@ -43,7 +43,7 @@ docker run \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 ## 2. Model caching for production
@@ -60,7 +60,7 @@ mkdir -p /path/to/model-cache
 docker run --rm \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-base:0.12 \
+  amdenterpriseai/aim-base:0.13.0 \
   download-to-cache --model-id <ANY_SUPPORTED_MODEL>
 ```
 
@@ -72,7 +72,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 ## 3. Kubernetes deployment
@@ -112,7 +112,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-base:0.12
+          image: amdenterpriseai/aim-base:0.13.0
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -279,7 +279,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 ### 5.2 Using profiles excluded from automatic selection
@@ -292,7 +292,7 @@ docker run \
   -e AIM_PROFILE_ID=vllm-mi250x-fp16-tp1-latency \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -303,7 +303,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-base:0.12 \
+  amdenterpriseai/aim-base:0.13.0 \
   --help
 ```
 
@@ -311,7 +311,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-base:0.12 \
+  amdenterpriseai/aim-base:0.13.0 \
   <subcommand> --help
 ```
 
@@ -323,7 +323,7 @@ docker run \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-base:0.12
+  amdenterpriseai/aim-base:0.13.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -336,7 +336,7 @@ docker run \
   -e AIM_PRECISION=fp16 \
   -e AIM_GPU_MODEL=MI300X \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
-  amdenterpriseai/aim-base:0.12 \
+  amdenterpriseai/aim-base:0.13.0 \
   dry-run
 ```
 
@@ -344,7 +344,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-base:0.12 \
+  amdenterpriseai/aim-base:0.13.0 \
   list-profiles
 ```
 

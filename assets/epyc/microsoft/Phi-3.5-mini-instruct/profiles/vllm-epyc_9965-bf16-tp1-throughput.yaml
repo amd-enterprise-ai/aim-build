@@ -1,0 +1,24 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: microsoft/Phi-3.5-mini-instruct
+model_id: microsoft/Phi-3.5-mini-instruct
+metadata:
+  accelerator_count: 1
+  accelerator_model: EPYC_9965
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: false
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: preview
+engine_args:
+  dtype: bfloat16
+  max-num-batched-tokens: 8192
+  max-num-seqs: 64
+env_vars:
+  OMP_NUM_THREADS: '192'
+  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_OMP_THREADS_BIND: auto

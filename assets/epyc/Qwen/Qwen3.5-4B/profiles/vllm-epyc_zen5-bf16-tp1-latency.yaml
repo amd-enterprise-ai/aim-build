@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3.5-4B
+model_id: Qwen/Qwen3.5-4B
+metadata:
+  accelerator_count: 124
+  accelerator_model: EPYC_ZEN5
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: false
+  metric: latency
+  precision: bf16
+  primary: true
+  type: unoptimized
+engine_args:
+  dtype: bfloat16
+  enable-chunked-prefill: true
+  max-num-batched-tokens: 512
+env_vars:
+  OMP_NUM_THREADS: '128'
+  VLLM_CPU_KVCACHE_SPACE: '40'
+  VLLM_CPU_NUM_OF_RESERVED_CPU: '1'
+  VLLM_CPU_OMP_THREADS_BIND: auto

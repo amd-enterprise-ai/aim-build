@@ -1,0 +1,53 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "9B parameter hybrid language model with Gated DeltaNet and dual thinking modes."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3.5-9B"
+        tags:
+        - "text-generation"
+        - "chat"
+        source: "https://huggingface.co/Qwen/Qwen3.5-9B"
+        variants:
+        - "Qwen/Qwen3.5-9B"
+        recommendedDeployments:
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on W7900 using bf16 precision"
+        - gpuModel: "W7900"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on W7900 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "latency"
+          description: "Preview deployment for latency on R9700 using bf16 precision"
+        - gpuModel: "R9700"
+          gpuCount: 1
+          precision: "bf16"
+          metric: "throughput"
+          description: "Preview deployment for throughput on R9700 using bf16 precision"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3.5-9B is a 9 billion parameter hybrid language model from the Qwen series by the Qwen Team at Alibaba Group. It uses a hybrid architecture combining Gated Delta Networks with sparse Mixture-of-Experts for high-throughput inference. The model supports seamless switching between thinking mode (for complex logical reasoning, math, and coding) and non-thinking mode (for efficient general-purpose dialogue). It supports over 200 languages and dialects."
+      title: "Qwen3.5 9B"

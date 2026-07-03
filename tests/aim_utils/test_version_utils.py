@@ -207,6 +207,23 @@ def test_core_base_with_suffix():
     assert actual == expected
 
 
+@pytest.mark.parametrize(
+    "version, is_base, expected",
+    [
+        ("1.2.3", False, "1.2"),
+        ("1.2.3-rc1", False, "1.2"),
+        ("1.2", True, "1.2"),
+        ("1.2-rc1", True, "1.2"),
+        # Three-part base tags emitted since PR #1188 collapse to their MAJOR.MINOR series.
+        ("0.13.0", True, "0.13"),
+        ("0.13.0-rc5", True, "0.13"),
+        ("0.13.0-preview", True, "0.13"),
+    ],
+)
+def test_major_minor(version, is_base, expected):
+    assert AIMVersion(version, is_base=is_base).major_minor == expected
+
+
 def test_suffix_no_suffix():
     suffix = AIMVersion("1.2.3").suffix
     assert suffix.suffix == ""
@@ -516,6 +533,11 @@ class TestValidateVersionTag:
             "0.4-rc10",
             "0.4-preview",
             "10.20",
+            # Three-part base tags emitted since PR #1188 ("Enable patch version for base images")
+            "0.13.0",
+            "0.13.0-rc5",
+            "0.13.0-preview",
+            "0.4.2-rc1",
         ],
     )
     def test_valid_base_versions(self, version):
@@ -549,12 +571,14 @@ class TestValidateVersionTag:
         [
             "",
             "abc",
-            "0.4.0",  # full format, not base
+            "0.4.2.1",  # four components
             "0.4-rc",  # missing rc number
             "0.4-rc0",  # rc0 not allowed
+            "0.4.0-rc0",  # rc0 not allowed (three-part)
             "0.4-beta",  # unsupported suffix
             "v0.4",  # leading 'v'
             "0.04",  # leading zero in minor
+            "0.4.02",  # leading zero in patch
         ],
     )
     def test_invalid_base_versions(self, version):

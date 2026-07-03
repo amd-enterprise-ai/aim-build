@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Gemma 3 12B Instruct multimodal model from Google DeepMind."
+      documentation: ""
+      source: "https://huggingface.co/google/gemma-3-12b-it"
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-3-12b-it"
+        tags:
+          - "text-generation"
+          - "instruction"
+          - "image-text-to-text"
+          - "vision-language"
+        source: "https://huggingface.co/google/gemma-3-12b-it"
+        variants:
+          - "Gemma/Gemma-3-12B-Instruct"
+        publisher: "Google"
+
+      hfToken:
+        required: true
+
+      release:
+        notes: ""
+
+      description:
+        full: "Gemma is a family of lightweight, state-of-the-art open models from Google, built from the same research and technology used to create the Gemini models. Gemma 3 models are multimodal, handling text and image input and generating text output, with open weights for both pre-trained variants and instruction-tuned variants. Gemma 3 has a large context window, multilingual support in over 140 languages, and is available in more sizes than previous versions. Gemma 3 models are well-suited for a variety of text generation and image understanding tasks, including question answering, summarization, and reasoning. Their relatively small size makes it possible to deploy them in environments with limited resources such as laptops, desktops or your own cloud infrastructure, democratizing access to state of the art AI models and helping foster innovation for everyone."
+
+      title: "Gemma 3 12B Instruct"

@@ -12,6 +12,7 @@ Covers:
 - cpuset parsing and bind-string propagation
 - override_cpu_env_vars validation and binding behaviour
 """
+
 import sys
 
 import pytest
@@ -500,3 +501,99 @@ def test_omp_num_threads_overridden_to_detected():
     EpycDetector.override_cpu_env_vars(env_vars, detected_cores=192)
 
     assert env_vars["OMP_NUM_THREADS"] == "192"
+
+
+# ---------------------------------------------------------------------------
+# Node capacity detection (cpuset-independent) for detect-hardware labelling
+# ---------------------------------------------------------------------------
+
+
+def test_read_cpu_present_range(tmp_path, monkeypatch):
+    """A dual-socket 192-core/socket host with SMT reports e.g. '0-383' -> 384."""
+    present = tmp_path / "present"
+    present.write_text("0-383")
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(present))
+
+    assert EpycDetector._read_cpu_present() == 384
+
+
+def test_read_cpu_present_comma_ranges(tmp_path, monkeypatch):
+    present = tmp_path / "present"
+    present.write_text("0-95,128-223")
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(present))
+
+    assert EpycDetector._read_cpu_present() == 192
+
+
+def test_read_cpu_present_missing_returns_none(tmp_path, monkeypatch):
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(tmp_path / "nonexistent"))
+
+    assert EpycDetector._read_cpu_present() is None
+
+
+def test_read_proc_cpuinfo_count(tmp_path, monkeypatch):
+    cpuinfo = tmp_path / "cpuinfo"
+    cpuinfo.write_text(
+        "processor\t: 0\nvendor_id\t: AuthenticAMD\n\n"
+        "processor\t: 1\nvendor_id\t: AuthenticAMD\n\n"
+        "processor\t: 2\nvendor_id\t: AuthenticAMD\n\n"
+    )
+    monkeypatch.setattr("aim_runtime.cpu_detector.PROC_CPUINFO", str(cpuinfo))
+
+    assert EpycDetector._read_proc_cpuinfo_count() == 3
+
+
+def test_detect_node_cores_prefers_sys_present(tmp_path, monkeypatch):
+    """/sys present wins over /proc/cpuinfo and the os.cpu_count() fallback."""
+    present = tmp_path / "present"
+    present.write_text("0-383")
+    cpuinfo = tmp_path / "cpuinfo"
+    cpuinfo.write_text("processor\t: 0\n\nprocessor\t: 1\n\n")
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(present))
+    monkeypatch.setattr("aim_runtime.cpu_detector.PROC_CPUINFO", str(cpuinfo))
+
+    assert EpycDetector._detect_node_cores(physical_cores=8) == 384
+
+
+def test_detect_node_cores_falls_back_to_proc_cpuinfo(tmp_path, monkeypatch):
+    """When /sys present is unavailable, fall back to /proc/cpuinfo processor count."""
+    cpuinfo = tmp_path / "cpuinfo"
+    cpuinfo.write_text("".join(f"processor\t: {i}\n\n" for i in range(384)))
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(tmp_path / "nope"))
+    monkeypatch.setattr("aim_runtime.cpu_detector.PROC_CPUINFO", str(cpuinfo))
+
+    assert EpycDetector._detect_node_cores(physical_cores=8) == 384
+
+
+def test_detect_node_cores_falls_back_to_os_cpu_count(tmp_path, monkeypatch):
+    """When neither source is available, use the os.cpu_count() value passed in."""
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(tmp_path / "nope"))
+    monkeypatch.setattr("aim_runtime.cpu_detector.PROC_CPUINFO", str(tmp_path / "nope"))
+
+    assert EpycDetector._detect_node_cores(physical_cores=384) == 384
+
+
+def test_node_cores_independent_of_cpuset(tmp_path, monkeypatch):
+    """End-to-end: a cpuset of 8 limits available_cores but node_cores stays full.
+
+    This is the core of the detect-hardware fix — labelling must reflect the node
+    (384) while serve/dry-run remain scoped to the container's cpus (8).
+    """
+    # Node inventory: full 384-core host.
+    present = tmp_path / "present"
+    present.write_text("0-383")
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPU_PRESENT", str(present))
+
+    # Container restriction: cpuset of 8 cores, no cgroup quota.
+    cpuset_file = tmp_path / "cpuset.cpus.effective"
+    cpuset_file.write_text("0-7")
+    monkeypatch.setattr("aim_runtime.cpu_detector.CPUSET_V2_EFFECTIVE", str(cpuset_file))
+    monkeypatch.setattr("aim_runtime.cpu_detector.CGROUP_V2_CPU_MAX", str(tmp_path / "nope"))
+    monkeypatch.setattr("aim_runtime.cpu_detector.CGROUP_V1_QUOTA", str(tmp_path / "nope"))
+    monkeypatch.setattr("aim_runtime.cpu_detector.CGROUP_V1_PERIOD", str(tmp_path / "nope"))
+
+    available, _ = EpycDetector._detect_available_cores(physical_cores=384)
+    node = EpycDetector._detect_node_cores(physical_cores=384)
+
+    assert available == 8
+    assert node == 384

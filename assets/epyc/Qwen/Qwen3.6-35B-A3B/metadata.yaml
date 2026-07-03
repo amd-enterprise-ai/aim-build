@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT"
+      description: "Qwen3.6-35B-A3B is a Mixture-of-Experts LLM with 35B total parameters and ~3B active per token, balancing high quality with efficient inference."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3.6-35B-A3B"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "instruction"
+        - "moe"
+        source: "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        variants:
+        - "Qwen/Qwen3.6-35B-A3B"
+        publisher: "Qwen"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Qwen3.6-35B-A3B is a Mixture-of-Experts LLM with 35B total parameters and ~3B active per token, balancing high quality with efficient inference."
+      title: "Qwen3.6 35B-A3B"

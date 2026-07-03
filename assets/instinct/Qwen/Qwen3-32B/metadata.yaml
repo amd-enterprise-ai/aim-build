@@ -31,9 +31,9 @@ com:
           description: "Optimized for latency on MI300X using fp8 precision"
         - gpuModel: "MI300X"
           gpuCount: 1
-          precision: "fp16"
+          precision: "bf16"
           metric: "throughput"
-          description: "Optimized for throughput on MI300X using fp16 precision"
+          description: "Optimized for throughput on MI300X using bf16 precision"
         - gpuModel: "MI325X"
           gpuCount: 1
           metric: "latency"
@@ -45,25 +45,25 @@ com:
           description: "Optimized for throughput on MI325X using fp8 precision"
           profileId: "vllm-mi325x-fp8-tp1-throughput"
         - gpuModel: "MI350X"
-          gpuCount: 1
+          gpuCount: 2
           precision: "fp8"
           metric: "latency"
           description: "Optimized for latency on MI350X using fp8 precision"
         - gpuModel: "MI350X"
           gpuCount: 1
-          precision: "fp8"
           metric: "throughput"
           description: "Optimized for throughput on MI350X using fp8 precision"
+          profileId: "vllm-mi350x-fp8-tp1-throughput"
         - gpuModel: "MI355X"
-          gpuCount: 1
+          gpuCount: 2
           precision: "fp8"
           metric: "latency"
           description: "Optimized for latency on MI355X using fp8 precision"
         - gpuModel: "MI355X"
           gpuCount: 1
-          precision: "fp8"
           metric: "throughput"
           description: "Optimized for throughput on MI355X using fp8 precision"
+          profileId: "vllm-mi355x-fp8-tp1-throughput"
         publisher: "Qwen"
       hfToken:
         required: false

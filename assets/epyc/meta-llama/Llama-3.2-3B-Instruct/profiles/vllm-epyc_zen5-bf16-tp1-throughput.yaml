@@ -5,7 +5,7 @@
 aim_id: meta-llama/Llama-3.2-3B-Instruct
 model_id: meta-llama/Llama-3.2-3B-Instruct
 metadata:
-  accelerator_count: 1
+  accelerator_count: 124
   accelerator_model: EPYC_ZEN5
   accelerator_type: cpu
   engine: vllm
@@ -15,10 +15,15 @@ metadata:
   primary: true
   type: unoptimized
 engine_args:
-  disable-log-requests: true
   dtype: bfloat16
+  max-num-batched-tokens: 4096
+  max-num-seqs: 128
 env_vars:
   OMP_NUM_THREADS: '128'
+  TORCHINDUCTOR_AUTOGRAD_CACHE: '0'
+  TORCHINDUCTOR_FREEZING: '1'
   VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_NUM_OF_RESERVED_CPU: '12'
   VLLM_CPU_OMP_THREADS_BIND: auto
+  VLLM_USE_AOT_COMPILE: '0'
   ZENDNNL_MATMUL_ALGO: '1'

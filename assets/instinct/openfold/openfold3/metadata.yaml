@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "openfold/openfold3"
+        tags:
+        - "protein-structure-prediction"
+        source: "https://huggingface.co/OpenFold/OpenFold3"
+        variants:
+        - "openfold/openfold3"
+        publisher: "OpenFold Consortium"
+        recommendedDeployments:
+        - gpuModel: "MI300X"
+          gpuCount: 1
+          precision: "fp16"
+          metric: "latency"
+          description: "Optimized for latency on MI300X using fp16 precision"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "OpenFold3 is a fully open-source biomolecular structure prediction model based on AlphaFold3, supporting proteins, nucleic acids, and small molecule ligands."
+      title: "OpenFold3"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Biomolecular structure prediction model served via BentoML."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

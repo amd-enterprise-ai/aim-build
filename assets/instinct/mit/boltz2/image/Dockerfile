@@ -10,10 +10,17 @@
 #   Layer 3: Model image (profiles, AIM_ID)
 #
 # TODO: Replace this placeholder with the real Boltz-2 Dockerfile.
-
+#
+# The Layer 1 specialized base is content-addressed on the image/ directory only, so a
+# moving FROM tag would not invalidate the cache. Pin FROM by digest (e.g.
+# python:3.12-slim@sha256:<digest>) when finalizing this image so the cached Layer 1
+# can't silently drift to a new upstream.
 FROM python:3.12-slim
 
 RUN echo "Specialized base image placeholder for Boltz-2"
+
+# TODO: Will be removed once the real boltz image is added
+RUN apt-get update && apt-get install -y git gpg curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/model
 

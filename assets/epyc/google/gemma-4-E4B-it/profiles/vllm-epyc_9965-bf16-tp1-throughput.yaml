@@ -1,0 +1,30 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: google/gemma-4-E4B-it
+model_id: google/gemma-4-E4B-it
+metadata:
+  accelerator_count: 188
+  accelerator_model: EPYC_9965
+  accelerator_type: cpu
+  engine: vllm
+  manual_selection_only: false
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: preview
+engine_args:
+  dtype: bfloat16
+  limit-mm-per-prompt:
+    audio: 0
+    image: 0
+    video: 0
+  max-num-batched-tokens: 4096
+  max-num-seqs: 128
+env_vars:
+  OMP_NUM_THREADS: '192'
+  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_NUM_OF_RESERVED_CPU: '12'
+  VLLM_CPU_OMP_THREADS_BIND: auto
+  ZENDNNL_MATMUL_ALGO: '1'

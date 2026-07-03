@@ -5,7 +5,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, List, Optional, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
@@ -30,7 +30,12 @@ class Precision(StrEnum):
 
 
 class Engine(StrEnum):
-    """Supported engine types."""
+    """Supported engine types.
+
+    Keep in sync with ``ENGINE_CLASSES`` in ``aim_runtime.engines``: every
+    member here must map to a concrete engine class there, or ``build_engine``
+    will raise at runtime for that engine.
+    """
 
     BENTOML = "bentoml"
     VLLM = "vllm"
@@ -52,6 +57,20 @@ class ProfileType(StrEnum):
     UNOPTIMIZED = "unoptimized"
     GENERAL = "general"
     PREVIEW = "preview"
+
+
+class AdapterToken(StrEnum):
+    """Per-profile LoRA adapter capability tokens (ADR-0004).
+
+    A profile may declare at most one of these in ``metadata.features``:
+
+    ADAPTERS — full LoRA support (static + dynamic add/remove/reload).
+    ADAPTERS_SCALE_ONLY — LoRA with limited dynamic support (static +
+        scale-toggle only, no runtime add/remove), e.g. llama.cpp.
+    """
+
+    ADAPTERS = "adapters"
+    ADAPTERS_SCALE_ONLY = "adapters-scale-only"
 
 
 class AcceleratorType(StrEnum):
@@ -319,7 +338,30 @@ class ProfileMetadata(BaseModel):
     manual_selection_only: bool
     type: ProfileType
     capabilities: ProfileCapabilities = Field(default_factory=ProfileCapabilities)
+    features: List[AdapterToken] = Field(default_factory=list)
     primary: Optional[bool] = None
+    # e.g. "inductor-diff" — when set, appended to accelerator_label so the label
+    # still matches the variant-suffixed profile filename stem.
+    # Must be a slug (lowercase letter, then lowercase/digits/hyphens). Pydantic
+    # only applies the pattern when a value is provided, so None passes through.
+    variant: Optional[str] = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
+
+    @field_validator("features", mode="after")
+    @classmethod
+    def _validate_features(cls, v: List[AdapterToken]) -> List[AdapterToken]:
+        """Enforce the adapter-token contract (ADR-0004).
+
+        At most one adapter token may be declared — ``adapters`` and
+        ``adapters-scale-only`` are mutually exclusive.
+        """
+        adapter_token_values = frozenset({AdapterToken.ADAPTERS, AdapterToken.ADAPTERS_SCALE_ONLY})
+        declared_adapter_tokens = [token for token in v if token in adapter_token_values]
+        if len(declared_adapter_tokens) > 1:
+            raise ValueError(
+                "features may declare at most one adapter token; "
+                f"{[t.value for t in declared_adapter_tokens]} are mutually exclusive."
+            )
+        return v
 
     @field_validator("engine", "precision", "metric", "type", "accelerator_type", mode="before")
     @classmethod
@@ -378,22 +420,44 @@ class ProfileMetadata(BaseModel):
                 self.capabilities.tool_calling,
                 self.capabilities.structured_outputs,
                 self.capabilities.reasoning,
+                tuple(self.features),
+                self.variant,
             )
         )
+
+    @property
+    def adapter_token(self) -> Optional[AdapterToken]:
+        """Return the declared adapter token, or None if the profile has none.
+
+        At most one adapter token can be present (enforced by the validator).
+        """
+        for token in self.features:
+            if token in (AdapterToken.ADAPTERS, AdapterToken.ADAPTERS_SCALE_ONLY):
+                return token
+        return None
+
+    @property
+    def supports_adapters(self) -> bool:
+        """True when the profile declares any LoRA adapter capability token."""
+        return self.adapter_token is not None
 
     @property
     def accelerator_label(self) -> str:
         """Human-readable label mirroring the profile id format (e.g. 'vllm-mi300x-fp16-tp1-latency').
 
         Matches the profile filename stem convention
-        ``{engine}-{accelerator}-{precision}-tp{accelerator_count}-{metric}`` so the label
-        can be used interchangeably with profile ids in logs and UI surfaces.
+        ``{engine}-{accelerator}-{precision}-tp{accelerator_count}-{metric}`` (plus an
+        optional ``-{variant}`` suffix) so the label can be used interchangeably with
+        profile ids in logs and UI surfaces.
         """
         acc_segment = self.accelerator_model.value.lower() if self.accelerator_model else "none"
-        return (
-            f"{self.engine.value.lower()}-{acc_segment}-{self.precision.value.lower()}"
-            f"-tp{self.accelerator_count}-{self.metric.value.lower()}"
-        )
+        # CPU profiles use tp1 (one logical socket) regardless of accelerator_count,
+        # which represents recommended core count rather than tensor-parallel degree.
+        tp = 1 if self.accelerator_type == AcceleratorType.CPU else self.accelerator_count
+        base = f"{self.engine.value.lower()}-{acc_segment}-{self.precision.value.lower()}-tp{tp}-{self.metric.value.lower()}"
+        if self.variant:
+            return f"{base}-{self.variant}"
+        return base
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the profile metadata to a dictionary for serialization."""
@@ -403,6 +467,9 @@ class ProfileMetadata(BaseModel):
         capabilities = output.get("capabilities")
         if isinstance(capabilities, dict) and not any(capabilities.values()):
             output.pop("capabilities", None)
+        # Omit empty features for the same reason (exclude_none does not drop []).
+        if not output.get("features"):
+            output.pop("features", None)
         return output
 
     @classmethod

@@ -71,17 +71,19 @@ class AIMVersion:
     # Compiled patterns aligned with .github/versioning-strategy.md.
     # Full version: MAJOR.MINOR.PATCH with optional -rcN or -preview suffix (model-specific images)
     pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc[1-9]\d*|preview))?$")
-    # Base version: MAJOR.MINOR with optional -rcN or -preview suffix (base images)
-    base_pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc[1-9]\d*|preview))?$")
+    # Base version: MAJOR.MINOR with an optional .PATCH and optional -rcN or -preview suffix (base images).
+    # PATCH is optional so both legacy two-part tags (0.13-rc5) and the three-part tags emitted since
+    # PR #1188 (0.13.0-rc5) validate.
+    base_pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-(rc[1-9]\d*|preview))?$")
     # Stable full version: MAJOR.MINOR.PATCH without any suffix
     pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
-    # Stable base version: MAJOR.MINOR without any suffix (no patch)
-    base_pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+    # Stable base version: MAJOR.MINOR with an optional .PATCH and without any suffix
+    base_pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$")
 
     def __init__(self, version: str, is_base: bool = False) -> None:
         pattern = self.base_pattern if is_base else self.pattern
         if not pattern.fullmatch(version):
-            expected_fmt = "MAJOR.MINOR[-rcN|-preview]" if is_base else "MAJOR.MINOR.PATCH[-rcN|-preview]"
+            expected_fmt = "MAJOR.MINOR[.PATCH][-rcN|-preview]" if is_base else "MAJOR.MINOR.PATCH[-rcN|-preview]"
             raise ValueError(f"Invalid version format: '{version}'. Expected {expected_fmt}")
 
         self.version = version
@@ -100,11 +102,12 @@ class AIMVersion:
             match = self.base_pattern.fullmatch(version)
 
             if match:
-                major, minor, suffix = match.groups()
+                major, minor, patch, suffix = match.groups()
+                patch = patch if patch is not None else "0"
                 if suffix:
-                    return f"{major}.{minor}.0-{suffix}"
+                    return f"{major}.{minor}.{patch}-{suffix}"
                 else:
-                    return f"{major}.{minor}.0"
+                    return f"{major}.{minor}.{patch}"
 
             return version
 
@@ -161,7 +164,9 @@ class AIMVersion:
         if self.is_base:
             match = self.base_pattern.match(self.version)
             if match:
-                major, minor, _ = match.groups()
+                major, minor, patch, _ = match.groups()
+                if patch is not None:
+                    return f"{major}.{minor}.{patch}"
                 return f"{major}.{minor}"
         else:
             match = self.pattern.match(self.version)
@@ -180,7 +185,7 @@ class AIMVersion:
         if self.is_base:
             match = self.base_pattern.match(self.version)
             if match:
-                _, _, suffix = match.groups()
+                _, _, _, suffix = match.groups()
                 return AIMVersionSuffix(suffix)
         else:
             match = self.pattern.match(self.version)
@@ -213,6 +218,18 @@ class AIMVersion:
             return None
 
         return int(parts[1])
+
+    @property
+    def major_minor(self) -> Optional[str]:
+        """Return the ``MAJOR.MINOR`` series string, dropping any patch/suffix.
+
+        This is the canonical "version series" a model image inherits from its
+        base image, e.g. both base tags ``0.13`` and ``0.13.0`` yield ``0.13``.
+        """
+        major, minor = self.major, self.minor
+        if major is None or minor is None:
+            return None
+        return f"{major}.{minor}"
 
     @classmethod
     def from_string(cls, version: str) -> "AIMVersion":

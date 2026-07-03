@@ -1,0 +1,8 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# The BentoML base is model-dedicated and ships no general (fallback) profiles.
+# This directory exists only so the base Dockerfile COPY of the target's
+# general-profiles directory succeeds; the generic vLLM general profiles in
+# assets/instinct/base/profiles/general are intentionally NOT copied into this base.

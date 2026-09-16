@@ -112,7 +112,7 @@ class TestAIMRuntimeDryRun:
         assert "aim_id:" in result
         assert "meta-llama/Llama-3.1-8B-Instruct" in result
         assert "precision: fp16" in result or 'precision: "fp16"' in result
-        assert "accelerator_count: 1" in result  # dry_run reads raw YAML which still uses gpu_count
+        assert "accelerator_count: 1" in result  # dry_run reads the raw YAML
         assert "engine: vllm" in result or 'engine: "vllm"' in result
         # Check for generated script
         assert "#!/bin/bash" in result
@@ -280,7 +280,7 @@ class TestAIMRuntimeDryRunJson:
         assert profile_data["aim_id"] == "meta-llama/Llama-3.1-8B-Instruct"
         assert profile_data["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
         assert profile_data["metadata"]["precision"] == "fp16"
-        assert profile_data["metadata"]["accelerator_count"] == 1  # dry_run reads raw YAML which still uses gpu_count
+        assert profile_data["metadata"]["accelerator_count"] == 1  # dry_run reads the raw YAML
         assert profile_data["metadata"]["engine"] == "vllm"
         # Check models field
         assert "models" in profile_entry

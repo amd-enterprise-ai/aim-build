@@ -1,0 +1,18 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Model-dedicated specialized base (Layer 2), built in CI from
+# assets/instinct/Wan-AI/Wan2.2-T2V-A14B-Diffusers/image/.
+# Published to docker.io/silogenai/aim-instinct-wan-ai-wan2-2-t2v-a14b-diffusers-base:2026.7.0
+# by the base image pipeline.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-wan-ai-wan2-2-t2v-a14b-diffusers-base
+  base_tag: "2026.9.0"
+# Marks this model as "specialized" (PR #959 pattern): the build chain inserts
+# image/Dockerfile as Layer 1 between the upstream vendor image and the AIM
+# omni base.  Layer 1 lays down /workspace/model/src/harness.py so the
+# VllmOmniDiffusionHarness is auto-discovered at runtime.
+specialized: true

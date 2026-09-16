@@ -18,7 +18,13 @@ FROM docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.10.0
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 ARG OPENFOLD3_REPO=https://github.com/aqlaboratory/openfold-3.git
-ARG OPENFOLD3_REF=0.4.1
+# Pinned by commit rather than by tag: upstream can move or delete a tag, which
+# would silently change the source, and patches/ is context-matched against this
+# exact tree. OPENFOLD3_VERSION names the release that OPENFOLD3_SHA points to.
+# It names the install (see the pip step) rather than selecting it, so keep
+# the two in step.
+ARG OPENFOLD3_SHA=c4771653c5d0a3ebb0b3af71b05efd64bc44ee86
+ARG OPENFOLD3_VERSION=0.5.0
 
 # System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -62,7 +68,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Verify torch is still the ROCm build (pip didn't replace it). Doubles as a
 # canary when the engine-level upstream image tag is bumped.
-RUN python3 -c "import torch; print('torch:', torch.__file__, 'hip:', torch.version.hip)"
+RUN python3 -c "import sys, torch; print('torch:', torch.__file__, 'hip:', torch.version.hip); sys.exit(0 if torch.version.hip is not None else 'ROCm torch not installed')"
 
 # Install miniforge (only for bioinformatics CLI tools)
 RUN wget -q -P /tmp \
@@ -82,24 +88,56 @@ RUN /opt/conda/bin/mamba install -n base -c conda-forge -c bioconda --yes \
 ENV ROCM_PATH=/opt/rocm
 ENV PYTORCH_ROCM_ARCH="gfx90a;gfx942"
 ENV CONDA_PREFIX=/opt/conda
-ENV BENTOML_PORT=8000
+# Deliberately no BENTOML_PORT: it is a click envvar on `bentoml serve --port`,
+# which the CLI applies *after* the service config, so it silently overrides the
+# service's own `http={"port": ...}`. Setting it here would discard the port
+# aim-runtime forwards as `--arg port=<AIM_PORT>` and pin every container to one
+# port, which collides on host-network nodes. src/service.py owns the port.
 ENV AIM_ENGINE=bentoml
 
-# Clone OpenFold3 at pinned ref and install without NVIDIA-specific deps
-RUN git clone --depth 1 --branch ${OPENFOLD3_REF} ${OPENFOLD3_REPO} /opt/openfold3 \
- || (git clone ${OPENFOLD3_REPO} /opt/openfold3 \
-     && cd /opt/openfold3 && git checkout ${OPENFOLD3_REF})
+# Clone OpenFold3 at the pinned commit and install without NVIDIA-specific deps.
+# `clone --branch` only accepts ref names, so the commit is fetched into an empty
+# repo instead; --depth 1 still keeps this to a single-commit download.
+RUN git init -q /opt/openfold3 \
+ && cd /opt/openfold3 \
+ && git fetch -q --depth 1 ${OPENFOLD3_REPO} ${OPENFOLD3_SHA} \
+ && git checkout -q FETCH_HEAD
 
-# Apply ROCm torch.compile (Inductor) source patches against OF3 0.4.1.
+# Apply source patches against OF3 0.5.0:
+#  - of3_torch_compile_champion: ROCm torch.compile (Inductor) recipe.
+#  - of3_msa_server_deadline: gives the MSA client a wall clock. Upstream's
+#    submit/status/download loops are `while True` and the RATELIMIT path
+#    resubmits forever, so a throttled query outlives any serving timeout while
+#    holding a worker slot. Also hoists error_count out of the one loop where
+#    upstream still reset it each iteration, making the 5-retry cap dead code.
+#    Drop once upstream bounds these loops.
+#  - of3_template_no_fork: template preprocessing forks an mp.Pool (and an
+#    mp.Manager) even for the default n_processes=1. BentoML runs the sync
+#    /predict on an AnyIO worker thread, so that forks off a non-main thread
+#    and the pool's join() never returns — the request 504s at the serving cap
+#    and the worker stays wedged for good. Adds the `if workers > 1` guard the
+#    module's batch functions already carry to the three classes that pool
+#    unconditionally — TemplatePreprocessor is the served one, the other two
+#    are patched for consistency. Drop once upstream stops forking for a
+#    single worker.
 # --check runs first so a stale patch fails the build with the conflicting
 # hunks named instead of half-patching the tree.
 COPY --link patches /workspace/patches
 RUN cd /opt/openfold3 \
  && git apply --check /workspace/patches/of3_torch_compile_champion.patch \
- && git apply         /workspace/patches/of3_torch_compile_champion.patch
+ && git apply         /workspace/patches/of3_torch_compile_champion.patch \
+ && git apply --check /workspace/patches/of3_msa_server_deadline.patch \
+ && git apply         /workspace/patches/of3_msa_server_deadline.patch \
+ && git apply --check /workspace/patches/of3_template_no_fork.patch \
+ && git apply         /workspace/patches/of3_template_no_fork.patch
 
 WORKDIR /opt/openfold3
-RUN pip install --no-deps -e .
+# openfold3 takes its version from setuptools-scm, i.e. from `git describe`. A
+# commit-pinned checkout carries no tag, so the install would otherwise be
+# named from the project's fallback_version plus the git suffix — plausible
+# but wrong. OF3 gates checkpoints on this version
+# (entry_points/validator.py), so it reports the release rather than a guess.
+RUN SETUPTOOLS_SCM_PRETEND_VERSION_FOR_OPENFOLD3=${OPENFOLD3_VERSION} pip install --no-deps -e .
 
 # BentoML service wrapper. Copy only the package files so unrelated context
 # (README.md) does not invalidate the layer cache or leak into the image.

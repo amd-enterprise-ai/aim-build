@@ -170,8 +170,10 @@ def test_find_profile_no_suitable_profile_found(assets_instinct_path: str) -> No
         assert "AIM_PROFILE_ID" not in error_message
 
 
-def test_find_profile_manual_selection_only(selector_with_mock_gpu: ProfileSelector, aim_config: AIMConfig) -> None:
-    """Test that profiles with manual_selection_only can be selected with explicit profile_id."""
+def test_find_profile_unoptimized_via_explicit_profile_id(
+    selector_with_mock_gpu: ProfileSelector, aim_config: AIMConfig
+) -> None:
+    """Test that unoptimized profiles can be selected with explicit profile_id."""
 
     manual_profile_id = "test_profile_manual"
     config_with_id = AIMConfig(
@@ -183,7 +185,7 @@ def test_find_profile_manual_selection_only(selector_with_mock_gpu: ProfileSelec
     selector_with_mock_gpu.config = config_with_id
     profile = selector_with_mock_gpu.find_profile()
 
-    assert profile.metadata.manual_selection_only
+    assert profile.metadata.type == ProfileType.UNOPTIMIZED
 
 
 def test_find_profile_general_fallback(general_aim_config: AIMConfig) -> None:
@@ -535,7 +537,7 @@ def test_build_search_paths_with_general_fallback_disabled(assets_instinct_path:
 
 
 def test_general_profiles_marked_manual_only_when_fallback_disabled(profile_base_path: str) -> None:
-    """Test that general profiles are marked as manual_selection_only when fallback is disabled."""
+    """Test that general profiles are not auto-selectable when fallback is disabled."""
     config = AIMConfig(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=profile_base_path,
@@ -552,18 +554,18 @@ def test_general_profiles_marked_manual_only_when_fallback_disabled(profile_base
 
         selector = ProfileSelector(config)
 
-        # Check that all general profiles are marked as manual-selection-only
+        # Check that all general profiles are excluded from auto-selection
         general_profiles = selector.registry.get_general_profiles()
         assert len(general_profiles) > 0, "Should have some general profiles"
 
         for profile in general_profiles:
-            assert (
-                profile.metadata.manual_selection_only is True
-            ), f"General profile {profile.profile_id} should be marked as manual-selection-only"
+            assert not selector._is_auto_selectable(
+                profile
+            ), f"General profile {profile.profile_id} should not be auto-selectable"
 
 
 def test_general_profiles_not_marked_manual_only_when_fallback_enabled(profile_base_path: str) -> None:
-    """Test that general profiles are NOT marked as manual_selection_only when fallback is enabled."""
+    """Test that general profiles ARE auto-selectable when fallback is enabled."""
     config = AIMConfig(
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
         profile_base_path=profile_base_path,
@@ -580,13 +582,58 @@ def test_general_profiles_not_marked_manual_only_when_fallback_enabled(profile_b
 
         selector = ProfileSelector(config)
 
-        # Check that general profiles are NOT marked as manual-selection-only (unless they were in YAML)
+        # Check that general profiles are auto-selectable (unless they are unoptimized)
         general_profiles = selector.registry.get_general_profiles()
         assert len(general_profiles) > 0, "Should have some general profiles"
 
         # At least one general profile should be auto-selectable
-        auto_selectable = [p for p in general_profiles if not p.metadata.manual_selection_only]
+        auto_selectable = [p for p in general_profiles if selector._is_auto_selectable(p)]
         assert len(auto_selectable) > 0, "Should have at least one auto-selectable general profile"
+
+
+def test_log_summary_manual_only_marker_agrees_with_is_auto_selectable(
+    profile_base_path: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The [manual-only] marker in the registry listing must match _is_auto_selectable.
+
+    Regression test: log_summary() used to derive the marker from
+    ``type == UNOPTIMIZED`` directly, which disagreed with the selector for
+    general profiles when general-profile fallback is disabled -- those
+    profiles are not auto-selectable, but were logged without the marker.
+    """
+    config = AIMConfig(
+        aim_id="meta-llama/Llama-3.1-8B-Instruct",
+        profile_base_path=profile_base_path,
+        allow_general_profile_fallback=False,
+    )
+
+    with patch("aim_runtime.accelerator_detector.GPUDetector") as mock_detector:
+        mock_instance = Mock()
+        mock_instance.all_gpus_idle = True
+        mock_instance.has_gpus = True
+        mock_instance.gpu_models = [GPUModel.MI300X]
+        mock_instance.gpu_count = 1
+        mock_detector.return_value = mock_instance
+
+        with caplog.at_level("INFO", logger="aim_runtime.profile_registry"):
+            selector = ProfileSelector(config)
+
+    general_profiles = selector.registry.get_general_profiles()
+    assert len(general_profiles) > 0, "Should have some general profiles"
+    assert not any(
+        selector._is_auto_selectable(p) for p in general_profiles
+    ), "General profiles should not be auto-selectable when fallback is disabled"
+
+    # Filenames aren't unique across search paths (a general and a model-specific
+    # profile may share one), so match on the message content and "type=general".
+    messages = [r.getMessage() for r in caplog.records if "type=general" in r.getMessage()]
+    assert len(messages) == len(
+        general_profiles
+    ), f"Expected {len(general_profiles)} general-profile listing lines, got: {messages}"
+    for profile in general_profiles:
+        message = next((m for m in messages if m.strip().startswith(profile.profile_handling.filename)), None)
+        assert message is not None, f"Expected {profile.profile_handling.filename} in log_summary listing"
+        assert "[manual-only]" in message, f"Non-auto-selectable general profile logged without marker: {message}"
 
 
 def test_find_profile_fallback_disabled_excludes_general_from_auto_selection(profile_base_path: str) -> None:
@@ -705,7 +752,6 @@ def test_find_profile_unoptimized_fallback_enabled_selects_unoptimized(profile_b
         profile = selector.find_profile()
 
         assert profile.metadata.type == ProfileType.UNOPTIMIZED
-        assert profile.metadata.manual_selection_only is True
 
 
 def test_find_profile_unoptimized_fallback_prefers_optimized(profile_base_path: str) -> None:
@@ -918,7 +964,6 @@ class TestCPUProfileCompatibility:
             precision=Precision.BF16,
             accelerator_count=accelerator_count,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         return Profile(
@@ -980,7 +1025,6 @@ class TestCPUProfileCompatibility:
             precision=Precision.FP16,
             accelerator_count=8,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         gpu_profile = Profile(

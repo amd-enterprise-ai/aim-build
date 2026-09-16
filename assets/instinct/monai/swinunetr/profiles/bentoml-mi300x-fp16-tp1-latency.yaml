@@ -1,0 +1,20 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Profile structure is identical for all MONAI models.
+
+aim_id: monai/swinunetr
+model_id: monai/swinunetr
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  metric: latency
+  precision: fp16
+  primary: true
+  type: optimized
+engine_args: {}
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

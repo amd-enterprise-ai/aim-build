@@ -1,0 +1,13 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Model-dedicated specialized base (Layer 2), built in CI from
+# assets/instinct/monai/wholeBrainSeg_Large_UNEST_segmentation/image/.
+# Published to docker.io/silogenai/aim-instinct-monai-wholebrainseg-large-unest-segmentation-base by the base image pipeline.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-monai-wholebrainseg-large-unest-segmentation-base
+  base_tag: "0.13.0"
+specialized: true

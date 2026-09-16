@@ -87,12 +87,15 @@ repos:
   hooks:
   - id: pytest
     name: pytest
-    entry: python3 -m pytest
+    # Harness unit tests live beside the harness they cover, in
+    # assets/<acc>/<org>/<model>/image/tests/, so they are discovered rather
+    # than listed. Keep in sync with the "Run unit tests" step in
+    # .github/workflows/fast-feedback.yaml, which discovers the same directories.
+    entry: bash -c 'python3 -m pytest tests/ $(find assets -type d -path "*/image/tests") -v'
     language: system
     types: [ python ]
     pass_filenames: false
     always_run: true
-    args: [ "tests/", "-v" ]
 
 - repo: local
   hooks:
@@ -120,39 +123,15 @@ repos:
 
 - repo: local
   hooks:
-  - id: add-recommended-deployments
-    name: "Metadata: add recommended deployments"
-    description: Add recommended deployments to based on profiles' changes
-    entry: python3 -m aim_utils.metadata_utils add-all-recommended-deployments
-    language: system
-    types: [ yaml ]
-    pass_filenames: false
-    always_run: false
-    files: ^assets/[^/]+/(.*/metadata\.yaml|.*/profiles/.*\.yaml)$
-
-- repo: local
-  hooks:
   - id: metadata-validation
     name: "Metadata: validation"
     description: Validate metadata YAML files
-    entry: python3 -m aim_utils.metadata_utils validate-all
+    entry: python3 -m aim_utils.metadata_utils validate-files
     language: system
     types: [ yaml ]
-    pass_filenames: false
+    pass_filenames: true
     always_run: false
     files: ^assets/[^/]+/.*/metadata\.yaml$
-
-- repo: local
-  hooks:
-  - id: validate-recommended-deployments-profile-ids
-    name: "Metadata: validate profile ids in recommended deployments"
-    description: Validate that profile ids in recommended deployments
-    entry: python3 -m aim_utils.metadata_utils validate-all-recommended-deployments-profile-ids
-    language: system
-    types: [ yaml ]
-    pass_filenames: false
-    always_run: false
-    files: ^assets/[^/]+/(.*/metadata\.yaml|.*/profiles/.*\.yaml)$
 
 - repo: local
   hooks:
@@ -177,3 +156,87 @@ repos:
     pass_filenames: false
     always_run: false
     files: ^assets/[^/]+/.*/profiles/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: check-canonical-name
+    name: "Metadata: canonicalName matches asset path"
+    description: Reject model canonical names that differ from <org>/<model>
+    entry: python3 -m aim_utils.asset_lint check-canonical-name
+    language: system
+    types: [ yaml ]
+    pass_filenames: true
+    always_run: false
+    files: ^assets/[^/]+/[^/]+/[^/]+/metadata\.yaml$
+
+- repo: local
+  hooks:
+  - id: check-placeholders
+    name: "Assets: check for template placeholders"
+    description: Reject unsubstituted scaffolding markers left in assets
+    entry: python3 -m aim_utils.asset_lint check-placeholders
+    language: system
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*\.(yaml|yml|py|toml|txt|md|json)$
+
+- repo: local
+  hooks:
+  - id: check-internal-comments
+    name: "Assets: check for internal comments"
+    description: Reject agent narration and ticket references in published asset YAML
+    entry: python3 -m aim_utils.asset_lint check-internal-comments
+    language: system
+    types: [ yaml ]
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*\.(yaml|yml)$
+
+- repo: local
+  hooks:
+  - id: check-internal-comments-py
+    name: "Assets: check for internal comments in Python source"
+    description: Reject Jira ticket IDs and agent narration in comments in specialized image Python files
+    entry: python3 -m aim_utils.asset_lint check-internal-comments
+    language: system
+    types: [ python ]
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*/image/src/.*\.py$
+
+- repo: local
+  hooks:
+  - id: check-requirements-pinned
+    # Warning-only until the catalog is fully pinned; add --strict to the entry
+    # to make it blocking. See docs/aim_conventions.md#dependency-pinning.
+    name: "Assets: check specialized image requirements are pinned"
+    description: Report dependencies not pinned to an exact version
+    entry: python3 -m aim_utils.asset_lint check-requirements-pinned
+    language: system
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*/image/(requirements\.txt|pyproject\.toml)$
+    verbose: true
+
+- repo: local
+  hooks:
+  - id: check-profile-env-vars-no-secrets
+    name: "Profiles: reject secret key names in env_vars"
+    description: env_vars are hard overrides — never set HF_TOKEN or other secrets here
+    entry: python3 -m aim_utils.asset_lint check-profile-env-vars-no-secrets
+    language: system
+    types: [ yaml ]
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*/profiles/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: check-rocm-canary
+    name: "Dockerfile: ROCm torch canary must use sys.exit(), not bare print"
+    description: A canary that only prints cannot fail the build; sys.exit() is required
+    entry: python3 -m aim_utils.asset_lint check-rocm-canary
+    language: system
+    pass_filenames: true
+    always_run: false
+    files: ^assets/.*/image/Dockerfile$

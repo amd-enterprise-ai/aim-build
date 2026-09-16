@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata — same schema as aim-build/assets/instinct/mit/boltz2/metadata.yaml.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/swinunetr"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "ct"
+        source: "https://huggingface.co/MONAI/swin_unetr_btcv_segmentation"
+        variants:
+        - "monai/swinunetr"
+        publisher: "MONAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Swin UNETR is a 3D segmentation model that uses hierarchical Swin Transformer blocks as the encoder of a UNETR-style network. It processes 96x96x96 patches of abdominal CT scans to segment 13 organs (spleen, kidneys, gallbladder, esophagus, liver, stomach, aorta, IVC, portal/splenic veins, pancreas, adrenal glands) plus background. Trained on the BTCV multi-atlas challenge dataset."
+      title: "Swin UNETR BTCV Multi-organ Segmentation"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Swin UNETR 3D multi-organ abdominal CT segmentation (BTCV) — MONAI bundle AIM"
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

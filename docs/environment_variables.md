@@ -104,3 +104,18 @@ docker run -e AIM_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct \
 ```
 
 For more details on model caching, see [Model Caching Documentation](./model_caching.md).
+
+## Evaluation backend (`AIM_EVAL_BACKEND_COMMAND`)
+
+`aim-runtime evaluate` runs the lm-eval backend as a subprocess. Images set this variable to the virtualenv they installed it into (`/workspace/tools/eval-venv/bin/lm_eval`), which keeps lm-eval's pinned `transformers` and `numpy` out of the serving environment.
+
+Override it to point at a different installation — for example plain `lm_eval` on `PATH` in a dev environment that installed the `evaluation` extra:
+
+```bash
+docker run -e AIM_EVAL_BACKEND_COMMAND=/opt/my-eval-venv/bin/lm_eval \
+  ...
+  aim-base:0.13 \
+  evaluate --service-url http://localhost:8000
+```
+
+If the command is missing, evaluation reports one failed check naming the path it tried instead of crashing. See [CLI Documentation](./cli.md) for the full `evaluate` reference.

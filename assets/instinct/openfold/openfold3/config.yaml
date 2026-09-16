@@ -10,5 +10,5 @@ base_image:
   registry_host: docker.io
   base_registry_namespace: silogenai
   base_repository: aim-instinct-openfold-openfold3-base
-  base_tag: "0.12"
+  base_tag: "0.13.5"
 specialized: true

@@ -33,24 +33,28 @@ This AIM allows to deploy {{ aim_overview.model_name }} with a tailored set of p
 
 The following profiles are available for this model:
 
-|Profile|GPU|Precision|Engine|GPU count|Metric|Type| Manual Only |
-|-------|---|---------|------|---------|------|----|-------------|
+|Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type|
+|-------|-------------------|---------|------|---------|------|----|
 {% for profile in profiles %}
-|{{ profile.profile_name }}|{{ profile.gpu }}|{{ profile.precision }}|{{ profile.engine }}|{{ profile.gpu_count }}|{{ profile.metric }}|{{ profile.profile_type }}|{{ profile.manual_selection_only }}|
+|{{ profile.profile_handling.profile_name }}|{{ profile.metadata.accelerator_model.value }}|{{ profile.metadata.precision.value }}|{{ profile.metadata.engine.value }}|{{ profile.metadata.accelerator_count }}|{{ profile.metadata.metric.value }}|{{ profile.metadata.type.value }}|
 {% endfor %}
 
 The columns should be read as follows:
 * **Profile**: Name of the deployment profile.
-* **GPU**: Target GPU model for the profile.
+* **Accelerator model**: Target accelerator model for the profile.
 * **Precision**: Numerical precision used for model inference. Most common precisions are `fp16` (half-precision floating point) and `fp8` (8-bit floating point).
 * **Engine**: Inference engine used to run the model.
-* **GPU count**: Number of GPUs utilized in the profile.
+* **Accelerator count**: Number of accelerators utilized in the profile.
 * **Metric**: Performance metric optimized the profile is optimized for. Common metrics are `latency` (time taken to generate a response) and `throughput` (number of requests handled per second).
 * **Type**: Indicates whether the profile is `optimized`, `unoptimized`, or `general`.
   * `"optimized"`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
-  * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
+  * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation; these are never selected automatically and must be requested explicitly
   * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
   * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
+
+## Getting started
+
+See the [deployment guide](DEPLOYMENT.md) for Docker and Kubernetes instructions.
 
 {% if terms_of_use.defined %}
 

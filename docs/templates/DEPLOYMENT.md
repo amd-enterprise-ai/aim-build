@@ -8,13 +8,23 @@ SPDX-License-Identifier: MIT
 
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
 {% if aim_deployment.is_base %} any supported model {% else %} {{ aim_deployment.model_name }} model {% endif %}in
-various environments. Follow these instructions to quickly get started with running an AI model on AMD GPUs. This guide
-assumes {{ aim_deployment.gpu_model }} GPU on the target system.
+various environments. Follow these instructions to quickly get started with running an AI model on AMD accelerators.
+This guide assumes {{ aim_deployment.accelerator_model }} accelerator on the target system.
 
 ## Prerequisites
 
-* AMD GPU with ROCm support (e.g., MI300X, MI325X)
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+* AMD Instinct™ GPU with ROCm support (e.g., MI300X, MI325X)
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+* AMD Radeon™ Pro GPU with ROCm support (e.g., W7900, R9700)
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+* AMD EPYC™ CPU (e.g., EPYC_ZEN4, EPYC_ZEN5, EPYC_9965)
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
 * Docker installed and configured with GPU support
+{% elif aim_deployment.accelerator_type.value == "cpu" %}
+* Docker installed and configured
+{% endif %}
 {% if aim_deployment.hf_token %}
 * Access to model repositories (Hugging Face account with appropriate permissions for gated models)
 {% endif %}
@@ -31,7 +41,9 @@ docker run \
 {% if aim_deployment.is_base %}
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -50,13 +62,15 @@ Customize your deployment with optional environment variables:
 ```bash
 docker run \
   -e AIM_PRECISION=fp16 \
-  -e AIM_GPU_COUNT={{ aim_deployment.gpus }} \
+  -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
 {% if aim_deployment.is_base %}
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8080:8080 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -99,7 +113,9 @@ docker run \
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
   -v /path/to/model-cache:/workspace/model-cache \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -148,9 +164,9 @@ spec:
           env:
             - name: AIM_PRECISION
               value: "auto"
-            - name: AIM_GPU_COUNT
-              value: "{{ aim_deployment.gpus }}"
-            - name: AIM_GPU_MODEL
+            - name: AIM_ACCELERATOR_COUNT
+              value: "{{ aim_deployment.accelerator_count }}"
+            - name: AIM_ACCELERATOR_MODEL
               value: "auto"
             - name: AIM_ENGINE
               value: "vllm"
@@ -179,12 +195,20 @@ spec:
           resources:
             requests:
               memory: "16Gi"
+              {% if aim_deployment.accelerator_type.value == "gpu" %}
               cpu: "4"
-              amd.com/gpu: "{{ aim_deployment.gpus }}"
+              amd.com/gpu: "{{ aim_deployment.accelerator_count }}"
+              {% elif aim_deployment.accelerator_type.value == "cpu" %}
+              cpu: "{{ aim_deployment.accelerator_count }}"
+              {% endif %}
             limits:
               memory: "16Gi"
+              {% if aim_deployment.accelerator_type.value == "gpu" %}
               cpu: "4"
-              amd.com/gpu: "{{ aim_deployment.gpus }}"
+              amd.com/gpu: "{{ aim_deployment.accelerator_count }}"
+              {% elif aim_deployment.accelerator_type.value == "cpu" %}
+              cpu: "{{ aim_deployment.accelerator_count }}"
+              {% endif %}
           startupProbe:
             httpGet:
               path: /v1/models
@@ -304,12 +328,18 @@ aim_id: {{ aim_deployment.model_name }}
 model_id: {{ aim_deployment.model_name }}
 {% endif %}
 metadata:
+  accelerator_count: {{ aim_deployment.accelerator_count }}
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+  accelerator_model: MI300X
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+  accelerator_model: W7900
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+  accelerator_model: EPYC_9965
+{% endif %}
+  accelerator_type: {{ aim_deployment.accelerator_type.value }}
   engine: vllm
-  gpu: MI300X
-  precision: fp16
-  gpu_count: {{ aim_deployment.gpus }}
   metric: throughput
-  manual_selection_only: false
+  precision: fp16
   {% if aim_deployment.is_base %}
   type: general
   {% else %}
@@ -319,7 +349,7 @@ metadata:
 engine_args:
   gpu-memory-utilization: 0.95
   dtype: float16
-  tensor-parallel-size: {{ aim_deployment.gpus }}
+  tensor-parallel-size: {{ aim_deployment.accelerator_count }}
   max-num-batched-tokens: 1024
   max-model-len: 2048
 
@@ -340,7 +370,9 @@ docker run \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
 {% endif %}
   -e AIM_METRIC=throughput \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -357,7 +389,9 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
 {% endif %}
   -e AIM_PROFILE_ID={{ aim_deployment.profile_name_to_override_automatic_selection }} \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -394,7 +428,9 @@ docker run \
 {% if aim_deployment.is_base %}
   -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
 {% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+{% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
@@ -405,9 +441,15 @@ It is possible to check which profile AIM selects based on the provided environm
 
 ```bash
 docker run \
-  -e AIM_GPU_COUNT={{ aim_deployment.gpus }} \
+  -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
   -e AIM_PRECISION=fp16 \
-  -e AIM_GPU_MODEL=MI300X \
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+  -e AIM_ACCELERATOR_MODEL=MI300X \
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+  -e AIM_ACCELERATOR_MODEL=W7900 \
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+  -e AIM_ACCELERATOR_MODEL=EPYC_9965 \
+{% endif %}
 {% if aim_deployment.hf_token %}
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
 {% endif %}

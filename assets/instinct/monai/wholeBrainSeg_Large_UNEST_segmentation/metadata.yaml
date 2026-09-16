@@ -1,0 +1,40 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata — same schema as aim-build/assets/instinct/mit/boltz2/metadata.yaml.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/wholeBrainSeg_Large_UNEST_segmentation"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "mri"
+        - "t1w"
+        - "brain"
+        - "neuroanatomy"
+        - "transformer"
+        source: "https://huggingface.co/MONAI/wholeBrainSeg_Large_UNEST_segmentation"
+        variants:
+        - "monai/wholeBrainSeg_Large_UNEST_segmentation"
+        publisher: "MONAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "A 3D nested-hierarchical-transformer (UNesT-Large) segmentation model that parcellates the whole brain into 133 distinct anatomical structures (background + 132 cortical / sub-cortical regions following the Vanderbilt MASI-Lab + Huo-2019 protocol) from T1w MRI. The bundle expects inputs already registered to the MNI305 atlas template (NiftyReg/ANTs); preprocessing inside the AIM is intensity-only (NormalizeIntensityd, nonzero, channel-wise) and a SlidingWindowInferer walks 96^3 patches with overlap 0.7 across the volume. Bundle published mean Dice = 0.71 (per-class mean over 132 foreground regions, measured on a private Vanderbilt + CANDI test split)."
+      title: "Whole Brain Segmentation Large UNEST"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "133-class whole-brain T1w MRI parcellation served via BentoML."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MiniMax Community License, MIT"
+      description: "Native multimodal MoE model with 428B parameters, 23B active parameters, a 1M-token context window, reasoning, tool use, and coding capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "MiniMaxAI/MiniMax-M3"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "chat"
+        - "conversational"
+        - "multimodal"
+        - "reasoning"
+        - "tool-use"
+        source: "https://huggingface.co/MiniMaxAI/MiniMax-M3"
+        variants:
+        - "MiniMaxAI/MiniMax-M3-MXFP8"
+        - "MiniMaxAI/MiniMax-M3"
+        publisher: "MiniMax"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "MiniMax-M3 is a native multimodal mixture-of-experts model with 428 billion total parameters and 23 billion active parameters. It supports text, image, and video input, a 1 million-token context window, reasoning, tool use, and coding. MiniMax Sparse Attention reduces long-context compute, and the MXFP8 variant provides a smaller deployment footprint."
+      title: "MiniMax M3"

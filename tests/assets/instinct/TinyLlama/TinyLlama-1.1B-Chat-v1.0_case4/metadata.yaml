@@ -15,13 +15,6 @@ com:
         variants:
         - "amd/TinyLlama-1.1B-Chat-v1.0"
         - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        recommendedDeployments:
-        - gpuModel: "MI300X"
-          gpuCount: 1
-          profileId: "vllm-mi300x-fp8-tp1-latency.yaml"
-        - gpuModel: "MI325X"
-          gpuCount: 1
-          profileId: "vllm-mi300x-fp8-tp1-latency.yaml"
         publisher: "TinyLlama"
       hfToken:
         required: false

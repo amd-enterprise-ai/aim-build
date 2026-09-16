@@ -26,27 +26,6 @@ com:
         source: "https://huggingface.co/google/gemma-3n-E4B-it"
         variants:
         - "google/gemma-3n-E4B-it"
-        recommendedDeployments:
-        - gpuModel: "W7900"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on W7900 using bf16 precision"
-        - gpuModel: "W7900"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on W7900 using bf16 precision"
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on R9700 using bf16 precision"
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on R9700 using bf16 precision"
         publisher: "Google"
       hfToken:
         required: true

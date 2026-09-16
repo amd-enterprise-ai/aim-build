@@ -4,7 +4,7 @@ Copyright © Advanced Micro Devices, Inc., or its affiliates.
 SPDX-License-Identifier: MIT
 -->
 
-# Custom Profiles
+# Customize AIM Deployment
 
 **AMD Inference Microservice (AIM)** supports custom profile configurations that extend beyond the built-in optimized
 and general profiles. Custom profiles enable users to define specialized configurations for unique hardware setups,
@@ -21,9 +21,11 @@ from highest to lowest):
 * Built-in general profiles
 
 Custom profiles follow the same YAML structure as standard profiles but are placed in the
-`/workspace/aim-runtime/profiles/custom/` directory within the container. The examples below use Instinct hardware (MI300X); for Radeon Pro, substitute the appropriate GPU model (e.g., `R9700`, `W7900`) and use the `aim-radeon-base` image instead of `aim-base`. On the users' side, custom profiles can be
-placed in a folder that must be mounted to the container at the path specified above. When AIM starts, it scans the
-custom profiles directory first, so custom profiles take precedence over built-in profiles.
+`/workspace/aim-runtime/profiles/custom/` directory within the container. The examples below use Instinct™ hardware (MI300X);
+for Radeon™ Pro, substitute the appropriate GPU model (e.g. `R9700`, `W7900`) and use the `aim-radeon-base` image instead of `aim-base`.
+For EPYC™ CPUs, use the `aim-epyc-base` image and set appropriate CPU model (e.g. `EPYC_9965`).
+On the users' side, custom profiles can be placed in a folder that must be mounted to the container at the path specified
+above. When AIM starts, it scans the custom profiles directory first, so custom profiles take precedence over built-in profiles.
 
 **Key Features:**
 - **Highest Search Precedence**: Custom profiles are prioritized over built-in profiles
@@ -50,9 +52,9 @@ aim_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 metadata:
   engine: vllm
-  gpu: MI300X
-  gpu_count: 1
-  manual_selection_only: false
+  accelerator_model: MI300X
+  accelerator_count: 1
+  accelerator_type: gpu
   metric: latency
   precision: fp16
   type: unoptimized
@@ -98,7 +100,7 @@ All profiles, including the custom ones, are validated using Pydantic models at 
 ```bash
 docker run \
   -e AIM_MODEL_ID=deepseek-ai/DeepSeek-R1-Distill-Qwen-32B \
-  -e AIM_GPU_MODEL=MI300X \
+  -e AIM_ACCELERATOR_MODEL=MI300X \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   --device=/dev/kfd --device=/dev/dri \
   amdenterpriseai/aim-base:0.11 list-profiles
@@ -212,6 +214,10 @@ spec:
         - name: custom-profiles
           configMap:
             name: custom-profiles
+```
+
+```{admonition} EPYC™ CPU
+Resource request for AMD GPU (`amd.com/gpu`) is not required if you plan to deploy AIM on EPYC™ CPU.
 ```
 
 Use `AIM_MODEL_ID` environment variable instead of `AIM_ID` if you want to use a custom general profile.

@@ -11,10 +11,7 @@ metadata:
   precision: fp16
   accelerator_count: 1
   metric: latency
-  manual_selection_only: false
   type: optimized
-  gpu_count: 1
-  gpu: MI300X
 engine_args:
   dtype: float16
   tensor-parallel-size: 1

@@ -12,10 +12,13 @@ The harness talks to the local BentoML service over HTTP (``/healthz`` and
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import math
+import os
 import statistics
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -36,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 BENTOML_HEALTH_ENDPOINT = "/healthz"
 BENTOML_PREDICT_ENDPOINT = "/predict"
-BENTOML_PORT = 8000  # matches ENV BENTOML_PORT in the OF3 Dockerfile
 
 # Per-PDB payloads (output of build_of3_inputs.py) baked into the image by
 # the Dockerfile at /workspace/model/benchmarks/<pdb>/<pdb>.json.
@@ -108,11 +110,88 @@ def _build_smoke_payload(output_format: str = "pdb", inline_msa: bool = False) -
     }
 
 
+HTTP_TOO_MANY_REQUESTS = 429
+
+# Mirrors the service's own derivation (ServiceConfig.effective_max_concurrency ->
+# request_budget.max_concurrency_for). Recomputed here rather than imported: the
+# harness is loaded by path from aim_runtime.harness.discovery, so a sibling
+# import of the service's modules is not guaranteed to resolve. Both read the
+# same env vars, so they cannot disagree about a deployment's configuration.
+DEFAULT_CONCURRENCY_PER_WORKER = 3
+
+
+def _expected_in_flight() -> int:
+    """How many concurrent requests the service accepts before answering 429."""
+    explicit = os.environ.get("OPENFOLD3_MAX_CONCURRENCY", "").strip()
+    if explicit.isdigit() and int(explicit) > 0:
+        return int(explicit)
+    accelerators = os.environ.get("AIM_ACCELERATOR_COUNT", "").strip()
+    count = int(accelerators) if accelerators.isdigit() and int(accelerators) > 0 else 1
+    return count * DEFAULT_CONCURRENCY_PER_WORKER
+
+
+def _post_predict_status(service_url: str, payload: dict[str, Any], *, timeout_seconds: int) -> int | str:
+    """POST to ``/predict`` and return the HTTP status, without raising on 4xx/5xx.
+
+    Returns the status code, or a short string describing a transport failure —
+    the caller classifies, so a connection reset is distinguishable from a 429
+    rather than both collapsing into "not 200".
+    """
+    body = json.dumps(payload).encode("utf-8")
+    req = Request(
+        f"{service_url}{BENTOML_PREDICT_ENDPOINT}",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            resp.read()
+            return int(resp.status)
+    except HTTPError as exc:
+        exc.read()
+        return int(exc.code)
+    except (URLError, OSError) as exc:
+        return f"transport error: {exc}"
+
+
+def _format_predict_http_error(exc: HTTPError) -> str:
+    """Turn an HTTPError from /predict into a message that keeps the server's explanation.
+
+    urlopen discards the response body on non-2xx unless the caller reads
+    ``exc``, so without this a 503 (MSA-server budget exceeded, or a queued
+    request) or a 429 (``traffic.max_concurrency`` overload) collapses to an
+    unactionable "HTTP Error 503: Service Unavailable".
+    """
+    raw = exc.read()
+    detail = ""
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        detail = str(parsed.get("message") or parsed.get("error") or "")
+    if not detail and raw:
+        detail = raw.decode("utf-8", errors="replace")
+    detail = " ".join(detail.split())
+    if len(detail) > 200:
+        detail = f"{detail[:200]}…"
+
+    message = f"/predict returned HTTP {exc.code}"
+    if detail:
+        message += f": {detail}"
+    retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
+    if retry_after:
+        message += f" (retry after {retry_after}s)"
+    return message
+
+
 def _post_predict(service_url: str, payload: dict[str, Any], *, timeout_seconds: int) -> tuple[dict[str, Any], float]:
     """POST a payload to ``/predict``; return (response_json, elapsed_seconds).
 
-    Raises on transport error, non-200 status, server-reported
-    ``error`` flag, or empty ``structures`` list.
+    Raises on transport error, non-200 status (preserving the server's error
+    body, e.g. a 503/429 throttling message), server-reported ``error`` flag,
+    or empty ``structures`` list.
     """
     body = json.dumps(payload).encode("utf-8")
     req = Request(
@@ -122,11 +201,14 @@ def _post_predict(service_url: str, payload: dict[str, Any], *, timeout_seconds:
         method="POST",
     )
     t0 = time.monotonic()
-    with urlopen(req, timeout=timeout_seconds) as resp:
-        elapsed = time.monotonic() - t0
-        if resp.status != 200:
-            raise RuntimeError(f"/predict returned HTTP {resp.status}")
-        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            elapsed = time.monotonic() - t0
+            if resp.status != 200:
+                raise RuntimeError(f"/predict returned HTTP {resp.status}")
+            data = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(_format_predict_http_error(exc)) from exc
     if data.get("error"):
         raise RuntimeError(f"server error: {data.get('message', 'unknown')}")
     if not data.get("structures"):
@@ -217,6 +299,12 @@ class OpenFold3Harness(ModelHarness):
             CheckScope.OFFLINE,
             "Smoke prediction's structure parses with finite atomic coordinates",
         ),
+        CheckInfo(
+            "overload_sheds_requests",
+            CheckResultType.PASS_FAIL,
+            CheckScope.OFFLINE,
+            "Simultaneous requests beyond the in-flight limit are refused with 429, not queued",
+        ),
     ]
 
     def list_checks(self) -> list[CheckInfo]:
@@ -236,6 +324,78 @@ class OpenFold3Harness(ModelHarness):
                 pass
             time.sleep(2.0)
         return False
+
+    def _overload_shed_check(self, service_url: str, config: HarnessConfig) -> CheckResult:
+        """Fire N simultaneous predictions; the excess must be refused with 429.
+
+        Guards the load-shedding contract: past ``traffic.max_concurrency`` the
+        service answers immediately rather than queueing work it cannot start.
+        Without it a burst is accepted, queues behind a busy worker, and each
+        request spends its whole budget waiting before timing out.
+
+        The requests must overlap for the limit to be reached at all, so every
+        thread waits on a barrier and releases together. The payload is the
+        inline-MSA smoke case: it needs no MSA server and still occupies its
+        slot for seconds, which is far longer than the millisecond spread of
+        the burst.
+        """
+        total = int(config.get("overload_requests", 10))
+        expected_in_flight = int(config.get("overload_max_concurrency", 0)) or _expected_in_flight()
+        expected_shed = max(total - expected_in_flight, 0)
+        request_timeout = int(config.get("predict_timeout_seconds", 600))
+        payload = _build_smoke_payload(output_format="pdb", inline_msa=True)
+
+        name = "overload_sheds_requests"
+        if expected_shed == 0:
+            return CheckResult(
+                name=name,
+                result_type=CheckResultType.PASS_FAIL,
+                success=False,
+                value=False,
+                detail=(
+                    f"misconfigured check: {total} requests cannot exceed an in-flight limit of "
+                    f"{expected_in_flight}; raise overload_requests above it to test shedding"
+                ),
+            )
+
+        barrier = threading.Barrier(total)
+
+        def _fire(_: int) -> int | str:
+            barrier.wait(timeout=60)
+            return _post_predict_status(service_url, payload, timeout_seconds=request_timeout)
+
+        started = time.monotonic()
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=total) as pool:
+                outcomes = list(pool.map(_fire, range(total)))
+        except threading.BrokenBarrierError:
+            return CheckResult(
+                name=name,
+                result_type=CheckResultType.PASS_FAIL,
+                success=False,
+                value=False,
+                detail=f"could not release {total} requests simultaneously (barrier timed out)",
+            )
+        elapsed = time.monotonic() - started
+
+        accepted = sum(1 for o in outcomes if o == 200)
+        shed = sum(1 for o in outcomes if o == HTTP_TOO_MANY_REQUESTS)
+        other = [o for o in outcomes if o not in (200, HTTP_TOO_MANY_REQUESTS)]
+
+        success = accepted == expected_in_flight and shed == expected_shed and not other
+        detail = (
+            f"{total} simultaneous: {accepted} accepted (200), {shed} shed (429), "
+            f"expected {expected_in_flight}/{expected_shed}, elapsed={elapsed:.1f}s"
+        )
+        if other:
+            detail += f"; unexpected outcomes: {sorted(str(o) for o in other)}"
+        return CheckResult(
+            name=name,
+            result_type=CheckResultType.PASS_FAIL,
+            success=success,
+            value=success,
+            detail=detail,
+        )
 
     def validate(self, config: HarnessConfig) -> HarnessResult:
         """Check service health and that it produces structures for the smoke and inline-MSA paths."""
@@ -262,6 +422,7 @@ class OpenFold3Harness(ModelHarness):
                     name="predict_inline_msa",
                 )
             )
+            checks.append(self._overload_shed_check(service_url, config))
 
         success = all(c.success for c in checks)
         return HarnessResult(

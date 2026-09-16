@@ -10,7 +10,7 @@ based on model and hardware configuration.
 """
 
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -58,6 +58,40 @@ PROFILE_STATE_COLORS = {
 }
 
 
+# Define precision priority (lower number = higher priority)
+PRECISION_PRIORITY = {
+    Precision.INT4: 1,
+    Precision.INT8: 2,
+    Precision.FP4: 3,
+    Precision.FP8: 4,
+    Precision.FP16: 5,
+    Precision.BF16: 6,
+    Precision.FP32: 7,
+}
+
+
+TYPE_PRIORITY = {
+    ProfileType.OPTIMIZED: 1,
+    ProfileType.PREVIEW: 2,
+    ProfileType.UNOPTIMIZED: 3,
+    ProfileType.GENERAL: 4,
+}
+
+
+# Ranking used when picking the primary profile for an (accelerator, metric)
+# pair. Unlike TYPE_PRIORITY, which orders profiles for *runtime selection*,
+# this only expresses auto-selectability: every automatically selectable type
+# ties, and only unoptimized ranks below. That keeps the tie broken by
+# precision and accelerator count, as it was when this ranking read the
+# removed manual_selection_only flag (true iff type == unoptimized).
+AUTO_SELECTABLE_PRIORITY = {
+    ProfileType.OPTIMIZED: 0,
+    ProfileType.PREVIEW: 0,
+    ProfileType.GENERAL: 0,
+    ProfileType.UNOPTIMIZED: 1,
+}
+
+
 @dataclass
 class ProfileCompatibilityResult:
     """Result of profile compatibility assessment."""
@@ -71,7 +105,7 @@ def _base_tuple(profile: "Profile") -> tuple:
     """Return the invariant key for a profile — fields that define a unique hardware slot.
 
     Two profiles with the same base tuple differ only in ``variant`` (or other
-    non-key fields like ``type``/``manual_selection_only``).
+    non-key fields like ``type``).
     """
     m = profile.metadata
     return (m.engine, m.accelerator_model, m.precision, m.accelerator_count, m.metric)
@@ -147,15 +181,16 @@ class ProfileSelector:
         search_paths = self._build_search_paths()
         self.registry: ProfileRegistry = ProfileRegistry.discover_and_validate(search_paths, self.profile_validator)
 
-        # If general profile fallback is disabled, mark general profiles as manual-selection-only
         if not self.config.allow_general_profile_fallback:
-            logger.info("General profile fallback disabled - marking general profiles as manual-selection-only")
-            self._mark_general_profiles_manual_only()
+            logger.info("General profile fallback disabled - general profiles will not be auto-selected")
 
         if self.config.allow_unoptimized:
             logger.info("Unoptimized profile fallback enabled - unoptimized profiles may be auto-selected")
 
-        self.registry.log_summary()
+        # Pass the predicate so the listing's [manual-only] markers agree with
+        # what find_profile() will actually do. The registry has no view of the
+        # runtime config that makes general profiles manual-only.
+        self.registry.log_summary(self._is_auto_selectable)
 
     @property
     def cpuset_bind(self) -> Optional[str]:
@@ -179,12 +214,18 @@ class ProfileSelector:
 
         logger.debug(f"Detected accelerator: {self.detected_accelerator}, count: {self.detected_accelerator_count}")
 
-    def _mark_general_profiles_manual_only(self) -> None:
-        """Mark all general profiles in the registry as manual-selection-only."""
-        for i, profile in enumerate(self.registry.profiles):
-            if profile.profile_handling.is_general and not profile.metadata.manual_selection_only:
-                new_metadata = profile.metadata.model_copy(update={"manual_selection_only": True})
-                self.registry.profiles[i] = replace(profile, metadata=new_metadata)
+    def _is_auto_selectable(self, profile: "Profile") -> bool:
+        """Whether a profile is eligible for automatic (non-manual) selection.
+
+        ``unoptimized`` profiles are always excluded; ``general`` profiles are
+        excluded unless general-profile fallback is enabled.
+        """
+        ptype = profile.metadata.type
+        if ptype == ProfileType.UNOPTIMIZED:
+            return False
+        if ptype == ProfileType.GENERAL and not self.config.allow_general_profile_fallback:
+            return False
+        return True
 
     def _build_search_paths(self) -> List[str]:
         """
@@ -219,24 +260,6 @@ class ProfileSelector:
         """Order profiles by priority first, then precision preference, then by type."""
         precision = self.config.precision
 
-        # Define precision priority (lower number = higher priority)
-        precision_priority = {
-            Precision.INT4: 1,
-            Precision.INT8: 2,
-            Precision.FP4: 3,
-            Precision.FP8: 4,
-            Precision.FP16: 5,
-            Precision.BF16: 6,
-            Precision.FP32: 7,
-        }
-
-        type_priority = {
-            ProfileType.OPTIMIZED: 1,
-            ProfileType.PREVIEW: 2,
-            ProfileType.UNOPTIMIZED: 3,
-            ProfileType.GENERAL: 4,
-        }
-
         if precision is not None:
             # If specific precision requested, filter for exact match first
             exact_matches = [p for p in profiles if p.metadata.precision == precision]
@@ -248,8 +271,8 @@ class ProfileSelector:
         # then by profile type priority (optimized over preview)
         def get_sort_key(profile: Profile) -> tuple:
             profile_precision = profile.metadata.precision
-            precision_prio = precision_priority.get(profile_precision, UNKNOWN_PRIORITY)
-            type_prio = type_priority.get(profile.metadata.type, UNKNOWN_PRIORITY)
+            precision_prio = PRECISION_PRIORITY.get(profile_precision, UNKNOWN_PRIORITY)
+            type_prio = TYPE_PRIORITY.get(profile.metadata.type, UNKNOWN_PRIORITY)
             return (profile.profile_handling.priority, precision_prio, type_prio)
 
         sorted_profiles = sorted(profiles, key=get_sort_key)
@@ -282,8 +305,7 @@ class ProfileSelector:
         logger.info(f"Found {len(compatible_results)} compatible profiles")
         for r in compatible_results:
             logger.info("  - %s", r.profile.profile_id)
-        # Exclude profiles with metadata.manual_selection_only == True from automatic selection
-        auto_compatible_results = [r for r in compatible_results if not r.profile.metadata.manual_selection_only]
+        auto_compatible_results = [r for r in compatible_results if self._is_auto_selectable(r.profile)]
         logger.info(f"{len(auto_compatible_results)} compatible profiles after excluding manual-selection-only")
         logger.debug(
             f"Auto-compatible profiles: {[r.profile.profile_handling.filename for r in auto_compatible_results]}"
@@ -293,9 +315,7 @@ class ProfileSelector:
             # Pass 2: If allow_unoptimized is enabled, try including UNOPTIMIZED profiles
             if self.config.allow_unoptimized:
                 unoptimized_fallback_results = [
-                    r
-                    for r in compatible_results
-                    if r.profile.metadata.manual_selection_only and r.profile.metadata.type == ProfileType.UNOPTIMIZED
+                    r for r in compatible_results if r.profile.metadata.type == ProfileType.UNOPTIMIZED
                 ]
                 if unoptimized_fallback_results:
                     ordered = self._order_profiles([r.profile for r in unoptimized_fallback_results])
@@ -311,7 +331,7 @@ class ProfileSelector:
                     return best
 
             # Check if we have compatible profiles that are manual-only
-            manual_only_profiles = [r for r in compatible_results if r.profile.metadata.manual_selection_only]
+            manual_only_profiles = [r for r in compatible_results if not self._is_auto_selectable(r.profile)]
 
             if manual_only_profiles:
                 # Case 1: Compatible profiles exist but all require manual selection
@@ -557,7 +577,7 @@ class ProfileSelector:
             lines.append("-" * 40)
 
             for profile in profiles:
-                manual_flag = " [manual-only]" if profile.metadata.manual_selection_only else ""
+                manual_flag = "" if self._is_auto_selectable(profile) else " [manual-only]"
                 lines.append(f"  • {profile.profile_id}{manual_flag}")
                 lines.append(f"    Accelerator: {profile.metadata.accelerator_model}")
                 lines.append(f"    Precision: {profile.metadata.precision}")
@@ -603,11 +623,11 @@ class ProfileSelector:
         # Calculate width for each column based on content
         for profile, state in profiles_with_states:
             profile_id = profile.profile_id
-            manual_only_display = "Yes" if profile.metadata.manual_selection_only else "No"
+            manual_only_display = "No" if self._is_auto_selectable(profile) else "Yes"
             col_widths[0] = max(col_widths[0], len(profile_id))
             col_widths[1] = max(
                 col_widths[1],
-                len(profile.metadata.accelerator_model.value if profile.metadata.accelerator_model else "none"),
+                len(profile.metadata.accelerator_model.value),
             )
             col_widths[2] = max(col_widths[2], len(profile.metadata.precision.value))
             col_widths[3] = max(col_widths[3], len(profile.metadata.engine.value))
@@ -626,14 +646,14 @@ class ProfileSelector:
         # Print table rows with colors
         for profile, state in profiles_with_states:
             profile_id = profile.profile_id
-            accelerator = profile.metadata.accelerator_model.value if profile.metadata.accelerator_model else "none"
+            accelerator = profile.metadata.accelerator_model.value
             precision = profile.metadata.precision.value
             engine = profile.metadata.engine.value
             tp_size = str(profile.metadata.accelerator_count)
             metric = profile.metadata.metric.value
             profile_type = profile.metadata.type.value
             priority = str(profile.profile_handling.priority)
-            manual_only_display = "Yes" if profile.metadata.manual_selection_only else "No"
+            manual_only_display = "No" if self._is_auto_selectable(profile) else "Yes"
             state_display = state.value
 
             # Get color for this state
@@ -768,7 +788,7 @@ class ProfileSelector:
                 lines.append("-" * 40)
 
                 for profile in accelerator_profiles:
-                    manual_flag = " [manual-only]" if profile.metadata.manual_selection_only else ""
+                    manual_flag = "" if self._is_auto_selectable(profile) else " [manual-only]"
                     lines.append(f"  • {profile.profile_id}{manual_flag}")
                     lines.append(f"    Precision: {profile.metadata.precision}")
                     lines.append(f"    Engine: {profile.metadata.engine}")

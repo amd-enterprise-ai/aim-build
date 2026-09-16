@@ -21,7 +21,7 @@ This approach separates the runtime configuration from the model deployment, all
 
 - Kubernetes cluster with kubectl configured (v1.32.8+rke2r1)
 - KServe installed on the cluster (v0.15.2)
-- AMD GPU with ROCm support (e.g., MI300X)
+- AMD GPU with ROCm support (e.g., MI300X) or EPYC™ CPU
 
 ## Deployment
 
@@ -97,6 +97,10 @@ spec:
           memory: "64Gi"
           cpu: "4"
           amd.com/gpu: "1"
+```
+
+```{admonition} EPYC™ CPU
+Resource request for AMD GPU (`amd.com/gpu`) is not required if you plan to deploy AIM on EPYC™ CPU.
 ```
 
 Deploy the inference service:

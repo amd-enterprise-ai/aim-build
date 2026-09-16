@@ -13,9 +13,6 @@ metadata:
     structured_outputs: true
     reasoning: true
   engine: vllm
-  gpu: MI300X
-  gpu_count: 1
-  manual_selection_only: false
   metric: latency
   precision: fp4
   primary: true

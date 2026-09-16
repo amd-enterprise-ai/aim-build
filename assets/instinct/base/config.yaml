@@ -5,5 +5,11 @@
 base_image:
   base_registry_namespace: vllm
   base_repository: vllm-openai-rocm
-  base_tag: v0.23.0
+  base_tag: v0.27.1
   registry_host: docker.io
+
+# Install the accuracy-evaluation backend (lm-eval and its pinned deps) into the
+# image's own virtualenv, so `aim-runtime evaluate` runs in-image. Kept per base
+# target: bases that cannot serve text models gain nothing from it, and a
+# size-sensitive build can turn it off. See docs/cli.md ("Evaluate").
+install_evaluation_deps: true

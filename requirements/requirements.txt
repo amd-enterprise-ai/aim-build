@@ -6,13 +6,21 @@
 #
 annotated-types==0.7.0
     # via pydantic
+certifi==2026.5.20
+    # via requests
+charset-normalizer==3.4.7
+    # via requests
 click==8.4.1
     # via aim-build (pyproject.toml)
+idna==3.18
+    # via requests
 pydantic==2.13.4
     # via aim-build (pyproject.toml)
 pydantic-core==2.46.4
     # via pydantic
 pyyaml==6.0.3
+    # via aim-build (pyproject.toml)
+requests==2.34.2
     # via aim-build (pyproject.toml)
 typing-extensions==4.15.0
     # via
@@ -21,3 +29,5 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
+urllib3==2.7.0
+    # via requests

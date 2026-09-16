@@ -1,0 +1,244 @@
+diff --git a/openfold3/core/data/tools/colabfold_msa_server.py b/openfold3/core/data/tools/colabfold_msa_server.py
+index ce3eaa5..90ec4ee 100644
+--- a/openfold3/core/data/tools/colabfold_msa_server.py
++++ b/openfold3/core/data/tools/colabfold_msa_server.py
+@@ -12,6 +12,8 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import contextlib
++import contextvars
+ import getpass
+ import json
+ import logging
+@@ -53,6 +55,78 @@ from openfold3.projects.of3_all_atom.config.inference_query_format import (
+ logger = logging.getLogger(__name__)
+ 
+ 
++# Every retry loop in query_colabfold_msa_server below is unbounded: submit(),
++# status() and download() each wrap their HTTP call in `while True`, and the
++# RATELIMIT path resubmits forever. Once the server throttles a caller there is
++# no exit but success, so a query can outlive any serving timeout -- and a
++# serving layer that runs this on a thread cannot cancel it. These give the
++# loops a wall clock to respect.
++#
++# A ContextVar rather than a global so it stays correct with more than one
++# request in flight per process; anyio copies the context into worker threads,
++# so it is visible where the loops read it.
++_MSA_DEADLINE: contextvars.ContextVar[float | None] = contextvars.ContextVar(
++    "of3_msa_deadline", default=None
++)
++
++MSA_TIMEOUT_ENV_VAR = "OPENFOLD3_MSA_TIMEOUT_SECONDS"
++
++
++class MsaServerTimeout(Exception):
++    """The MSA server did not finish within the caller's budget."""
++
++
++@contextlib.contextmanager
++def msa_deadline(deadline: float | None):
++    """Bound MSA-server work in this context to a ``time.monotonic()`` deadline.
++
++    Absolute rather than a duration so that the several server queries a single
++    prediction makes share one budget instead of each getting a fresh one.
++    """
++    token = _MSA_DEADLINE.set(deadline)
++    try:
++        yield
++    finally:
++        _MSA_DEADLINE.reset(token)
++
++
++def _unreachable_message(phase: str, attempts: int, exc: Exception) -> str:
++    """Message for giving up on an unreachable server, in the deadline's voice.
++
++    Retry exhaustion and deadline expiry are the same thing to a caller — the
++    MSA server did not deliver — so both raise MsaServerTimeout and both get a
++    503. Reporting one as a generic failure would tell the caller to stop
++    retrying something that is only transiently unavailable.
++    """
++    return (
++        f"MSA server unreachable after {attempts} attempts (gave up while {phase}): {exc}. "
++        "It is most likely rate-limiting this client: retry later, point server_url at a "
++        "self-hosted MMseqs2 server, or supply MSAs directly and set use_msa_server=False."
++    )
++
++
++def _resolve_msa_deadline() -> float | None:
++    """The active deadline, falling back to the env var when none is set.
++
++    The fallback is per call, so it bounds each server query rather than the
++    whole prediction; callers wanting one budget for the request should use
++    ``msa_deadline``.
++    """
++    deadline = _MSA_DEADLINE.get()
++    if deadline is not None:
++        return deadline
++
++    raw = os.environ.get(MSA_TIMEOUT_ENV_VAR, "").strip()
++    if not raw:
++        return None
++    try:
++        budget = float(raw)
++    except ValueError:
++        logger.warning("Ignoring non-numeric %s=%r", MSA_TIMEOUT_ENV_VAR, raw)
++        return None
++    return time.monotonic() + budget if budget > 0 else None
++
++
+ TQDM_BAR_FORMAT = (
+     "{l_bar}{bar}| {n_fmt}/{total_fmt} [elapsed: {elapsed} remaining: {remaining}]"
+ )
+@@ -179,6 +253,18 @@ def query_colabfold_msa_server(
+     # the POST to GET while dropping the body, yielding a misleading "invalid ID".
+     host_url = str(host_url).rstrip("/")
+ 
++    deadline = _resolve_msa_deadline()
++
++    def check_deadline(phase: str) -> None:
++        """Abort the surrounding retry loop once the budget is spent."""
++        if deadline is not None and time.monotonic() >= deadline:
++            raise MsaServerTimeout(
++                f"MSA server did not respond in time (gave up while {phase}). "
++                "It is most likely rate-limiting this client: retry later, point "
++                "server_url at a self-hosted MMseqs2 server, or supply MSAs "
++                "directly and set use_msa_server=False."
++            )
++
+     headers = {}
+     if user_agent != "":
+         headers["User-Agent"] = user_agent
+@@ -198,6 +284,7 @@ def query_colabfold_msa_server(
+ 
+         error_count = 0
+         while True:
++            check_deadline("submitting to the MSA server")
+             try:
+                 # https://requests.readthedocs.io/en/latest/user/advanced/#advanced
+                 # "good practice to set connect timeouts to slightly larger
+@@ -210,6 +297,7 @@ def query_colabfold_msa_server(
+                 )
+             except requests.exceptions.Timeout:
+                 logger.warning("Timeout while submitting to MSA server. Retrying...")
++                time.sleep(5)
+                 continue
+             except Exception as e:
+                 error_count += 1
+@@ -220,7 +308,9 @@ def query_colabfold_msa_server(
+                 logger.warning(f"Error: {e}")
+                 time.sleep(5)
+                 if error_count > 5:
+-                    raise
++                    raise MsaServerTimeout(
++                        _unreachable_message("submitting to the MSA server", error_count, e)
++                    ) from e
+                 continue
+             break
+ 
+@@ -234,6 +324,7 @@ def query_colabfold_msa_server(
+     def status(ID):
+         error_count = 0
+         while True:
++            check_deadline("polling the MSA server for job status")
+             try:
+                 res = requests.get(
+                     f"{host_url}/ticket/{ID}", timeout=6.02, headers=headers
+@@ -242,6 +333,7 @@ def query_colabfold_msa_server(
+                 logger.warning(
+                     "Timeout while fetching status from MSA server. Retrying..."
+                 )
++                time.sleep(5)
+                 continue
+             except Exception as e:
+                 error_count += 1
+@@ -252,7 +344,9 @@ def query_colabfold_msa_server(
+                 logger.warning(f"Error: {e}")
+                 time.sleep(5)
+                 if error_count > 5:
+-                    raise
++                    raise MsaServerTimeout(
++                        _unreachable_message("polling the MSA server for job status", error_count, e)
++                    ) from e
+                 continue
+             break
+         try:
+@@ -265,6 +359,7 @@ def query_colabfold_msa_server(
+     def download(ID, path):
+         error_count = 0
+         while True:
++            check_deadline("downloading MSA results")
+             try:
+                 res = requests.get(
+                     f"{host_url}/result/download/{ID}", timeout=6.02, headers=headers
+@@ -273,6 +368,7 @@ def query_colabfold_msa_server(
+                 logger.warning(
+                     "Timeout while fetching result from MSA server. Retrying..."
+                 )
++                time.sleep(5)
+                 continue
+             except Exception as e:
+                 error_count += 1
+@@ -283,7 +379,9 @@ def query_colabfold_msa_server(
+                 logger.warning(f"Error: {e}")
+                 time.sleep(5)
+                 if error_count > 5:
+-                    raise
++                    raise MsaServerTimeout(
++                        _unreachable_message("downloading MSA results", error_count, e)
++                    ) from e
+                 continue
+             break
+         with open(path, "wb") as out:
+@@ -335,11 +433,13 @@ def query_colabfold_msa_server(
+         TIME_ESTIMATE = 150 * len(seqs_unique)
+         with tqdm(total=TIME_ESTIMATE, bar_format=TQDM_BAR_FORMAT) as pbar:
+             while REDO:
++                check_deadline("waiting for the MSA server to accept the job")
+                 pbar.set_description("SUBMIT")
+ 
+                 # Resubmit job until it goes through
+                 out = submit(seqs_unique, mode, N)
+                 while out["status"] in ["UNKNOWN", "RATELIMIT"]:
++                    check_deadline(f"waiting out a {out['status']} response")
+                     sleep_time = 5 + random.randint(0, 5)
+                     logger.info(f"Sleeping for {sleep_time}s. Reason: {out['status']}")
+                     time.sleep(sleep_time)
+@@ -362,6 +462,7 @@ def query_colabfold_msa_server(
+                 ID, TIME = out["id"], 0
+                 pbar.set_description(out["status"])
+                 while out["status"] in ["UNKNOWN", "RUNNING", "PENDING"]:
++                    check_deadline("waiting for the MSA job to finish")
+                     t = 5 + random.randint(0, 5)
+                     logger.info(f"Sleeping for {t}s. Reason: {out['status']}")
+                     time.sleep(t)
+@@ -425,8 +526,9 @@ def query_colabfold_msa_server(
+                 os.mkdir(TMPL_PATH)
+                 TMPL_LINE = ",".join(TMPL[:20])
+                 response = None
++                error_count = 0
+                 while True:
+-                    error_count = 0
++                    check_deadline("downloading templates")
+                     try:
+                         # "good practice to set connect timeouts to slightly
+                         # larger than a multiple of 3"
+@@ -440,6 +542,7 @@ def query_colabfold_msa_server(
+                         logger.warning(
+                             "Timeout while submitting to template server. Retrying..."
+                         )
++                        time.sleep(5)
+                         continue
+                     except Exception as e:
+                         error_count += 1
+@@ -450,7 +553,9 @@ def query_colabfold_msa_server(
+                         logger.warning(f"Error: {e}")
+                         time.sleep(5)
+                         if error_count > 5:
+-                            raise
++                            raise MsaServerTimeout(
++                                _unreachable_message("downloading templates", error_count, e)
++                            ) from e
+                         continue
+                     break
+                 with tarfile.open(fileobj=response.raw, mode="r|gz") as tar:

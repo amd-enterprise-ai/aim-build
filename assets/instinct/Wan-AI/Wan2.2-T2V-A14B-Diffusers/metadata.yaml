@@ -1,0 +1,32 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Wan2.2 T2V-A14B text-to-video diffusion model (Diffusers format), served via vLLM-Omni."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
+        tags:
+        - "text-to-video"
+        - "diffusion"
+        source: "https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B-Diffusers"
+        variants:
+        - "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
+        publisher: "Wan-AI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Wan2.2 T2V-A14B is a 14-billion-parameter Mixture-of-Experts text-to-video diffusion model from Wan-AI. It generates 5-second video clips at 480P and 720P resolutions from text prompts, using a two-stage MoE design (high-noise and low-noise experts) that enlarges model capacity while keeping per-step compute roughly constant. The A14B variant was trained on significantly more data than Wan2.1 (65.6% more images and 83.2% more videos). This is the Diffusers-format checkpoint, intended for serving via vLLM-Omni's diffusion pipeline."
+      title: "Wan 2.2 T2V A14B (Diffusers)"

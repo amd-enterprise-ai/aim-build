@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "0.13"
+version = "2026.9"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -36,11 +36,8 @@ instinct = [
 ]
 
 epyc = [
-    # huggingface-hub is intentionally not pinned here: the zentorch vLLM 0.22.1
-    # base image ships huggingface-hub 1.x (with transformers 5.x). Pinning the
-    # PyPI-stable 0.x line downgrades hub and breaks transformers
-    # (ImportError: is_offline_mode). aim_runtime only uses the stable
-    # HfApi/snapshot_download APIs, which the base image's hub already provides.
+    # Match the zentorch vLLM 0.22.1 base image, which ships hub 1.x; do not cap to the 0.x line.
+    "huggingface-hub==1.18.0",
 ]
 
 radeon = [
@@ -116,11 +113,20 @@ aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["aim_runtime", "aim_runtime.harness", "aim_runtime.engines", "aim_common", "aim_utils"]
+packages = [
+    "aim_runtime",
+    "aim_runtime.harness",
+    "aim_runtime.engines",
+    "aim_runtime.evaluation",
+    "aim_runtime.evaluation.backends",
+    "aim_common",
+    "aim_utils",
+]
 py-modules = ["entrypoint"]
 
 [tool.setuptools.package-data]
 aim_runtime = ["benchmark-config.yaml"]
+"aim_runtime.evaluation" = ["evaluation-config.yaml"]
 
 [tool.black]
 target-version = ['py312']
@@ -153,6 +159,9 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    # Harness tests under assets/*/image/tests/ have no __init__.py, so the default
+    # prepend import mode would collide on same-named test modules across harnesses.
+    "--import-mode=importlib",
     "-m", "not integration",  # Exclude integration tests by default
     "--cov",
     "--cov-report=term",

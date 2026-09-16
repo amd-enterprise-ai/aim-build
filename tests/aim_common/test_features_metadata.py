@@ -9,16 +9,26 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from aim_common import AdapterToken, Engine, Metric, Precision, ProfileMetadata, ProfileType
+from aim_common import (
+    AcceleratorModel,
+    AcceleratorType,
+    AdapterToken,
+    Engine,
+    Metric,
+    Precision,
+    ProfileMetadata,
+    ProfileType,
+)
 
 
 def _metadata(**overrides) -> ProfileMetadata:
     base = dict(
         engine=Engine.VLLM,
+        accelerator_type=AcceleratorType.GPU,
+        accelerator_model=AcceleratorModel.MI300X,
         precision=Precision.BF16,
         accelerator_count=1,
         metric=Metric.LATENCY,
-        manual_selection_only=False,
         type=ProfileType.OPTIMIZED,
     )
     base.update(overrides)

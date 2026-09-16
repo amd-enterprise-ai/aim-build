@@ -14,8 +14,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aim_common.object_model import GPUModel, Metric, Precision
-
 
 class OciImage(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -81,17 +79,6 @@ class BaseMetadataModel(BaseModel):
     org: OrgMetadata
 
 
-class RecommendedDeployment(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    gpuModel: GPUModel
-    gpuCount: int = Field(ge=0, le=8)
-    precision: Optional[Precision] = None
-    metric: Optional[Metric] = None
-    description: Optional[str] = None
-    profileId: Optional[str] = None
-
-
 class AimModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -100,7 +87,6 @@ class AimModel(BaseModel):
     source: Optional[str] = None
     tags: Optional[List[str]] = None
     variants: Optional[List[str]] = None
-    recommendedDeployments: Optional[List[RecommendedDeployment]] = None
 
 
 class HfToken(BaseModel):

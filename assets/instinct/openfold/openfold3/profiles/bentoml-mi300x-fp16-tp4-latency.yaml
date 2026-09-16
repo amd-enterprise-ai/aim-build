@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Data-parallel, not tensor-parallel: OpenFold3 does not shard a model across
+# accelerators. This profile runs 4 BentoML workers with one accelerator pinned
+# to each, so the deployment serves up to 4 predictions concurrently. The `tp4`
+# stem is the enforced filename convention for accelerator_count (see
+# aim_utils.profile_utils check-metadata), not a claim of tensor parallelism.
+#
+# The serving recipe is identical to bentoml-mi300x-fp16-tp1-latency. See the
+# image README for the concurrency model, its costs, and the TorchInductor
+# rationale behind these env vars.
+
+aim_id: openfold/openfold3
+model_id: openfold/openfold3
+metadata:
+  accelerator_count: 4
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  metric: latency
+  precision: fp16
+  primary: false
+  type: optimized
+engine_args: {}
+env_vars:
+  BENTOML_DISABLE_GPU_ALLOCATION: '1'
+  NCCL_MIN_NCHANNELS: '112'
+  OPENFOLD3_ACCELERATOR: gpu
+  OPENFOLD3_COMPILE_DIFFUSION_CONDITIONING: inductor
+  OPENFOLD3_COMPILE_DIFFUSION_TRANSFORMER: inductor
+  OPENFOLD3_COMPILE_PAIRFORMER_BLOCK: inductor
+  OPENFOLD3_COMPILE_PAIRFORMER_BLOCK_MODE: max-autotune-no-cudagraphs
+  OPENFOLD3_INDUCTOR_GEMM_BACKENDS: TRITON
+  OPENFOLD3_NUM_WORKERS: '0'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

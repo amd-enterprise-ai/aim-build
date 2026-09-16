@@ -13,6 +13,7 @@ from aim_utils.image_naming import (
     ImageName,
     get_base_image_name,
     get_image_name,
+    get_image_ref_label,
     get_model_image_name,
     parse_image_name,
     parse_image_ref,
@@ -89,30 +90,41 @@ class TestModelImageNaming:
         assert name.public == "aim-instinct-target-bentoml-model-meta-llama-llama-3-1-8b-instruct"
         assert name.has_alias is False
 
-    def test_model_dedicated_base_is_target_qualified(self):
-        """A model-dedicated base (target_id == model canonical name) is still target-qualified.
+    def test_model_dedicated_base_drops_duplicate_target_segment(self):
+        """A model-dedicated base (target_id == model canonical name) drops the duplicate.
 
-        Every named target uses one uniform scheme; because the target id equals the model key,
-        it repeats on both sides: aim-instinct-target-mit-boltz2-model-mit-boltz2. No public alias.
+        When the target id equals the model key, the duplicated 'target-{id}' segment is
+        dropped, yielding the simpler aim-instinct-model-mit-boltz2. No public alias.
         """
         name = get_model_image_name(
             AcceleratorFamily.INSTINCT.value,
             canonical_name_sanitized="mit-boltz2",
             target_id="mit-boltz2",
         )
-        assert name.canonical == "aim-instinct-target-mit-boltz2-model-mit-boltz2"
-        assert name.public == "aim-instinct-target-mit-boltz2-model-mit-boltz2"
+        assert name.canonical == "aim-instinct-model-mit-boltz2"
+        assert name.public == "aim-instinct-model-mit-boltz2"
         assert name.has_alias is False
 
-    def test_model_dedicated_base_target_qualified_non_legacy_accelerator(self):
-        """Non-instinct model-dedicated base is also target-qualified, no public alias."""
+    def test_model_dedicated_base_openfold_example(self):
+        """The EAI-7027 example: openfold3 model-dedicated base gets a simplified name."""
+        name = get_model_image_name(
+            AcceleratorFamily.INSTINCT.value,
+            canonical_name_sanitized="openfold-openfold3",
+            target_id="openfold-openfold3",
+        )
+        assert name.canonical == "aim-instinct-model-openfold-openfold3"
+        assert name.public == "aim-instinct-model-openfold-openfold3"
+        assert name.has_alias is False
+
+    def test_model_dedicated_base_drops_duplicate_non_legacy_accelerator(self):
+        """Non-instinct model-dedicated base also drops the duplicate, no public alias."""
         name = get_model_image_name(
             AcceleratorFamily.EPYC.value,
             canonical_name_sanitized="example-echo-model",
             target_id="example-echo-model",
         )
-        assert name.canonical == "aim-epyc-target-example-echo-model-model-example-echo-model"
-        assert name.public == "aim-epyc-target-example-echo-model-model-example-echo-model"
+        assert name.canonical == "aim-epyc-model-example-echo-model"
+        assert name.public == "aim-epyc-model-example-echo-model"
         assert name.has_alias is False
 
 
@@ -232,6 +244,22 @@ class TestParseImageName:
         assert parsed.is_base is False
         assert parsed.base_target_id == "bentoml"
 
+    def test_parse_self_targeted_model(self):
+        """Parse simplified model-dedicated model name (target_id == model name)."""
+        parsed = parse_image_name("aim-instinct-model-openfold-openfold3")
+        assert parsed.accelerator == "instinct"
+        assert parsed.canonical_name_sanitized == "openfold-openfold3"
+        assert parsed.is_base is False
+        assert parsed.base_target_id == "openfold-openfold3"
+
+    def test_parse_self_targeted_model_non_legacy_accelerator(self):
+        """Parse simplified model-dedicated model name on a non-instinct accelerator."""
+        parsed = parse_image_name("aim-epyc-model-example-echo-model")
+        assert parsed.accelerator == "epyc"
+        assert parsed.canonical_name_sanitized == "example-echo-model"
+        assert parsed.is_base is False
+        assert parsed.base_target_id == "example-echo-model"
+
     def test_parse_unknown_format(self):
         """Unknown format fails fast instead of returning a synthetic fallback object."""
         with pytest.raises(ValueError, match="Unrecognized image repository format"):
@@ -296,6 +324,16 @@ class TestParseImageRef:
     def test_illegal_characters_raise(self):
         with pytest.raises(ValueError, match="may contain only"):
             parse_image_ref("ghcr.io/silo gen/aim-instinct-base:0.3.0")
+
+
+class TestGetImageRefLabel:
+    """Test short labels for image references."""
+
+    def test_valid_reference_uses_repository_and_tag(self):
+        assert get_image_ref_label("ghcr.io/silogen/aim-base:0.7-rc28") == "aim-base:0.7-rc28"
+
+    def test_invalid_reference_uses_final_path_segment(self):
+        assert get_image_ref_label("registry/path/invalid|image") == "invalid|image"
 
 
 class TestTargetAwareBaseImageNaming:
@@ -456,6 +494,11 @@ class TestGeneratorInputValidation:
         with pytest.raises(ValueError, match="Must not start with 'target-'"):
             get_base_image_name("instinct", "target-foo-model-bar")
 
+    def test_get_base_image_name_rejects_model_prefix(self):
+        """target_id starting with 'model-' is reserved for the model-dedicated image namespace."""
+        with pytest.raises(ValueError, match="Must not start with 'model-'"):
+            get_base_image_name("instinct", "model-foo")
+
 
 class TestParserNamespaceDisjointness:
     """Verify that the base and model parser namespaces are disjoint by construction.
@@ -501,6 +544,30 @@ class TestParserNamespaceDisjointness:
         assert parsed.base_target_id == "bentoml"
         assert parsed.canonical_name_sanitized == "meta-llama-llama-3-1-8b-instruct"
 
+    def test_self_targeted_model_takes_precedence_over_base_parse(self):
+        """aim-instinct-model-foo-base parses as a self-targeted model, not a base image.
+
+        Base target_ids cannot start with 'model-' (rejected at generation), so the
+        'model-' prefix unambiguously belongs to the model-dedicated namespace even when
+        the model name happens to end in '-base'.
+        """
+        parsed = parse_image_name("aim-instinct-model-foo-base")
+        assert parsed.is_base is False
+        assert parsed.accelerator == "instinct"
+        assert parsed.base_target_id == "foo-base"
+        assert parsed.canonical_name_sanitized == "foo-base"
+
+    def test_named_base_is_not_misparsed_as_self_targeted_model(self):
+        """A genuine named base like aim-instinct-monai-base is still a base image.
+
+        Its target_id ('monai') does not start with 'model-', so the self-targeted
+        model parser does not claim it.
+        """
+        parsed = parse_image_name("aim-instinct-monai-base")
+        assert parsed.is_base is True
+        assert parsed.accelerator == "instinct"
+        assert parsed.base_target_id == "monai"
+
     def test_roundtrip_base_name_is_stable(self):
         """generate → parse roundtrip for a named base target is stable."""
         name = get_base_image_name("instinct", "bentoml")
@@ -516,3 +583,12 @@ class TestParserNamespaceDisjointness:
         assert parsed.is_base is False
         assert parsed.base_target_id == "bentoml"
         assert parsed.canonical_name_sanitized == "meta-llama-llama-3-1-8b-instruct"
+
+    def test_roundtrip_self_targeted_model_name_is_stable(self):
+        """generate → parse roundtrip for a model-dedicated (self-targeted) image is stable."""
+        name = get_model_image_name("instinct", "openfold-openfold3", "openfold-openfold3")
+        assert name.canonical == "aim-instinct-model-openfold-openfold3"
+        parsed = parse_image_name(name.canonical)
+        assert parsed.is_base is False
+        assert parsed.base_target_id == "openfold-openfold3"
+        assert parsed.canonical_name_sanitized == "openfold-openfold3"

@@ -6,9 +6,9 @@
 ModelHarness — abstract base class for model validation, benchmarking, and evaluation.
 
 Each AIM image ships a concrete harness implementation. Standard vLLM/VLM models
-use VLLMHarness (NOTE: VLLM Harness has not been implemented yet) (shipped with aim-runtime).
-Specialized models (BentoML, custom engines) subclass ModelHarness in ``image/src/harness.py``
-within their asset directory.
+use VLLMHarness (shipped with aim-runtime). Specialized models (BentoML, custom
+engines) subclass ModelHarness in ``image/src/harness.py`` within their asset
+directory.
 
 The entrypoint CLI discovers the active harness via
 :func:`aim_runtime.harness.discovery.discover_harness` and dispatches
@@ -43,14 +43,15 @@ class CheckResultType(StrEnum):
 class CheckScope(StrEnum):
     """When a check is eligible to run.
 
-    RUNTIME — fast checks that only need a live service (health, smoke tests).
-              These run on every deployment / restart.
-    OFFLINE — heavier checks that may take minutes (accuracy, throughput).
-              These run in CI or on-demand.
+    RUNTIME — needs no service. Reads the profile only (schema, engine args), so
+              it is safe anywhere and takes milliseconds.
+    OFFLINE — needs a live service to talk to (health, endpoints, capabilities,
+              accuracy, throughput). May take minutes.
 
     ``HarnessConfig.check_scopes`` is a *set* of scopes.  A check runs when
-    its scope is in the set — e.g. ``{RUNTIME}`` for smoke tests only,
-    ``{RUNTIME, OFFLINE}`` for the full suite.
+    its scope is in the set — e.g. ``{RUNTIME}`` for profile-only validation,
+    ``{RUNTIME, OFFLINE}`` for the full suite. The CLI also reads this to decide
+    whether it has to start a server: ``OFFLINE`` in the set means yes.
     """
 
     RUNTIME = "runtime"
@@ -88,18 +89,58 @@ class CheckInfo:
 
 @dataclass
 class CheckResult:
-    """Outcome of a single check within a validation / benchmark run."""
+    """Outcome of a single check within a validation / benchmark run.
+
+    ``warnings`` carries observations that are worth surfacing but must not fail
+    the run — e.g. a model that declines to call a tool it was offered. ``skipped``
+    marks a check that never ran (an undeclared capability, a missing validator);
+    skipped checks are excluded from the pass/fail verdict.
+    """
 
     name: str
     result_type: CheckResultType
     success: bool
-    value: Any  # bool for PASS_FAIL, float for SCORE/COMPARISON
+    value: Any  # bool for PASS_FAIL, float for SCORE/COMPARISON, None when skipped
     detail: str = ""
+    warnings: list[str] = field(default_factory=list)
+    skipped: bool = False
+    gating: bool = True
+
+
+# Constructors for the three PASS_FAIL outcomes every harness reports. Plain
+# functions rather than CheckResult classmethods because a ``skipped``
+# classmethod would shadow the field of the same name.
+
+
+def passed(
+    name: str,
+    detail: str = "",
+    warnings: list[str] | None = None,
+    *,
+    gating: bool = True,
+) -> CheckResult:
+    return CheckResult(name, CheckResultType.PASS_FAIL, True, True, detail, warnings=warnings or [], gating=gating)
+
+
+def failed(name: str, detail: str, *, gating: bool = True) -> CheckResult:
+    return CheckResult(name, CheckResultType.PASS_FAIL, False, False, detail, gating=gating)
+
+
+def skipped(name: str, detail: str, *, gating: bool = True) -> CheckResult:
+    """A check that never ran; excluded from the pass/fail verdict."""
+    return CheckResult(name, CheckResultType.PASS_FAIL, True, None, detail, skipped=True, gating=gating)
 
 
 # ---------------------------------------------------------------------------
 # Harness config & aggregate result
 # ---------------------------------------------------------------------------
+
+#: ``HarnessConfig.extra`` key the CLI uses to hand a harness the readiness time
+#: it already measured while starting the service, so ``validate()`` doesn't
+#: re-probe an already-live service and report a near-zero ``ready_time_seconds``.
+#: Shared between ``entrypoint.py`` (writer) and each harness (reader) so the
+#: key can't drift between the two call sites.
+STARTUP_READY_TIME_SECONDS_KEY = "startup_ready_time_seconds"
 
 
 @dataclass
@@ -113,7 +154,7 @@ class HarnessConfig:
     profile: dict[str, Any]
     service_url: str | None = None
     timeout_seconds: int = 300
-    output_format: str = "json"  # "json" | "yaml" | "ci"
+    output_format: str = "json"  # "json" | "table" | "ci"
     check_scopes: set[CheckScope] = field(default_factory=CheckScope.all)
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -142,6 +183,20 @@ class HarnessConfig:
             return self.profile[key]
         return default
 
+    def has_capability(self, name: str) -> bool:
+        """Return whether the profile declares support for a capability.
+
+        Reads ``metadata.capabilities.<name>`` (all flags default to ``False``),
+        so checks for a capability the profile never claimed can be skipped
+        rather than failed. A ``--config`` entry of the same name wins, which is
+        how CI overrides the profile flag (e.g. ``REASONING_ENABLED``).
+        """
+        if name in self.extra:
+            return bool(self.extra[name])
+        metadata = self.profile.get("metadata") or {}
+        capabilities = metadata.get("capabilities") or {}
+        return bool(capabilities.get(name, False))
+
 
 @dataclass
 class HarnessResult:
@@ -164,6 +219,9 @@ class HarnessResult:
                     "success": c.success,
                     "value": c.value,
                     "detail": c.detail,
+                    "warnings": list(c.warnings),
+                    "skipped": c.skipped,
+                    "gating": c.gating,
                 }
                 for c in self.checks
             ],
@@ -210,20 +268,10 @@ class ModelHarness(ABC):
     def health_check(self, service_url: str, timeout_seconds: int = 60) -> bool:
         """Check if the model server is ready.
 
-        Default implementation polls ``/v1/models`` (OpenAI-compatible).
-        Specialized harnesses should override for non-OpenAI endpoints.
+        Default implementation polls ``/v1/models`` until it serves a model, the
+        same readiness signal the OpenAI-compatible checks use. Specialized
+        harnesses should override for non-OpenAI endpoints.
         """
-        import time
-        from urllib.error import HTTPError, URLError
-        from urllib.request import Request, urlopen
+        from aim_runtime.harness.service_checks import probe_api_health
 
-        deadline = time.time() + timeout_seconds
-        while time.time() < deadline:
-            try:
-                with urlopen(Request(f"{service_url}/v1/models"), timeout=5) as resp:
-                    if resp.status == 200:
-                        return True
-            except (HTTPError, URLError, OSError):
-                pass
-            time.sleep(2.0)
-        return False
+        return probe_api_health(service_url, timeout_seconds=timeout_seconds).check.success

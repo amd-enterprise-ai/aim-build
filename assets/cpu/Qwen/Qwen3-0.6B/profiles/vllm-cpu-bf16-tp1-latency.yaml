@@ -9,7 +9,6 @@ metadata:
   accelerator_model: CPU
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: true
   metric: latency
   precision: bf16
   primary: true

@@ -9,7 +9,6 @@ metadata:
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: bf16
   primary: true
@@ -22,7 +21,7 @@ env_vars:
   OMP_NUM_THREADS: '192'
   TORCHINDUCTOR_AUTOGRAD_CACHE: '0'
   TORCHINDUCTOR_FREEZING: '1'
-  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_KVCACHE_SPACE: '57'
   VLLM_CPU_NUM_OF_RESERVED_CPU: '12'
   VLLM_CPU_OMP_THREADS_BIND: auto
   VLLM_USE_AOT_COMPILE: '0'

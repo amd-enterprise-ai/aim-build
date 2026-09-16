@@ -21,8 +21,11 @@ ARG PARENT_TAG
 # - vllm/vllm-openai-rocm:v0.19.0                               = LMCache v0.4.4      = 6fbec46
 # - vllm/vllm-openai-rocm:v0.21.0                               = LMCache v0.4.6      = a7f22be
 # - vllm/vllm-openai-rocm:v0.23.0                               = LMCache v0.4.7      = 307439a
+# - vllm/vllm-openai-rocm:v0.25.1                               = LMCache v0.5.2      = cd2c0d6
+# - vllm/vllm-openai-rocm:v0.26.0                               = LMCache v0.5.2      = cd2c0d6
+# - vllm/vllm-openai-rocm:v0.27.1                               = LMCache v0.5.2      = cd2c0d6
 ARG INSTALL_LMCACHE=true
-ARG INSTALL_LMCACHE_COMMIT=307439a
+ARG INSTALL_LMCACHE_COMMIT=cd2c0d6
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -86,6 +89,40 @@ RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
     else \
         echo "Skipping LMCache installation (INSTALL_LMCACHE=${INSTALL_LMCACHE})"; \
     fi
+
+# Install any base-flavor extra deps shipped in its config dir (copied above). Done
+# last, after LMCache, so nothing downstream re-pins them. vllm-omni uses this for
+# huggingface-hub 1.x, which both the instinct lock and the LMCache build downgrade.
+RUN if [ -f "${AIM_CONFIG_PATH}/requirements-extra.txt" ]; then \
+        echo "Installing base extra requirements from ${AIM_CONFIG_PATH}/requirements-extra.txt"; \
+        pip3 install --no-cache-dir -r "${AIM_CONFIG_PATH}/requirements-extra.txt"; \
+    fi
+
+# Accuracy-evaluation backend for `aim-runtime evaluate`.
+# Installed into its own virtualenv, never into the serving environment: lm-eval
+# pins transformers/numpy/datasets versions of its own, and upgrading those in
+# place would rebind the interpreter that serves the model. `evaluate` runs the
+# backend as a subprocess, so an isolated venv costs nothing at serving time —
+# and the pinned set carries no torch, so the venv adds no framework copy.
+# Opt-in per base target via assets/<accelerator>/base/config.yaml
+# (install_evaluation_deps); prod images can ship without it.
+ARG INSTALL_EVALUATION_DEPS=false
+COPY requirements/evaluation-requirements.txt /workspace/aim-runtime/
+RUN if [ "$INSTALL_EVALUATION_DEPS" = "true" ]; then \
+        python3 -m venv /workspace/tools/eval-venv && \
+        /workspace/tools/eval-venv/bin/pip install --no-cache-dir --upgrade pip && \
+        /workspace/tools/eval-venv/bin/pip install --no-cache-dir \
+            -r /workspace/aim-runtime/evaluation-requirements.txt && \
+        /workspace/tools/eval-venv/bin/lm_eval --help > /dev/null; \
+    else \
+        echo "Skipping evaluation dependencies (INSTALL_EVALUATION_DEPS=${INSTALL_EVALUATION_DEPS})"; \
+    fi
+
+# Points `aim-runtime evaluate` at the venv above. Set unconditionally: when the
+# venv was not installed the availability probe reports this exact path as
+# missing, which names the remediation better than a bare "lm_eval not found".
+# Must match IN_IMAGE_BACKEND_COMMAND in src/aim_runtime/evaluation/config.py.
+ENV AIM_EVAL_BACKEND_COMMAND="/workspace/tools/eval-venv/bin/lm_eval"
 
 # Pre-built AITER JIT attention kernels (per GPU architecture).
 # Built by CI on a GPU pod, stored as a container image in GHCR.

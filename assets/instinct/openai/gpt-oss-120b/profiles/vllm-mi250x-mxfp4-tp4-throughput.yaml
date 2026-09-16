@@ -9,9 +9,6 @@ metadata:
   accelerator_model: MI250X
   accelerator_type: gpu
   engine: vllm
-  gpu: MI250X
-  gpu_count: 4
-  manual_selection_only: true
   metric: throughput
   precision: fp4
   primary: false

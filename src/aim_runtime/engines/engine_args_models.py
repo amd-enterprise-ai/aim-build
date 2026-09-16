@@ -38,6 +38,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from aim_common.compat import StrEnum
+from aim_common.engine_args import engine_flag_is_set, normalize_engine_arg_key, normalize_engine_args
 
 
 class EngineArgsFormat(StrEnum):
@@ -81,18 +82,30 @@ def engine_args_to_cli_list(
             accept forwarded KV pairs (e.g. BentoML ``serve --arg …``).
 
     Keys are normalized (underscore → hyphen) for STANDARD format so both
-    snake_case and kebab-case inputs produce the same ``--kebab-case`` flags.
+    snake_case and kebab-case inputs produce the same ``--kebab-case`` flags, and
+    a boolean flag is emitted per :func:`aim_common.engine_args.engine_flag_is_set`.
+    Both come from ``aim_common.engine_args``, which is also what everything that
+    reads a flag out of engine_args uses, so writer and readers agree.
+
+    A document that spells one flag twice (``trust-remote-code`` and
+    ``trust_remote_code``) is collapsed by
+    :func:`aim_common.engine_args.normalize_engine_args`, which warns and keeps
+    the last value. A reader collapses it the same way, so the two still agree.
+    FORWARDED keys are passed through instead, because ``--arg key=value`` names a
+    parameter of the engine's own API and not a CLI flag.
     """
     cli_args: list[str] = []
-    for key, value in engine_args.items():
+    if args_format == EngineArgsFormat.FORWARDED:
+        collapsed = dict(engine_args)
+    else:
+        collapsed = normalize_engine_args(engine_args)
+    for key, value in collapsed.items():
         if args_format == EngineArgsFormat.FORWARDED:
             cli_args.extend(["--arg", f"{key}={True if value is None else value}"])
             continue
-        flag = f"--{key.replace('_', '-')}"
-        if value is None:
-            cli_args.append(flag)
-        elif isinstance(value, bool):
-            if value:
+        flag = f"--{normalize_engine_arg_key(key)}"
+        if value is None or isinstance(value, bool):
+            if engine_flag_is_set(value):
                 cli_args.append(flag)
         elif isinstance(value, (list, tuple)):
             cli_args.append(flag)

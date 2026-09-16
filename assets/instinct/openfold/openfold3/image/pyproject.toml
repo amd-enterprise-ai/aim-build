@@ -13,10 +13,17 @@ requires-python = ">=3.10,<3.13"
 description = "AIM serving wrapper for OpenFold3"
 dependencies = [
     "bentoml==1.4.35",
+    # bentoml pulls anyio transitively (httpx-ws) and only asks for >=4, so an
+    # unpinned build tracks whatever is newest on PyPI. anyio 4.15 raised its
+    # floor to typing_extensions>=4.16 and imports `sentinel` from it, but the
+    # AIM base layer installs aim-build's requirements.txt afterwards, which
+    # pins typing-extensions==4.15.0 -- the downgrade then makes `bentoml serve`
+    # fail at import. Capped here until that pin allows 4.16.
+    "anyio==4.14.2",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
 ]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["service", "runner", "harness"]
+py-modules = ["service", "runner", "harness", "gpu_affinity"]

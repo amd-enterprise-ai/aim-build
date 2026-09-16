@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: zai-org/GLM-5.2
+model_id: zai-org/GLM-5.2-FP8
+metadata:
+  accelerator_count: 8
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: vllm
+  metric: throughput
+  precision: fp8
+  primary: true
+  type: optimized
+engine_args:
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: auto
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.8
+  kv-cache-dtype: fp8_e4m3
+  linear-backend: aiter
+  max-model-len: -1
+  max-num-batched-tokens: 2048
+  moe-backend: aiter
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  reasoning-parser: glm45
+  tensor-parallel-size: 8
+  tool-call-parser: glm47
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_FUSION_SHARED_EXPERTS: '1'

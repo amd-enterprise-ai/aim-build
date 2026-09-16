@@ -215,6 +215,7 @@ __marimo__/
 
 # Other
 .archive/
+.github/copilot-cli/node_modules/
 
 # CI logs
 logs/
@@ -226,6 +227,7 @@ htmlcov-ci/
 
 # Ignore overrides. They are created for debugging purposes and should not be committed.
 docs/overrides/*
+docs/*/overrides/*
 
 # Temporary files generated for various purposes
 docs/temp/*

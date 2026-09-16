@@ -3,7 +3,16 @@
 # SPDX-License-Identifier: MIT
 import pytest
 
-from aim_common import Engine, GPUModel, Metric, Precision, ProfileCapabilities, ProfileMetadata, ProfileType
+from aim_common import (
+    AcceleratorType,
+    Engine,
+    GPUModel,
+    Metric,
+    Precision,
+    ProfileCapabilities,
+    ProfileMetadata,
+    ProfileType,
+)
 
 
 def test_gpu_model_from_string_happy_path():
@@ -49,12 +58,12 @@ def test_gpu_model_from_string_with_default_happy_path():
 
 def test_profile_metadata_capabilities_default_all_false():
     profile = ProfileMetadata(
+        accelerator_type=AcceleratorType.GPU,
         engine=Engine.VLLM,
         accelerator_model=GPUModel.MI300X,
         precision=Precision.FP16,
         accelerator_count=1,
         metric=Metric.LATENCY,
-        manual_selection_only=False,
         type=ProfileType.GENERAL,
     )
 
@@ -65,12 +74,12 @@ def test_profile_metadata_capabilities_default_all_false():
 
 def test_profile_metadata_capabilities_round_trip():
     profile = ProfileMetadata(
+        accelerator_type=AcceleratorType.GPU,
         engine=Engine.VLLM,
         accelerator_model=GPUModel.MI300X,
         precision=Precision.FP16,
         accelerator_count=1,
         metric=Metric.LATENCY,
-        manual_selection_only=False,
         type=ProfileType.GENERAL,
         capabilities=ProfileCapabilities(tool_calling=True, structured_outputs=True, reasoning=True),
     )
@@ -86,11 +95,11 @@ def test_profile_metadata_capabilities_partial_round_trip():
     restored = ProfileMetadata.from_dict(
         {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "MI300X",
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "general",
             "capabilities": {"reasoning": True},
         }

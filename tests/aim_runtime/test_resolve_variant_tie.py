@@ -15,6 +15,7 @@ sys.path.insert(0, str(src_dir))
 
 from aim_common.object_model import (  # noqa: E402
     AcceleratorModel,
+    AcceleratorType,
     Engine,
     Metric,
     Precision,
@@ -28,12 +29,12 @@ from aim_runtime.profile_selector import ProfileNotFound, _resolve_variant_tie  
 def _make_profile(variant: Optional[str] = None) -> Profile:
     """Build a minimal Profile for testing _resolve_variant_tie."""
     metadata = ProfileMetadata(
+        accelerator_type=AcceleratorType.GPU,
         engine=Engine.VLLM,
         accelerator_model=AcceleratorModel.MI300X,
         precision=Precision.FP16,
         accelerator_count=1,
         metric=Metric.LATENCY,
-        manual_selection_only=False,
         type=ProfileType.OPTIMIZED,
         variant=variant,
     )
@@ -64,21 +65,21 @@ class TestResolveVariantTie:
     def test_no_tie_returns_first(self):
         """When candidates differ in accelerator_count (not a variant tie), return the first."""
         p1 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.OPTIMIZED,
         )
         p2 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=2,  # different — no tie
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.OPTIMIZED,
         )
 

@@ -9,7 +9,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aim_common.object_model import AcceleratorModel, Engine, Metric, Precision, ProfileMetadata, ProfileType
+from aim_common.object_model import (
+    AcceleratorModel,
+    AcceleratorType,
+    Engine,
+    Metric,
+    Precision,
+    ProfileMetadata,
+    ProfileType,
+)
 from aim_utils.profile_utils import (
     FileNameFormatMismatch,
     ProfileFileValueResolver,
@@ -112,7 +120,6 @@ class TestProfileTypeEvaluator:
         evaluator = ProfileTypeEvaluator(Path("test.yaml"), mock_resolver)
         result = evaluator.evaluate()
         assert result.profile_type == ProfileType.OPTIMIZED
-        assert result.manual_selection_only is False
 
     @patch("aim_utils.profile_utils.ProfileHandling")
     @patch("aim_utils.profile_utils.read_yaml")
@@ -130,7 +137,6 @@ class TestProfileTypeEvaluator:
         evaluator = ProfileTypeEvaluator(Path("test.yaml"), mock_resolver)
         result = evaluator.evaluate()
         assert result.profile_type == ProfileType.PREVIEW
-        assert result.manual_selection_only is False
 
     @patch("aim_utils.profile_utils.ProfileHandling")
     @patch("aim_utils.profile_utils.read_yaml")
@@ -148,7 +154,6 @@ class TestProfileTypeEvaluator:
         evaluator = ProfileTypeEvaluator(Path("test.yaml"), mock_resolver)
         result = evaluator.evaluate()
         assert result.profile_type == ProfileType.UNOPTIMIZED
-        assert result.manual_selection_only is True
 
     @patch("aim_utils.profile_utils.ProfileHandling")
     @patch("aim_utils.profile_utils.read_yaml")
@@ -166,7 +171,6 @@ class TestProfileTypeEvaluator:
         evaluator = ProfileTypeEvaluator(Path("test.yaml"), mock_resolver)
         result = evaluator.evaluate()
         assert result.profile_type is None
-        assert result.manual_selection_only is True
 
     @patch("aim_utils.profile_utils.ProfileHandling")
     @patch("aim_utils.profile_utils.read_yaml")
@@ -226,11 +230,11 @@ def _make_metadata(**overrides) -> ProfileMetadata:
     """Build a valid ProfileMetadata with sensible defaults, accepting field overrides."""
     defaults = dict(
         engine=Engine.VLLM,
+        accelerator_type=AcceleratorType.GPU,
         accelerator_model=AcceleratorModel.MI300X,
         precision=Precision.FP8,
         accelerator_count=1,
         metric=Metric.LATENCY,
-        manual_selection_only=False,
         type=ProfileType.OPTIMIZED,
     )
     defaults.update(overrides)

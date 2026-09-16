@@ -1,0 +1,130 @@
+diff --git a/openfold3/core/data/pipelines/preprocessing/template.py b/openfold3/core/data/pipelines/preprocessing/template.py
+index 9c15d10..0b45416 100644
+--- a/openfold3/core/data/pipelines/preprocessing/template.py
++++ b/openfold3/core/data/pipelines/preprocessing/template.py
+@@ -102,6 +102,34 @@ from openfold3.projects.of3_all_atom.config.inference_query_format import (
+ logger = logging.getLogger(__name__)
+ 
+ 
++def _map_items(fn, items, *, n_processes: int, chunksize: int, desc: str) -> None:
++    """Apply ``fn`` to every item, forking only when more than one process is asked for.
++
++    ``mp.Pool`` forks even for a single worker. A caller that dispatches work to
++    a thread — a serving layer running sync handlers on a worker thread, for
++    instance — then forks from a non-main thread, and the child can inherit a
++    lock held by another thread; the pool's ``join()`` on teardown never
++    returns. Python warns about this (``DeprecationWarning: This process is
++    multi-threaded, use of fork() may lead to deadlocks in the child``).
++
++    With ``n_processes <= 1`` there is no parallelism to gain, so run in-process
++    and avoid the fork entirely. The progress bar and the order of side effects
++    are unchanged.
++    """
++    if n_processes <= 1:
++        for item in tqdm(items, total=len(items), desc=desc):
++            fn(item)
++        return
++
++    with mp.Pool(n_processes) as pool:
++        for _ in tqdm(
++            pool.imap_unordered(fn, items, chunksize=chunksize),
++            total=len(items),
++            desc=desc,
++        ):
++            pass
++
++
+ # TODO: rename variables to be PDB-agnostic
+ # --- Template alignment preprocessing ---
+ # Step 1/3: Create sequence cache for template structures
+@@ -1896,22 +1924,24 @@ class TemplatePreprocessor:
+     def __call__(self) -> None:
+         # Preprocess template alignments into template cache entries
+         if len(self.inputs) >= 1:
+-            manager = mp.Manager()
+-            self.processed_cache_keys = manager.dict()
+-            self.template_ids_by_cache_key = manager.dict()
+-            with mp.Pool(self.n_processes) as pool:
+-                for _ in tqdm(
+-                    pool.imap_unordered(
+-                        self.preprocess_templates,
+-                        # .values(): iterating the mapping itself would hand the
+-                        # workers cache-key strings
+-                        self.inputs.values(),
+-                        chunksize=self.chunksize,
+-                    ),
+-                    total=len(self.inputs),
+-                    desc="Preprocessing templates",
+-                ):
+-                    pass
++            if self.n_processes <= 1:
++                # Plain dicts: the manager exists only to share these across
++                # forked workers, and it forks a server process of its own.
++                self.processed_cache_keys = {}
++                self.template_ids_by_cache_key = {}
++            else:
++                manager = mp.Manager()
++                self.processed_cache_keys = manager.dict()
++                self.template_ids_by_cache_key = manager.dict()
++            _map_items(
++                self.preprocess_templates,
++                # .values(): iterating the mapping itself would hand the
++                # workers cache-key strings
++                self.inputs.values(),
++                n_processes=self.n_processes,
++                chunksize=self.chunksize,
++                desc="Preprocessing templates",
++            )
+ 
+         else:
+             print("No chains with templates to preprocess.")
+@@ -2446,17 +2476,13 @@ class TemplatePrecachePreprocessor:
+             print("No structure array directory provided. No additional filtering.")
+ 
+     def __call__(self) -> None:
+-        with mp.Pool(self.n_processes) as pool:
+-            for _ in tqdm(
+-                pool.imap_unordered(
+-                    self._preprocess_template_precache_entry,
+-                    self.template_entry_ids,
+-                    chunksize=self.chunksize,
+-                ),
+-                total=len(self.template_entry_ids),
+-                desc="Preprocessing template structures into precache entries",
+-            ):
+-                pass
++        _map_items(
++            self._preprocess_template_precache_entry,
++            self.template_entry_ids,
++            n_processes=self.n_processes,
++            chunksize=self.chunksize,
++            desc="Preprocessing template structures into precache entries",
++        )
+ 
+     def _preprocess_template_precache_entry(
+         self,
+@@ -2625,17 +2651,13 @@ class TemplateStructurePreprocessor:
+         print(f"Found {len(self.template_entry_ids)} template structures to process.")
+ 
+     def __call__(self) -> None:
+-        with mp.Pool(self.n_processes) as pool:
+-            for _ in tqdm(
+-                pool.imap_unordered(
+-                    self._preprocess_template_structure_for_template,
+-                    self.template_entry_ids,
+-                    chunksize=self.chunksize,
+-                ),
+-                total=len(self.template_entry_ids),
+-                desc="Preprocessing template structures into structure arrays",
+-            ):
+-                pass
++        _map_items(
++            self._preprocess_template_structure_for_template,
++            self.template_entry_ids,
++            n_processes=self.n_processes,
++            chunksize=self.chunksize,
++            desc="Preprocessing template structures into structure arrays",
++        )
+ 
+     def _preprocess_template_structure_for_template(
+         self,

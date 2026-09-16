@@ -12,8 +12,12 @@ path.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
+import subprocess
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -403,3 +407,318 @@ def test_parse_output_dir_multi_sample(tmp_path):
     assert set(result["atom_confidence"]) == {first, second}
     assert result["atom_confidence"][second]["plddt"] == [3.0]
     assert result["timing"] == {first: {"runtime_s": 12.5}, second: {"runtime_s": 12.5}}
+
+
+# --- _download_lock ---------------------------------------------------------
+
+
+def test_download_lock_creates_a_lock_file(tmp_path):
+    cache = tmp_path / "of3"
+    with runner._download_lock(cache):
+        pass
+    assert (cache / ".parameters.lock").is_file()
+
+
+def test_download_lock_releases_on_normal_exit(tmp_path):
+    """The lock must not outlive the block.
+
+    Nothing unlocks explicitly — closing the file is what releases it — so this
+    is the guard against a refactor that keeps the descriptor alive.
+    """
+    with runner._download_lock(tmp_path):
+        pass
+
+    assert _lock_is_free(tmp_path)
+
+
+def _fail_while_holding_lock(cache) -> None:
+    """Raise from inside the lock, as a failing download would."""
+    with runner._download_lock(cache):
+        raise RuntimeError("download blew up")
+
+
+def test_download_lock_releases_on_exception(tmp_path):
+    """A failed download must not wedge every other worker."""
+    with pytest.raises(RuntimeError):
+        _fail_while_holding_lock(tmp_path)
+
+    # Re-acquiring from another process proves the lock was released, not just
+    # that this process could re-enter it (flock is per-fd, so a same-process
+    # re-acquire would succeed even on a leaked lock).
+    assert _lock_is_free(tmp_path)
+
+
+def test_download_lock_excludes_another_process(tmp_path):
+    with runner._download_lock(tmp_path):
+        assert not _lock_is_free(tmp_path)
+
+
+def test_download_lock_yields_unlocked_when_the_lock_file_cannot_be_created(tmp_path):
+    """A cache that cannot hold a lock file — e.g. a read-only mount — must still start.
+
+    Blocked with a non-directory parent rather than a read-only directory: root
+    bypasses permission bits, and the in-image test run is root.
+    """
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("")
+    cache = blocker / "cache"
+
+    with runner._download_lock(cache):
+        pass
+
+    assert not (cache / ".parameters.lock").exists()
+
+
+def _lock_is_free(cache) -> bool:
+    """Whether a separate process can take the cache's lock right now."""
+    script = (
+        "import fcntl,sys\n"
+        f"f = open({str(cache / '.parameters.lock')!r}, 'w')\n"
+        "try:\n"
+        "    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "except BlockingIOError:\n"
+        "    sys.exit(1)\n"
+        "sys.exit(0)\n"
+    )
+    return subprocess.run([sys.executable, "-c", script], timeout=30).returncode == 0
+
+
+# --- per-request template scratch -------------------------------------------
+
+
+def test_scratch_dir_lives_under_the_request_work_dir(tmp_path):
+    args = runner._scratch_runner_args(tmp_path)
+
+    templates = args["template_preprocessor_settings"]["output_directory"]
+
+    assert templates.is_relative_to(tmp_path)
+
+
+def test_msa_scratch_is_left_to_openfold3():
+    """AIM must not override OF3's MSA workspace.
+
+    Two-request isolation is OpenFold3's job (per-run
+    ``msa-{user}-{utc}-{token_hex(4)}`` with ``exist_ok=False``). This only
+    locks the AIM contract: scratch args do not set ``msa_computation_settings``.
+    """
+    assert "msa_computation_settings" not in runner._scratch_runner_args(Path("/work"))
+
+
+def test_scratch_dirs_are_not_the_shared_of3_tmpdir(tmp_path):
+    """OF3 defaults the template tree to /tmp/of3-of-<user>/, shared by every worker."""
+    args = runner._scratch_runner_args(tmp_path)
+
+    for settings in args.values():
+        for path in settings.values():
+            assert not any(part.startswith("of3-of-") for part in path.parts)
+
+
+def test_two_requests_get_different_scratch_dirs(tmp_path):
+    """Isolation is per request, so a later request cannot inherit stale state."""
+    first = runner._scratch_runner_args(tmp_path / "req-1")
+    second = runner._scratch_runner_args(tmp_path / "req-2")
+
+    assert (
+        first["template_preprocessor_settings"]["output_directory"]
+        != second["template_preprocessor_settings"]["output_directory"]
+    )
+
+
+def test_scratch_stays_out_of_the_inline_msa_and_output_dirs(tmp_path):
+    """work_path/msas holds caller-supplied alignments and work_path/output the returned results."""
+    reserved = (tmp_path / "msas", tmp_path / "output")
+    args = runner._scratch_runner_args(tmp_path)
+
+    for settings in args.values():
+        for path in settings.values():
+            for other in reserved:
+                assert not path.is_relative_to(other)
+                assert path != other
+
+
+def test_scratch_args_do_not_disturb_the_rocm_args(tmp_path):
+    """The scratch keys must merge alongside the tuned settings, not replace them."""
+    merged = runner._get_rocm_runner_args()
+    merged.update(runner._scratch_runner_args(tmp_path))
+
+    assert "model_update" in merged
+    assert set(runner._scratch_runner_args(tmp_path)) == {
+        "template_preprocessor_settings",
+    }
+
+
+# --- MSA server identification ----------------------------------------------
+
+
+def test_requests_to_the_msa_server_identify_this_aim(monkeypatch):
+    """OF3 sends a bare "openfold"; the shared public server asks callers to say who they are."""
+    monkeypatch.delenv("OPENFOLD3_MSA_USER_AGENT", raising=False)
+
+    agent = runner._msa_server_args()["server_user_agent"]
+
+    assert agent == runner.DEFAULT_MSA_USER_AGENT
+    assert "aim" in agent.lower()
+
+
+def test_the_user_agent_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("OPENFOLD3_MSA_USER_AGENT", "acme/1.0 ops@acme.example")
+
+    assert runner._msa_server_args()["server_user_agent"] == "acme/1.0 ops@acme.example"
+
+
+def test_an_empty_user_agent_falls_back_rather_than_going_anonymous(monkeypatch):
+    monkeypatch.setenv("OPENFOLD3_MSA_USER_AGENT", "")
+
+    assert runner._msa_server_args()["server_user_agent"] == runner.DEFAULT_MSA_USER_AGENT
+
+
+def test_the_user_agent_is_the_only_msa_override():
+    """AIM only overrides the user agent; OpenFold3 owns the MSA scratch path."""
+    assert set(runner._msa_server_args()) == {"server_user_agent"}
+
+
+# --- MSA deadline plumbing ---------------------------------------------------
+#
+# runner._colabfold_client() imports openfold3.core.data.tools.colabfold_msa_server
+# lazily, and whether that import succeeds depends on where the suite runs:
+# openfold3 is absent on a dev machine and present in the built image, which
+# also runs these tests. So the ambient state cannot be asserted against in
+# either direction. The fixture below installs a fake module chain, pinning the
+# import to succeed so the real logic (hasattr checks, cause/context walking)
+# is what gets exercised.
+
+
+@pytest.fixture
+def install_fake_colabfold_client(monkeypatch):
+    """Register a fake ``openfold3.core.data.tools.colabfold_msa_server`` chain.
+
+    Every parent package ``from openfold3.core.data.tools import
+    colabfold_msa_server`` touches is registered in ``sys.modules`` (and linked
+    via attributes, matching what the real import machinery would set), so the
+    import in ``runner._colabfold_client()`` resolves to the fake leaf module
+    instead of raising ImportError.
+    """
+
+    def _install(*, with_msa_deadline: bool = True, with_msa_server_timeout: bool = True):
+        calls: list[float | None] = []
+
+        class MsaServerTimeout(Exception):
+            pass
+
+        @contextlib.contextmanager
+        def msa_deadline(deadline):
+            calls.append(deadline)
+            yield
+
+        client = types.ModuleType("openfold3.core.data.tools.colabfold_msa_server")
+        if with_msa_deadline:
+            client.msa_deadline = msa_deadline
+        if with_msa_server_timeout:
+            client.MsaServerTimeout = MsaServerTimeout
+
+        of3 = types.ModuleType("openfold3")
+        core = types.ModuleType("openfold3.core")
+        data = types.ModuleType("openfold3.core.data")
+        tools = types.ModuleType("openfold3.core.data.tools")
+        of3.core = core
+        core.data = data
+        data.tools = tools
+        tools.colabfold_msa_server = client
+
+        for name, module in (
+            ("openfold3", of3),
+            ("openfold3.core", core),
+            ("openfold3.core.data", data),
+            ("openfold3.core.data.tools", tools),
+            ("openfold3.core.data.tools.colabfold_msa_server", client),
+        ):
+            monkeypatch.setitem(sys.modules, name, module)
+
+        return client, calls, MsaServerTimeout
+
+    return _install
+
+
+def test_msa_deadline_hook_available_requires_the_deadline_context_manager(install_fake_colabfold_client):
+    """A hasattr check on only MsaServerTimeout must not pass this."""
+    install_fake_colabfold_client(with_msa_deadline=False, with_msa_server_timeout=True)
+
+    assert runner.msa_deadline_hook_available() is False
+
+
+def test_msa_deadline_hook_available_requires_the_timeout_exception(install_fake_colabfold_client):
+    """A hasattr check on only msa_deadline must not pass this."""
+    install_fake_colabfold_client(with_msa_deadline=True, with_msa_server_timeout=False)
+
+    assert runner.msa_deadline_hook_available() is False
+
+
+def test_msa_deadline_hook_available_when_both_symbols_are_present(install_fake_colabfold_client):
+    install_fake_colabfold_client(with_msa_deadline=True, with_msa_server_timeout=True)
+
+    assert runner.msa_deadline_hook_available() is True
+
+
+def test_is_msa_server_timeout_true_for_a_direct_instance(install_fake_colabfold_client):
+    _, _, MsaServerTimeout = install_fake_colabfold_client()
+
+    assert runner.is_msa_server_timeout(MsaServerTimeout("timed out")) is True
+
+
+def test_is_msa_server_timeout_true_through_a_cause_chain(install_fake_colabfold_client):
+    """The failure surfaces from inside Lightning's predict loop, wrapped."""
+    _, _, MsaServerTimeout = install_fake_colabfold_client()
+
+    wrapper = RuntimeError("wrapped")
+    wrapper.__cause__ = MsaServerTimeout("timed out")
+
+    assert runner.is_msa_server_timeout(wrapper) is True
+
+
+def test_is_msa_server_timeout_true_through_a_context_chain(install_fake_colabfold_client):
+    """An implicit `raise` inside an `except` block chains via __context__, not __cause__."""
+    _, _, MsaServerTimeout = install_fake_colabfold_client()
+
+    wrapper = RuntimeError("wrapped")
+    wrapper.__context__ = MsaServerTimeout("timed out")
+
+    assert runner.is_msa_server_timeout(wrapper) is True
+
+
+def test_an_unrelated_failure_is_not_mistaken_for_a_throttled_msa_server(install_fake_colabfold_client):
+    """Misreporting it as transient would tell callers to retry a real bug forever."""
+    install_fake_colabfold_client()
+
+    assert runner.is_msa_server_timeout(RuntimeError("checkpoint corrupt")) is False
+
+
+def test_is_msa_server_timeout_terminates_on_a_looping_cause_chain(install_fake_colabfold_client):
+    """The id()-based seen-set guard must stop a self-referential chain rather than hang."""
+    install_fake_colabfold_client()
+
+    a = RuntimeError("a")
+    b = RuntimeError("b")
+    a.__cause__ = b
+    b.__cause__ = a
+
+    assert runner.is_msa_server_timeout(a) is False
+
+
+def test_bounded_msa_server_enters_the_clients_deadline_context(install_fake_colabfold_client):
+    """A real deadline must reach the fake client's contextmanager, with the same value."""
+    _, calls, _ = install_fake_colabfold_client()
+
+    with runner.bounded_msa_server(1234.5):
+        pass
+
+    assert calls == [1234.5]
+
+
+def test_a_prediction_without_a_deadline_is_left_unbounded(install_fake_colabfold_client):
+    """Inline-MSA requests never reach the server, so the client must not be touched at all."""
+    _, calls, _ = install_fake_colabfold_client()
+
+    with runner.bounded_msa_server(None):
+        pass
+
+    assert calls == []

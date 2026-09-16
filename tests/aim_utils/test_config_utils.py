@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import json
+import logging
 import os
 from unittest.mock import MagicMock, patch
 
@@ -14,10 +15,12 @@ from aim_utils.asset_utils import AssetDescriptor
 from aim_utils.config_utils import (
     LEGACY_VLLM_BASE_TARGET_ID,
     BaseImageConfig,
+    BaseImageConfigFile,
     BaseImageTargetConfig,
     CiBaseImageConfig,
     CiBaseImageTarget,
     ConfigInitializer,
+    EvaluationDepsMixin,
     Initializer,
     cli,
     get_canonical_name,
@@ -123,10 +126,11 @@ ACCELERATOR_CASES = [
 ]
 
 
-def write_base_config(tmp_path, accelerator, case):
+def write_base_config(tmp_path, accelerator, case, install_evaluation_deps=None):
     config_dir = tmp_path / "assets" / accelerator / "base"
     config_dir.mkdir(parents=True)
     config_file = config_dir / "config.yaml"
+    evaluation_deps = "" if install_evaluation_deps is None else f"install_evaluation_deps: {install_evaluation_deps}\n"
     config_file.write_text(
         f"""
 base_image:
@@ -134,7 +138,7 @@ base_image:
   base_registry_namespace: {case["base_registry_namespace"]}
   base_repository: {case["base_repository"]}
   base_tag: {case["base_tag"]}
-"""
+{evaluation_deps}"""
     )
     return config_file
 
@@ -375,7 +379,8 @@ class TestConfigInitializer:
             assert "base_image" in config
             assert config["base_image"]["registry_host"] == REGISTRY_HOST
             assert config["base_image"]["base_registry_namespace"] == REGISTRY_NAMESPACE
-            assert config["base_image"]["base_repository"] == case["expected_canonical_repository"]
+            # Generated configs declare the public name, which is what consumers pull.
+            assert config["base_image"]["base_repository"] == case["expected_public_repository"]
             assert config["base_image"]["base_tag"] == "2.0.0"
 
     def test_initialize_skips_existing_file(self, temp_assets_dir, mock_file_readers):
@@ -559,6 +564,115 @@ class TestCiBaseImageConfig:
         assert parsed["dockerfile"] == "docker/Dockerfile.aim-instinct-base"
         assert parsed["run_validation"] is True  # Boolean, not string
         assert parsed["upstream_image_ref"] == "docker.io/rocm/vllm:test"
+
+
+class TestInstallEvaluationDeps:
+    """The base config owns whether an image ships the evaluation backend."""
+
+    CARRIERS = (BaseImageConfigFile, BaseImageTargetConfig, CiBaseImageTarget, CiBaseImageConfig)
+
+    def test_one_mixin_declares_the_flag_for_every_config(self):
+        """A second declaration would let the four descriptions drift apart."""
+        for carrier in self.CARRIERS:
+            assert issubclass(carrier, EvaluationDepsMixin)
+            assert "install_evaluation_deps" not in vars(carrier).get("__annotations__", {})
+
+        descriptions = {c.model_fields["install_evaluation_deps"].description for c in self.CARRIERS}
+        assert len(descriptions) == 1
+
+    def test_every_config_still_defaults_the_flag_to_false(self):
+        """Inheritance must not turn the opt-in into a required field."""
+        for carrier in self.CARRIERS:
+            field = carrier.model_fields["install_evaluation_deps"]
+            assert field.default is False
+            assert not field.is_required()
+
+    def test_the_opt_in_nested_under_base_image_is_reported(self, tmp_path, monkeypatch, caplog):
+        """The nested key installs nothing, so the warning names the correct place."""
+        monkeypatch.chdir(tmp_path)
+        config_file = write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"))
+        config_file.write_text(config_file.read_text() + "  install_evaluation_deps: true\n")
+
+        with caplog.at_level(logging.WARNING):
+            target = next(
+                t for t in resolve_ci_base_image_targets("instinct") if t.target_id == LEGACY_VLLM_BASE_TARGET_ID
+            )
+
+        assert target.install_evaluation_deps is False
+        assert "has no effect" in caplog.text
+        assert "top level" in caplog.text
+
+    def test_the_opt_in_at_the_top_level_says_nothing(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"), install_evaluation_deps="true")
+
+        with caplog.at_level(logging.WARNING):
+            resolve_ci_base_image_targets("instinct")
+
+        assert "install_evaluation_deps" not in caplog.text
+
+    def test_defaults_to_false_when_the_key_is_absent(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"))
+
+        target = next(t for t in resolve_ci_base_image_targets("instinct") if t.target_id == LEGACY_VLLM_BASE_TARGET_ID)
+
+        assert target.install_evaluation_deps is False
+
+    def test_reaches_the_ci_target_when_opted_in(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"), install_evaluation_deps="true")
+
+        target = next(t for t in resolve_ci_base_image_targets("instinct") if t.target_id == LEGACY_VLLM_BASE_TARGET_ID)
+
+        assert target.install_evaluation_deps is True
+
+    def test_a_named_target_opts_in_independently_of_the_legacy_one(self, tmp_path, monkeypatch):
+        """Each base target decides for itself, so one opting in doesn't drag the others along."""
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"), install_evaluation_deps="true")
+        write_named_base_target_config(
+            tmp_path,
+            "instinct",
+            "bentoml",
+            registry_host="docker.io",
+            base_registry_namespace="rocm",
+            base_repository="vllm",
+            base_tag="named",
+        )
+
+        targets = {t.target_id: t for t in resolve_ci_base_image_targets("instinct")}
+
+        assert targets[LEGACY_VLLM_BASE_TARGET_ID].install_evaluation_deps is True
+        assert targets["bentoml"].install_evaluation_deps is False
+
+    def test_normalization_carries_the_flag_onto_the_legacy_target(self):
+        normalized = normalize_base_image_targets(
+            {
+                "base_image": {
+                    "registry_host": "docker.io",
+                    "base_registry_namespace": "vllm",
+                    "base_repository": "vllm-openai-rocm",
+                    "base_tag": "v0.25.1",
+                },
+                "install_evaluation_deps": True,
+            }
+        )
+
+        assert normalized[LEGACY_VLLM_BASE_TARGET_ID].install_evaluation_deps is True
+
+    def test_the_ci_config_serializes_the_flag_as_a_boolean(self):
+        """The workflow reads it with `jq -r` and compares against "true"."""
+        ci_config = CiBaseImageConfig(
+            base_target_id=LEGACY_VLLM_BASE_TARGET_ID,
+            image_name=ImageName(canonical="aim-instinct-base", public="aim-base"),
+            dockerfile="docker/Dockerfile.aim-instinct-base",
+            run_validation=True,
+            upstream_image_ref="docker.io/vllm/vllm-openai-rocm:v0.25.1",
+            install_evaluation_deps=True,
+        )
+
+        assert json.loads(ci_config.model_dump_json())["install_evaluation_deps"] is True
 
 
 class TestBaseImageTargetNormalization:
@@ -1001,6 +1115,63 @@ class TestBaseImageConfigRegistryValidator:
             )
 
 
+class TestBaseImageConfigRepositoryValidator:
+    """Validate the base_repository field_validator on BaseImageConfig."""
+
+    def test_aliased_canonical_repository_rejected(self):
+        """The private canonical name is rejected in favour of its public alias."""
+        with pytest.raises(Exception, match="Use the public name 'aim-base'"):
+            BaseImageConfig(
+                registry_host="docker.io",
+                base_registry_namespace="silogenai",
+                base_repository="aim-instinct-base",
+                base_tag="0.13",
+            )
+
+    @pytest.mark.parametrize("base_repository", ["aim-base", "aim-epyc-base", "aim-radeon-base", "aim-cpu-base"])
+    def test_public_base_names_accepted(self, base_repository):
+        config = BaseImageConfig(
+            registry_host="docker.io",
+            base_registry_namespace="silogenai",
+            base_repository=base_repository,
+            base_tag="0.13",
+        )
+        assert config.base_repository == base_repository
+
+    @pytest.mark.parametrize(
+        "base_repository",
+        [
+            "aim-instinct-mit-boltz2-base",
+            "aim-instinct-monai-swinunetr-base",
+            "aim-instinct-monai-wholebrainseg-large-unest-segmentation-base",
+            "aim-instinct-openfold-openfold3-base",
+        ],
+    )
+    def test_specialized_instinct_base_names_accepted(self, base_repository):
+        """Specialized bases have no public alias, so the 'aim-instinct-' prefix is legitimate.
+
+        Guards against rejecting on a substring/prefix match instead of the alias rule.
+        """
+        config = BaseImageConfig(
+            registry_host="docker.io",
+            base_registry_namespace="silogenai",
+            base_repository=base_repository,
+            base_tag="0.13.0",
+        )
+        assert config.base_repository == base_repository
+
+    @pytest.mark.parametrize("base_repository", ["vllm-openai-rocm", "pytorch", "python"])
+    def test_upstream_repositories_accepted(self, base_repository):
+        """Upstream images are not AIM-named and are not subject to the alias rule."""
+        config = BaseImageConfig(
+            registry_host="docker.io",
+            base_registry_namespace="vllm",
+            base_repository=base_repository,
+            base_tag="v0.25.1",
+        )
+        assert config.base_repository == base_repository
+
+
 class TestBaseImageConfigTagValidator:
     """Validate the base_tag field_validator on BaseImageConfig."""
 
@@ -1075,6 +1246,18 @@ class TestValidateConfigCommand:
             "  base_registry_namespace: ns\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
+        )
+        result = runner.invoke(cli, ["validate", str(config_file)])
+        assert result.exit_code != 0
+
+    def test_aliased_canonical_repository_reports_error(self, runner, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: silogenai\n"
+            "  base_repository: aim-instinct-base\n"
+            '  base_tag: "0.13"\n'
         )
         result = runner.invoke(cli, ["validate", str(config_file)])
         assert result.exit_code != 0

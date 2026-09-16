@@ -7,9 +7,6 @@ metadata:
   accelerator_model: MI350X
   accelerator_type: gpu
   engine: vllm
-  gpu: MI350X
-  gpu_count: 4
-  manual_selection_only: false
   metric: latency
   precision: fp16
   type: general

@@ -11,9 +11,6 @@ metadata:
   accelerator_model: MI325X
   accelerator_type: gpu
   engine: vllm
-  gpu: MI325X
-  gpu_count: 2
-  manual_selection_only: true
   metric: throughput
   precision: fp8
   primary: false

@@ -15,17 +15,6 @@ com:
         variants:
         - "amd/TinyLlama-1.1B-Chat-v1.0"
         - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        recommendedDeployments:
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "latency"
-          profileId: "vllm-r9700-fp8-tp1-latency"
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "throughput"
-          profileId: "vllm-r9700-fp8-tp1-throughput"
         publisher: "TinyLlama"
       hfToken:
         required: false

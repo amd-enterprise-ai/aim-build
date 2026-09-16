@@ -1,0 +1,10 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Points BentoML at the service when launched via
+#   python -m bentoml serve --working-dir /workspace/model
+# The Dockerfile copies src/ to /workspace/model/src and `pip install -e .`
+# (pyproject package-dir) makes it importable, so the service loads as
+# `src.service`.
+service: "src.service:WholebrainsegService"

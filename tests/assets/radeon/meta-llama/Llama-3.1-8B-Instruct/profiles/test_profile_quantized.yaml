@@ -6,11 +6,11 @@ aim_id: meta-llama/Llama-3.1-8B-Instruct
 model_id: amd/Llama-3.1-8B-Instruct-FP8-KV
 metadata:
   engine: vllm
+  accelerator_type: gpu
   accelerator_model: R9700
   precision: fp8
   accelerator_count: 1
   metric: latency
-  manual_selection_only: false
   type: unoptimized
 engine_args:
   dtype: float16

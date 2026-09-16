@@ -1,0 +1,32 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swinunetr-aim"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "AIM serving wrapper for the MONAI Swin UNETR BTCV segmentation bundle"
+dependencies = [
+    "bentoml>=1.1.0",
+    "pydantic>=2.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+# The MONAI bundle AIM ships a flat src/ of single-file modules. The harness
+# pair (harness.py + monai_harness.py) is also placed at /workspace/model/src/
+# for aim-runtime discovery; service.py imports config/pipeline/schemas as
+# top-level modules, so they are all listed here.
+py-modules = [
+    "service",
+    "harness",
+    "monai_harness",
+    "pipeline",
+    "config",
+    "schemas",
+]

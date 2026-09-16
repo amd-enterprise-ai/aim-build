@@ -24,15 +24,22 @@ builds the layer stack — there is no manual/local resolution path::
         v  FROM (build-arg)
     Layer 2: AIM base          (aim-<acc>-<target_id>-base)
         v  FROM (build-arg)
-    Layer 3: Model image       (aim-<acc>-target-<target_id>-model-<org>-<model>)
+    Layer 3: Model image       (aim-<acc>-model-<org>-<model>)
+
+For a model-dedicated base the target_id equals the model's own canonical name,
+so the Layer 3 image drops the duplicated target segment and is simply
+``aim-<acc>-model-<org>-<model>`` (an engine-shared base instead yields the
+target-qualified ``aim-<acc>-target-<engine>-model-<org>-<model>``).
 """
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from aim_common.object_model import AcceleratorFamily
 from aim_utils.image_naming import (
     LEGACY_VLLM_BASE_TARGET_ID,
     ImageName,
@@ -77,6 +84,61 @@ def _layer1_image_name(accelerator_family: str, key: str) -> ImageName:
     ``aim-<acc>-specialized-<key>`` form (no ``target-`` discriminator).
     """
     return get_model_image_name(accelerator_family, f"specialized-{key}", LEGACY_VLLM_BASE_TARGET_ID)
+
+
+def parse_specialized_target_from_path(
+    file_path: str,
+    assets_root: str = "assets",
+) -> tuple[AcceleratorFamily, str] | None:
+    """Return ``(accelerator_family, target_id)`` for specialized ``image/`` paths.
+
+    Accepted layouts:
+
+    * ``assets/<acc>/engines/<engine>/image/**`` -> ``(<AcceleratorFamily>, sanitize(<engine>))``
+    * ``assets/<acc>/<org>/<model>/image/**`` -> ``(<AcceleratorFamily>, sanitize(<org>)-sanitize(<model>))``
+
+    Returns ``None`` when the path does not represent a real specialized build
+    context (missing ``image/Dockerfile``) or does not match the supported
+    conventions.
+    """
+    normalized = file_path.replace("\\", "/").strip()
+    root = assets_root.strip("/")
+    if not normalized.startswith(f"{root}/"):
+        return None
+
+    image_dir, sep, _ = normalized.partition(f"/{IMAGE_SUBDIR}/")
+    if not sep:
+        return None
+
+    dockerfile_path = Path(image_dir) / IMAGE_SUBDIR / DOCKERFILE_NAME
+    if not os.path.isfile(dockerfile_path):
+        return None
+
+    parts = normalized.split("/")
+    root_parts = root.split("/")
+    if len(parts) < len(root_parts) + 3 or parts[: len(root_parts)] != root_parts:
+        return None
+
+    acc_index = len(root_parts)
+    accelerator = AcceleratorFamily.try_parse(parts[acc_index])
+    if accelerator is None:
+        return None
+
+    # Engine-level: assets/<acc>/engines/<engine>/image/**
+    if len(parts) >= acc_index + 4 and parts[acc_index + 1] == ENGINES_DIRNAME:
+        target_id = _sanitize_name(parts[acc_index + 2])
+        return (accelerator, target_id) if target_id else None
+
+    # Model-level: assets/<acc>/<org>/<model>/image/**
+    if len(parts) < acc_index + 4:
+        return None
+    if parts[acc_index + 1] in {BASE_DIRNAME, ENGINES_DIRNAME}:
+        return None
+    org = _sanitize_name(parts[acc_index + 1])
+    model = _sanitize_name(parts[acc_index + 2])
+    if not org or not model:
+        return None
+    return (accelerator, f"{org}-{model}")
 
 
 @dataclass(frozen=True)
@@ -124,9 +186,9 @@ def enumerate_specialized_base_targets(
       ``aim-<acc>-<engine>-base`` (target_id = engine).
     * **Model-level** ``assets/<acc>/<org>/<model>/image/`` → model-dedicated
       base ``aim-<acc>-<org>-<model>-base`` (target_id = sanitized ``<org>-<model>``).
-      The consuming model image is target-qualified like any named target; because the
-      target_id equals the model's canonical name, the key repeats on both sides
-      (``aim-<acc>-target-<org>-<model>-model-<org>-<model>``).
+      Because the target_id equals the model's own canonical name, the consuming
+      model image drops the duplicated target segment and is simply
+      ``aim-<acc>-model-<org>-<model>`` (e.g. ``aim-instinct-model-openfold-openfold3``).
 
     Results are sorted by ``target_id`` for deterministic CI matrices.
     """

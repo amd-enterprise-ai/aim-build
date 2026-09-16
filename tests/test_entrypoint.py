@@ -7,14 +7,18 @@ Tests for entrypoint CLI functionality.
 """
 
 import json
+import logging
+import os
 from unittest.mock import Mock, patch
 
 import pytest
 from click.testing import CliRunner
 
+import entrypoint
 from aim_common import Engine, Precision
 from aim_runtime.accelerator_detector import AcceleratorDetectionResult
 from aim_runtime.config import AIMConfig
+from aim_runtime.harness import HarnessResult
 from aim_runtime.object_model import AcceleratorFamily, AcceleratorModel, AcceleratorType
 from aim_utils.yaml_utils import load_yaml_string
 from entrypoint import cli
@@ -325,24 +329,286 @@ class TestDownloadToCacheCommand:
                     mock_runtime.download_to_cache.assert_called_once_with(model_id=None, use_hf_cache=True)
 
 
-class TestBenchmarkCommand:
-    """Test suite for benchmark command (legacy AIMBenchmark path)."""
+class TestValidateCommand:
+    """Test suite for the validate command's service lifecycle."""
 
     @pytest.fixture(autouse=True)
-    def _no_custom_harness(self):
-        """Force the legacy AIMBenchmark path for this suite.
+    def _standard_harness_env(self):
+        """Route validation through VLLMHarness without a GPU or live service."""
+        with (
+            patch("aim_runtime.harness.discovery.has_custom_harness", return_value=False),
+            patch("entrypoint._resolve_profile_dict", return_value={}),
+            patch("entrypoint.configure_logging"),
+        ):
+            yield
 
-        The benchmark command delegates to a custom ModelHarness when one
-        exists at /workspace/model/src/harness.py. These tests target the
-        legacy path, so pin discovery to "no custom harness" regardless of
-        what is actually on disk (e.g. when running inside a specialized image).
+    @pytest.fixture
+    def stub_validate(self):
+        """Stub VLLMHarness.validate and hand back the config it was called with."""
+        from aim_runtime.harness import HarnessResult
+
+        result = HarnessResult(success=True, summary="ok")
+        with patch("aim_runtime.harness.vllm_harness.VLLMHarness.validate", return_value=result) as mock_validate:
+            yield mock_validate
+
+    def test_validate_with_service_url_spawns_no_server(self, runner, stub_validate):
+        """An explicit --service-url means someone else owns the service."""
+        with (
+            patch("entrypoint._start_server_in_background") as mock_start,
+            patch("entrypoint._wait_for_harness_readiness") as mock_wait,
+        ):
+            result = runner.invoke(cli, ["validate", "--service-url", "http://localhost:8000"])
+
+        assert result.exit_code == 0
+        mock_start.assert_not_called()
+        mock_wait.assert_called_once()
+        wait_args = mock_wait.call_args.args
+        assert wait_args[1] == "http://localhost:8000"
+        assert wait_args[2] == 3600
+        assert stub_validate.call_args.args[0].service_url == "http://localhost:8000"
+
+    def test_validate_without_service_url_spawns_server(self, mock_config, runner, stub_validate):
+        """Without --service-url the CLI starts the server and stops it after."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None
+
+        with (
+            patch("entrypoint.AIMConfig.from_environment", return_value=mock_config),
+            patch("entrypoint._start_server_in_background", return_value=mock_process) as mock_start,
+            patch("entrypoint._wait_for_harness_readiness") as mock_wait,
+        ):
+            result = runner.invoke(cli, ["validate"])
+
+        assert result.exit_code == 0
+        mock_start.assert_called_once_with(mock_config)
+        mock_wait.assert_called_once()
+        wait_args = mock_wait.call_args.args
+        assert wait_args[1] == f"http://localhost:{mock_config.port}"
+        assert wait_args[2] == 3600
+        assert stub_validate.call_args.args[0].service_url == f"http://localhost:{mock_config.port}"
+        mock_process.send_signal.assert_called_once()
+
+    def test_validate_stops_server_when_checks_raise(self, mock_config, runner):
+        """A crash mid-validation still tears the server down."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None
+
+        with (
+            patch("entrypoint.AIMConfig.from_environment", return_value=mock_config),
+            patch("entrypoint._start_server_in_background", return_value=mock_process),
+            patch("entrypoint._wait_for_harness_readiness"),
+            patch(
+                "aim_runtime.harness.vllm_harness.VLLMHarness.validate",
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = runner.invoke(cli, ["validate"])
+
+        assert result.exit_code == 1
+        mock_process.send_signal.assert_called_once()
+
+    def test_validate_runtime_scope_spawns_no_server(self, runner, stub_validate):
+        """Runtime-only validation needs no service, so none is started."""
+        with (
+            patch("entrypoint._start_server_in_background") as mock_start,
+            patch("entrypoint._wait_for_harness_readiness") as mock_wait,
+        ):
+            result = runner.invoke(cli, ["validate", "--scope", "runtime"])
+
+        assert result.exit_code == 0
+        mock_start.assert_not_called()
+        mock_wait.assert_not_called()
+
+    def test_validate_startup_timeout_is_forwarded(self, runner, stub_validate):
+        """--startup-timeout controls readiness wait budget for validate."""
+        with patch("entrypoint._wait_for_harness_readiness") as mock_wait:
+            result = runner.invoke(
+                cli,
+                [
+                    "validate",
+                    "--service-url",
+                    "http://localhost:8000",
+                    "--startup-timeout",
+                    "17",
+                ],
+            )
+
+        assert result.exit_code == 0
+        mock_wait.assert_called_once()
+        assert mock_wait.call_args.args[2] == 17
+
+    def test_validate_writes_results_json_when_output_dir_set(self, runner, stub_validate, tmp_path):
+        """--output-dir writes validate_results.json for async artifact collection."""
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--scope",
+                "runtime",
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert (tmp_path / "validate_results.json").exists()
+
+
+class TestServerReadiness:
+    """Test suite for waiting on a server the CLI started itself."""
+
+    @staticmethod
+    def _process(poll_results):
+        process = Mock()
+        process.poll.side_effect = list(poll_results)
+        return process
+
+    def test_exited_server_is_reported_immediately(self):
+        """A dead server fails now, rather than after the whole startup budget."""
+        harness = Mock()
+        process = self._process([1])
+
+        with pytest.raises(RuntimeError, match="exited with code 1"):
+            entrypoint._wait_for_harness_readiness(harness, "http://localhost:8000", 7200, process)
+
+        harness.health_check.assert_not_called()
+
+    def test_server_dying_mid_wait_is_caught_on_the_next_slice(self):
+        """Death during model load surfaces within one slice, not at timeout."""
+        harness = Mock()
+        harness.health_check.return_value = False
+        process = self._process([None, 137])
+
+        with pytest.raises(RuntimeError, match="exited with code 137"):
+            entrypoint._wait_for_harness_readiness(harness, "http://localhost:8000", 7200, process)
+
+        harness.health_check.assert_called_once()
+        assert harness.health_check.call_args.kwargs["timeout_seconds"] == entrypoint.READINESS_POLL_SLICE_SECONDS
+
+    def test_ready_service_returns_without_waiting_out_the_budget(self):
+        """Readiness on a later slice still returns as soon as it is seen."""
+        harness = Mock()
+        harness.health_check.side_effect = [False, True]
+        process = self._process([None, None])
+
+        entrypoint._wait_for_harness_readiness(harness, "http://localhost:8000", 7200, process)
+
+        assert harness.health_check.call_count == 2
+
+    def test_timeout_is_reported_when_the_server_stays_alive(self, monkeypatch):
+        """A live but never-ready server still fails at the deadline."""
+        harness = Mock()
+        harness.health_check.return_value = False
+        process = self._process([None, None])
+        # deadline, then one slice, then past the deadline.
+        monkeypatch.setattr(entrypoint.time, "monotonic", Mock(side_effect=[0.0, 0.0, 9999.0]))
+
+        with pytest.raises(RuntimeError, match="not ready"):
+            entrypoint._wait_for_harness_readiness(harness, "http://localhost:8000", 60, process)
+
+        harness.health_check.assert_called_once()
+
+    def test_without_a_process_the_harness_keeps_the_whole_budget(self):
+        """An externally owned service is polled in one call, as before."""
+        harness = Mock()
+        harness.health_check.return_value = True
+
+        entrypoint._wait_for_harness_readiness(harness, "http://localhost:8000", 300)
+
+        harness.health_check.assert_called_once_with("http://localhost:8000", timeout_seconds=300)
+
+    def test_stop_server_reports_an_already_dead_server(self, caplog):
+        """Teardown surfaces the exit code instead of silently moving on."""
+        process = Mock()
+        process.poll.return_value = 2
+
+        with caplog.at_level(logging.ERROR, logger="entrypoint"):
+            entrypoint._stop_server(process)
+
+        assert "exited with code 2" in caplog.text
+        process.send_signal.assert_not_called()
+
+
+class TestResolveProfileDict:
+    """Test suite for profile resolution shared by every harness command."""
+
+    @staticmethod
+    def _stub_runtime(profile_id):
+        selected = Mock()
+        selected.aim_id = "aim-id"
+        selected.model_id = "org/model"
+        selected.profile_id = profile_id
+        selected.engine_args = {}
+        selected.env_vars = {}
+        selected.metadata.engine.value = "vllm"
+        selected.metadata.to_dict.return_value = {}
+        runtime = Mock()
+        runtime.profile_selector.find_profile.return_value = selected
+        return runtime
+
+    def test_auto_selected_profile_is_pinned(self, monkeypatch):
+        """Auto-selection pins AIM_PROFILE_ID so a later server start matches.
+
+        Without the pin, the server would re-run selection independently of the
+        profile the checks were built against.
         """
-        with patch("aim_runtime.harness.discovery.has_custom_harness", return_value=False):
+        monkeypatch.delenv("AIM_PROFILE_ID", raising=False)
+        runtime = self._stub_runtime("vllm-mi300x-fp8-tp1-latency")
+
+        with (
+            patch("entrypoint.AIMConfig.from_environment"),
+            patch("entrypoint.AIMRuntime", return_value=runtime),
+        ):
+            profile = entrypoint._resolve_profile_dict(None)
+
+        assert os.environ["AIM_PROFILE_ID"] == "vllm-mi300x-fp8-tp1-latency"
+        assert profile["profile_id"] == "vllm-mi300x-fp8-tp1-latency"
+
+    def test_explicit_profile_name_is_pinned(self, monkeypatch):
+        """An explicit --profile is pinned as the resolved profile too."""
+        monkeypatch.delenv("AIM_PROFILE_ID", raising=False)
+        runtime = self._stub_runtime("vllm-mi325x-fp8-tp8-throughput")
+
+        with (
+            patch("entrypoint.AIMConfig.from_environment"),
+            patch("entrypoint.AIMRuntime", return_value=runtime),
+        ):
+            entrypoint._resolve_profile_dict("vllm-mi325x-fp8-tp8-throughput")
+
+        assert os.environ["AIM_PROFILE_ID"] == "vllm-mi325x-fp8-tp8-throughput"
+
+    def test_failed_resolution_leaves_env_untouched(self, monkeypatch):
+        """A resolution that blows up must not pin a profile that was never chosen."""
+        monkeypatch.delenv("AIM_PROFILE_ID", raising=False)
+
+        with patch("entrypoint.AIMConfig.from_environment", side_effect=RuntimeError("no GPU")):
+            assert entrypoint._resolve_profile_dict(None) == {}
+
+        assert "AIM_PROFILE_ID" not in os.environ
+
+
+class TestBenchmarkCommand:
+    """Test suite for the benchmark command (standard vLLM / VLLMHarness path)."""
+
+    @pytest.fixture(autouse=True)
+    def _standard_harness_env(self):
+        """Route the benchmark through VLLMHarness in a hermetic env.
+
+        - No custom harness on disk, so discovery falls back to VLLMHarness.
+        - The harness health check always passes (no live service in unit tests).
+        - Profile resolution is stubbed out (no GPU/model available in CI).
+        """
+        with (
+            patch("aim_runtime.harness.discovery.has_custom_harness", return_value=False),
+            patch("aim_runtime.harness.vllm_harness.VLLMHarness.health_check", return_value=True),
+            patch("entrypoint._resolve_profile_dict", return_value={}),
+        ):
             yield
 
     def _make_benchmark_mock(self, overall_success=True):
         mock_runner = Mock()
         mock_runner.run_benchmark_suite.return_value = {"overall_success": overall_success}
+        mock_runner.export_results.return_value = []
         return mock_runner
 
     def test_benchmark_with_service_url(self, runner, tmp_path):
@@ -352,7 +618,7 @@ class TestBenchmarkCommand:
         with (
             patch("entrypoint.configure_logging"),
             patch("entrypoint._start_server_in_background") as mock_start,
-            patch("entrypoint._wait_for_service") as mock_wait,
+            patch("entrypoint._wait_for_harness_readiness") as mock_wait,
             patch("aim_runtime.benchmarking.AIMBenchmark", return_value=mock_runner) as mock_cls,
         ):
 
@@ -374,9 +640,62 @@ class TestBenchmarkCommand:
                 service_url="http://localhost:8000",
                 timeout_seconds=30,
                 config_file=None,
+                engine_args={},
             )
             mock_runner.run_benchmark_suite.assert_called_once()
-            mock_runner.export_results.assert_called_once()
+            # The harness envelope gets its own name; benchmark_results.json
+            # stays the suite's file, in the schema CI parses.
+            assert (tmp_path / "harness_benchmark_results.json").exists()
+
+    def test_benchmark_bad_config_path_is_a_usage_error(self, runner, tmp_path):
+        """A bad --config renders as Click usage output, not a stack trace.
+
+        Only the custom-harness path reads --config as a YAML overrides file;
+        the standard path forwards it to AIMBenchmark.
+        """
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("aim_runtime.harness.discovery.has_custom_harness", return_value=True),
+            patch("aim_runtime.harness.discovery.discover_harness", return_value=Mock()),
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "benchmark",
+                    "--service-url",
+                    "http://localhost:8000",
+                    "--config",
+                    str(tmp_path / "missing.yaml"),
+                    "--output-dir",
+                    str(tmp_path),
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert "Config file not found" in result.output
+
+    def test_benchmark_passes_output_dir_to_harness(self, runner, tmp_path):
+        """--output-dir reaches the suite so it can write its JSON and CSV there."""
+        mock_runner = self._make_benchmark_mock()
+
+        with (
+            patch("entrypoint.configure_logging"),
+            patch("aim_runtime.benchmarking.AIMBenchmark", return_value=mock_runner),
+        ):
+
+            result = runner.invoke(
+                cli,
+                [
+                    "benchmark",
+                    "--service-url",
+                    "http://localhost:8000",
+                    "--output-dir",
+                    str(tmp_path),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_runner.export_results.assert_called_once_with({"overall_success": True}, output_dir=str(tmp_path))
 
     def test_benchmark_without_service_url_spawns_server(self, mock_config, runner, tmp_path):
         """When no --service-url is given, a server is started and cleaned up."""
@@ -388,7 +707,7 @@ class TestBenchmarkCommand:
             patch("entrypoint.configure_logging"),
             patch("entrypoint.AIMConfig.from_environment", return_value=mock_config),
             patch("entrypoint._start_server_in_background", return_value=mock_process) as mock_start,
-            patch("entrypoint._wait_for_service") as mock_wait,
+            patch("entrypoint._wait_for_harness_readiness") as mock_wait,
             patch("aim_runtime.benchmarking.AIMBenchmark", return_value=mock_runner) as mock_cls,
         ):
 
@@ -403,14 +722,19 @@ class TestBenchmarkCommand:
 
             assert result.exit_code == 0
             mock_start.assert_called_once_with(mock_config)
-            mock_wait.assert_called_once_with(
-                f"http://localhost:{mock_config.port}",
-                120,
-            )
+            # Readiness is awaited via the harness health check (engine-aware),
+            # not the hardcoded /v1/models probe.
+            mock_wait.assert_called_once()
+            wait_args = mock_wait.call_args.args
+            assert wait_args[1] == f"http://localhost:{mock_config.port}"
+            assert wait_args[2] == 120
+            # The process goes with it, so a server that dies loading is noticed.
+            assert wait_args[3] is mock_process
             mock_cls.assert_called_once_with(
                 service_url=f"http://localhost:{mock_config.port}",
                 timeout_seconds=30,
                 config_file=None,
+                engine_args={},
             )
             mock_process.send_signal.assert_called_once()
             mock_process.wait.assert_called_once()
@@ -446,7 +770,7 @@ class TestBenchmarkCommand:
             patch("entrypoint.configure_logging"),
             patch("entrypoint.AIMConfig.from_environment", return_value=mock_config),
             patch("entrypoint._start_server_in_background", return_value=mock_process),
-            patch("entrypoint._wait_for_service"),
+            patch("entrypoint._wait_for_harness_readiness"),
             patch("aim_runtime.benchmarking.AIMBenchmark", side_effect=RuntimeError("boom")),
         ):
 
@@ -492,7 +816,68 @@ class TestBenchmarkCommand:
                 service_url="http://host:9090",
                 timeout_seconds=60,
                 config_file=config_path,
+                engine_args={},
             )
+
+
+class TestEvaluateCommand:
+    """Test suite for the evaluate command's wiring into the harness."""
+
+    def test_output_dir_reaches_the_harness(self, runner, tmp_path, mocker):
+        """The harness writes the envelope, CSV and backend document itself.
+
+        Only ``evaluate_results.json`` is the CLI's; the rest need the directory
+        to arrive in the harness config.
+        """
+        harness = mocker.Mock()
+        harness.evaluate.return_value = HarnessResult(success=True, summary="scored")
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+
+        result = runner.invoke(
+            cli,
+            [
+                "evaluate",
+                "--service-url",
+                "http://localhost:8000",
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert harness.evaluate.call_args.args[0].get("output_dir") == str(tmp_path)
+        assert (tmp_path / "evaluate_results.json").exists()
+
+    def test_config_entry_wins_over_the_output_dir_flag(self, runner, tmp_path, mocker):
+        """--config is the per-run override, so a directory named there stands."""
+        config_file = tmp_path / "eval.yaml"
+        config_file.write_text(f"output_dir: {tmp_path / 'from-config'}\n")
+
+        harness = mocker.Mock()
+        harness.evaluate.return_value = HarnessResult(success=True, summary="scored")
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+
+        result = runner.invoke(
+            cli,
+            [
+                "evaluate",
+                "--service-url",
+                "http://localhost:8000",
+                "--config",
+                str(config_file),
+                "--output-dir",
+                str(tmp_path),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert harness.evaluate.call_args.args[0].get("output_dir") == str(tmp_path / "from-config")
 
 
 class TestListProfilesCommand:

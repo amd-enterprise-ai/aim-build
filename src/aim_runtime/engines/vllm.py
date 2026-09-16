@@ -138,7 +138,7 @@ class VllmEngineArgsModel(EngineArgsModel):
         | None
     ) = None
     tokenizer: str | None = None
-    tokenizer_mode: Literal["auto", "custom", "mistral", "slow"] | None = None
+    tokenizer_mode: Literal["auto", "custom", "deepseek_v32", "deepseek_v4", "hf", "mistral", "slow"] | None = None
     tokenizer_revision: str | None = None
     trust_remote_code: bool | None = None
     dtype: Literal["auto", "bfloat16", "float", "float16", "float32", "half"] | None = None
@@ -199,7 +199,7 @@ class VllmEngineArgsModel(EngineArgsModel):
     guided_decoding_disable_additional_properties: bool | None = None
     reasoning_parser: str | None = None
     distributed_executor_backend: str | None = None
-    block_size: Literal[1, 8, 16, 32, 64, 128] | None = None
+    block_size: Literal[1, 8, 16, 32, 64, 128, 256] | None = None
     gpu_memory_utilization: float | None = None
     kv_cache_dtype: Literal["auto", "fp8", "fp8_e4m3", "fp8_e5m2", "fp8_inc"] | None = None
     prefix_caching_hash_algo: Literal["builtin", "sha256", "sha256_cbor_64bit"] | None = None

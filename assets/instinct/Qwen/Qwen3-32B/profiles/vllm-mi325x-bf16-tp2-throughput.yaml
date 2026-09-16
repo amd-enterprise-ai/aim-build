@@ -11,9 +11,6 @@ metadata:
   engine: vllm
   features:
   - adapters
-  gpu: MI325X
-  gpu_count: 2
-  manual_selection_only: true
   metric: throughput
   precision: bf16
   primary: false

@@ -11,10 +11,7 @@ metadata:
   precision: fp16
   accelerator_count: 1
   metric: latency
-  manual_selection_only: false
   type: unoptimized
-  gpu: MI355X
-  gpu_count: 1
 engine_args:
   dtype: float16
   tensor-parallel-size: 1

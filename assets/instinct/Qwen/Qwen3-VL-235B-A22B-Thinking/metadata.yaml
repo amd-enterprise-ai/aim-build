@@ -27,47 +27,6 @@ com:
         variants:
         - "Qwen/Qwen3-VL-235B-A22B-Thinking"
         - "Qwen/Qwen3-VL-235B-A22B-Thinking-FP8"
-        recommendedDeployments:
-        - gpuModel: "MI300X"
-          gpuCount: 2
-          precision: "fp8"
-          metric: "latency"
-          description: "Optimized for latency on MI300X using fp8 precision"
-        - gpuModel: "MI300X"
-          gpuCount: 2
-          precision: "fp8"
-          metric: "throughput"
-          description: "Optimized for throughput on MI300X using fp8 precision"
-        - gpuModel: "MI325X"
-          gpuCount: 2
-          metric: "latency"
-          description: "Optimized for latency on MI325X using fp8 precision"
-          profileId: "vllm-mi325x-fp8-tp2-latency"
-        - gpuModel: "MI325X"
-          gpuCount: 2
-          metric: "throughput"
-          description: "Optimized for throughput on MI325X using fp8 precision"
-          profileId: "vllm-mi325x-fp8-tp2-throughput"
-        - gpuModel: "MI350X"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "latency"
-          description: "Optimized for latency on MI350X using fp8 precision"
-        - gpuModel: "MI350X"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "throughput"
-          description: "Optimized for throughput on MI350X using fp8 precision"
-        - gpuModel: "MI355X"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "latency"
-          description: "Optimized for latency on MI355X using fp8 precision"
-        - gpuModel: "MI355X"
-          gpuCount: 1
-          precision: "fp8"
-          metric: "throughput"
-          description: "Optimized for throughput on MI355X using fp8 precision"
         publisher: "Qwen"
       hfToken:
         required: false

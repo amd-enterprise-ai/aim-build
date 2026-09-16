@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypeVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from aim_common.compat import StrEnum
 from aim_common.enums import ParseableStrEnum
@@ -318,24 +318,26 @@ class ProfileCapabilities(BaseModel):
     reasoning: bool = False
 
 
+DEPRECATED_PROFILE_METADATA_FIELDS = {
+    "gpu": "accelerator_model",
+    "gpu_count": "accelerator_count",
+}
+RETIRED_PROFILE_METADATA_FIELDS = frozenset({"manual_selection_only"})
+
+
 class ProfileMetadata(BaseModel):
     """Metadata information from a profile."""
 
-    model_config = ConfigDict(frozen=True, use_enum_values=False, populate_by_name=True)
+    model_config = ConfigDict(frozen=True, use_enum_values=False, populate_by_name=True, extra="allow")
 
     engine: Engine
-    accelerator_type: Optional[AcceleratorType] = None
-    accelerator_model: Optional[AcceleratorModel] = Field(
-        default=None,
-        validation_alias=AliasChoices("accelerator_model", "gpu"),
-    )
+    accelerator_type: AcceleratorType
+    accelerator_model: AcceleratorModel
     precision: Precision
-    accelerator_count: int = Field(
-        ge=0,
-        validation_alias=AliasChoices("accelerator_count", "gpu_count"),
-    )
+    # A profile always runs on at least one accelerator: GPU profiles count devices,
+    # CPU profiles count cores. Zero is not a meaningful deployment target.
+    accelerator_count: int = Field(ge=1)
     metric: Metric
-    manual_selection_only: bool
     type: ProfileType
     capabilities: ProfileCapabilities = Field(default_factory=ProfileCapabilities)
     features: List[AdapterToken] = Field(default_factory=list)
@@ -345,6 +347,41 @@ class ProfileMetadata(BaseModel):
     # Must be a slug (lowercase letter, then lowercase/digits/hyphens). Pydantic
     # only applies the pattern when a value is provided, so None passes through.
     variant: Optional[str] = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_and_warn_about_extra_fields(cls, data: Any, info: ValidationInfo) -> Any:
+        """Accept unsupported metadata fields temporarily and warn about their future removal."""
+        if not isinstance(data, dict):
+            return data
+
+        extra_fields = sorted(set(data) - set(cls.model_fields))
+        if not extra_fields:
+            return data
+
+        normalized = dict(data)
+        details = []
+        for field in extra_fields:
+            replacement = DEPRECATED_PROFILE_METADATA_FIELDS.get(field)
+            if replacement:
+                normalized.setdefault(replacement, data[field])
+                details.append(f"'{field}' (use '{replacement}')")
+            elif field in RETIRED_PROFILE_METADATA_FIELDS:
+                details.append(f"'{field}' (retired and ignored)")
+            else:
+                details.append(f"'{field}' (unsupported)")
+
+        if not DEPRECATED_PROFILE_METADATA_FIELDS.keys().isdisjoint(data):
+            normalized.setdefault("accelerator_type", AcceleratorType.GPU.value)
+
+        source = info.context.get("source") if isinstance(info.context, dict) else None
+        location = f" in {source}" if source else ""
+        logger.warning(
+            f"Profile metadata{location} contains unsupported or deprecated field(s): {', '.join(details)}. "
+            "They are accepted for backwards compatibility, but profiles containing them will stop working "
+            "in a future release."
+        )
+        return normalized
 
     @field_validator("features", mode="after")
     @classmethod
@@ -388,16 +425,8 @@ class ProfileMetadata(BaseModel):
     @field_validator("accelerator_model", mode="before")
     @classmethod
     def _parse_accelerator(cls, v):
-        """Parse accelerator values using AcceleratorModel.from_string for device ID support.
-
-        Handles legacy sentinel value 'NONE' by converting to Python None.
-        """
-        if v is None:
-            return None
+        """Parse accelerator values using AcceleratorModel.from_string for device ID support."""
         if isinstance(v, str):
-            # Handle legacy YAML sentinel value
-            if v.upper() == "NONE":
-                return None
             return AcceleratorModel.from_string(v)
         return v
 
@@ -415,7 +444,6 @@ class ProfileMetadata(BaseModel):
                 self.precision,
                 self.accelerator_count,
                 self.metric,
-                self.manual_selection_only,
                 self.type,
                 self.capabilities.tool_calling,
                 self.capabilities.structured_outputs,
@@ -450,7 +478,7 @@ class ProfileMetadata(BaseModel):
         optional ``-{variant}`` suffix) so the label can be used interchangeably with
         profile ids in logs and UI surfaces.
         """
-        acc_segment = self.accelerator_model.value.lower() if self.accelerator_model else "none"
+        acc_segment = self.accelerator_model.value.lower()
         # CPU profiles use tp1 (one logical socket) regardless of accelerator_count,
         # which represents recommended core count rather than tensor-parallel degree.
         tp = 1 if self.accelerator_type == AcceleratorType.CPU else self.accelerator_count
@@ -473,9 +501,9 @@ class ProfileMetadata(BaseModel):
         return output
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ProfileMetadata":
+    def from_dict(cls, data: Dict[str, Any], source: Optional[str] = None) -> "ProfileMetadata":
         """Create a ProfileMetadata instance from a dictionary."""
-        return cls.model_validate(data)
+        return cls.model_validate(data, context={"source": source})
 
 
 class ProfileData(BaseModel):
@@ -545,10 +573,15 @@ class CanonicalName:
     @property
     def publisher(self):
         org_publisher_mapping = {
-            "meta-llama": "Meta",
-            "mistralai": "Mistral AI",
-            "Qwen": "Qwen",
             "CohereLabs": "Cohere Labs",
+            "deepseek-ai": "DeepSeek",
+            "google": "Google",
+            "meta-llama": "Meta",
+            "MiniMaxAI": "MiniMax",
+            "mistralai": "Mistral AI",
+            "openai": "OpenAI",
+            "Qwen": "Qwen",
+            "zai-org": "Z.ai",
         }
 
         return org_publisher_mapping.get(self.org, self.org)

@@ -70,18 +70,6 @@ com:
         variants:
           - "amd/Llama-3.1-8B-Instruct-FP8-KV"
           - "meta-llama/Llama-3.1-8B-Instruct"
-        # recommendedDeployments are deprecated, refer to "primary" field in individual profiles
-        recommendedDeployments:
-          - gpuModel: "MI300X"
-            gpuCount: 1
-            precision: "fp8"
-            metric: "latency"
-            description: "Optimized for latency on MI300X using fp8 precision"
-          - gpuModel: "MI300X"
-            gpuCount: 1
-            precision: "fp8"
-            metric: "throughput"
-            description: "Optimized for throughput on MI300X using fp8 precision"
         publisher: "Meta"
       hfToken:
         required: true
@@ -128,38 +116,9 @@ variants.
 - `publisher` (string, required): Name of the organization or individual that published the model (e.g., "Meta",
 "Mistral AI", "OpenAI").
 
-- `recommendedDeployments` (array of objects, **deprecated**): Previously used to specify recommended deployment
- configurations for different hardware and optimization goals. **Use the `primary` flag in profile YAML files instead** — see
-  [Primary Profiles](#primary-profiles) below. Existing `recommendedDeployments` entries are kept for backwards
-  compatibility.
-
-###### Recommended Deployment Object (deprecated)
-
-Each deployment configuration can include:
-
-- `gpuModel` (string, required): GPU model name. Supported values:
-  - `MI100`, `MI210`, `MI250X`
-  - `MI300A`, `MI300X`, `MI308X`, `MI325X`, `MI350X`, `MI355X`
-  - `V620`, `V710`
-  - `W6800`, `W6800X`, `W6900X`, `W7800`, `W7900`
-  - `RX6800`, `RX6900`, `RX7900`, `RX9070`
-  - `NONE` (for CPU-only deployments)
-
-- `gpuCount` (integer, required): Number of GPUs required (0-8).
-
-- `precision` (string, optional): Precision format for the deployment:
-  - `fp4`, `fp8`, `fp16`, `fp32`, `bf16`
-  - `int4`, `int8`
-
-- `metric` (string, optional): Optimization metric:
-  - `latency` - Optimized for low latency
-  - `throughput` - Optimized for high throughput
-
-- `description` (string, optional): Human-readable description of this deployment configuration.
-
-- `profileId` (string, optional): Identifier for the specific profile to use (e.g., `vllm-mi325x-fp8-tp1-latency`).
-This field is used when `manual_selection_only` is set to `true`, meaning that there is no optimized or preview profile
-available for an AIM.
+> **Removed:** `recommendedDeployments` was previously used to specify recommended deployment configurations for
+> different hardware and optimization goals. It has been removed from the metadata schema — use the `primary` flag in
+> profile YAML files instead, see [Primary Profiles](#primary-profiles) below.
 
 ##### hfToken (optional)
 
@@ -265,7 +224,7 @@ These models enforce:
 ## Primary Profiles
 
 The `primary` flag in a profile's `metadata` section is the authoritative way to mark which profiles represent the
-recommended deployment for a given accelerator model and metric combination. It replaces the deprecated
+recommended deployment for a given accelerator model and metric combination. It replaces the removed
 `recommendedDeployments` field in `metadata.yaml`.
 
 ### How `primary` is determined
@@ -273,11 +232,13 @@ recommended deployment for a given accelerator model and metric combination. It 
 A profile should have `primary: true` when it is the best available profile for its accelerator model and optimization metric.
 The selection follows the same criteria used by the automatic profile selector:
 
-1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
+   `general` tie, since all three are eligible for automatic selection.
 2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
 3. Lower GPU count (smaller tensor-parallel size) is preferred.
 
-Only **one** profile per `(gpu, gpu_count, metric)` combination should have `primary: true`.
+Only **one** profile per `(accelerator_model, metric)` combination should have `primary: true`. Accelerator count is a
+tie-breaker within that group, not part of the grouping key.
 
 The `set-primary-flags` command in `profile_utils` automatically sets `primary` flags based on the selection
 criteria described above:
@@ -289,7 +250,7 @@ python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
 ## Primary Profiles
 
 The `primary` flag in a profile's `metadata` section is the authoritative way to mark which profiles represent the
-recommended deployment for a given accelerator model and metric combination. It replaces the deprecated
+recommended deployment for a given accelerator model and metric combination. It replaces the removed
 `recommendedDeployments` field in `metadata.yaml`.
 
 ### How `primary` is determined
@@ -297,11 +258,13 @@ recommended deployment for a given accelerator model and metric combination. It 
 A profile should have `primary: true` when it is the best available profile for its accelerator model and optimization metric.
 The selection follows the same criteria used by the automatic profile selector:
 
-1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
+   `general` tie, since all three are eligible for automatic selection.
 2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
 3. Lower GPU count (smaller tensor-parallel size) is preferred.
 
-Only **one** profile per `(gpu, gpu_count, metric)` combination should have `primary: true`.
+Only **one** profile per `(accelerator_model, metric)` combination should have `primary: true`. Accelerator count is a
+tie-breaker within that group, not part of the grouping key.
 
 The `set-primary-flags` command in `profile_utils` automatically sets `primary` flags based on the selection
 criteria described above:

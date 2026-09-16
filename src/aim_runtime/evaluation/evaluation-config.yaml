@@ -1,0 +1,27 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Default accuracy evaluation settings, shipped inside every AIM image so
+# `aim-runtime evaluate` needs no arguments. Override individual keys with
+# `aim-runtime evaluate --config <file>`.
+#
+# Only values that deliberately differ from the code defaults in config.py are
+# set here; everything else is listed as a commented example so this file stays
+# the one place a value is written. Keys must name an EvaluationSettings field —
+# an unknown key is an error, not a silently ignored line.
+
+backend: lm-eval
+
+backend_args:
+  # Instruction-tuned models must be prompted through their chat template, and
+  # every model AIM evaluates today is instruction-tuned. A base model needs
+  # this off: the template would wrap prompts the model never saw in training.
+  apply_chat_template: true
+
+# tasks: gsm8k                    # comma-separated string or a YAML list
+# num_fewshot: 5                  # null leaves each task's own default alone
+# limit: 100                      # documents per task; null runs the full split
+# concurrency: 32                 # otherwise derived from the endpoint's width
+# request_timeout_seconds: 600    # otherwise derived from the endpoint's class
+# wall_clock_timeout_seconds: 7200  # null is unbounded, as CI runs today

@@ -7,9 +7,6 @@ metadata:
   accelerator_model: MI300X
   accelerator_type: gpu
   engine: vllm_omni
-  gpu: MI300X
-  gpu_count: 8
-  manual_selection_only: false
   metric: latency
   precision: fp16
   type: general

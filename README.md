@@ -109,7 +109,7 @@ AIM containers support the following environment variables:
 * `AIM_ENGINE`: Inference engine (`vllm`)
 * `AIM_METRIC`: Optimization metric (`latency`, `throughput`)
 * `AIM_PROFILE_ID`: Specific profile to use (overrides automatic selection)
-* `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: Allow automatic selection of general profiles (`true`/`false`, default: `true` for base containers, `false` for model-specific containers). When `false`, general profiles are still loaded but marked as manual-selection-only.
+* `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: Allow automatic selection of general profiles (`true`/`false`, default: `true` for base containers, `false` for model-specific containers). When `false`, general profiles are still loaded and explicitly selectable, but excluded from automatic selection.
 * `AIM_ALLOW_UNOPTIMIZED`: Allow automatic fallback to unoptimized profiles when no optimized or preview profiles are auto-selectable for the current hardware (`true`/`false`, default: `false`).
 * `AIM_CACHE_PATH`: Directory for model caching (default: `/workspace/model-cache`)
 * `AIM_LOG_LEVEL_ROOT`: Log level for root logger controlling third-party packages (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, default: `WARNING`)

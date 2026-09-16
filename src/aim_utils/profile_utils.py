@@ -13,8 +13,17 @@ from typing import Any, Dict, List, Optional, Type, Union
 import click
 from pydantic import ValidationError
 
-from aim_common.object_model import AcceleratorType, CanonicalName, GPUModel, ProfileMetadata, ProfileType
+from aim_common import AcceleratorFamily
+from aim_common.object_model import (
+    AcceleratorModel,
+    AcceleratorType,
+    CanonicalName,
+    GPUModel,
+    ProfileMetadata,
+    ProfileType,
+)
 from aim_runtime.object_model import ProfileHandling
+from aim_runtime.profile_selector import AUTO_SELECTABLE_PRIORITY, PRECISION_PRIORITY, UNKNOWN_PRIORITY
 from aim_utils.asset_utils import (
     AssetDescriptor,
     AssetManager,
@@ -24,6 +33,7 @@ from aim_utils.asset_utils import (
 )
 from aim_utils.dict_utils import get_value, set_value
 from aim_utils.image_naming import get_image_name
+from aim_utils.version_utils import AIMVersionSuffixType
 from aim_utils.yaml_utils import FileType, get_yamls, read_yaml, save_yaml, sort_yaml_file
 
 logger = logging.getLogger(__name__)
@@ -36,6 +46,26 @@ COLUMN_NAMES_MAPPING = {
     "Unnamed 0": "aim",
     "AIM": "aim",
     "Docker_Image": "aim",
+}
+
+ACCELERATOR_PERFORMANCE = {
+    AcceleratorFamily.EPYC: {
+        "EPYC_9965": 3,
+        "EPYC_ZEN4": 1,
+        "EPYC_ZEN5": 2,
+    },
+    AcceleratorFamily.INSTINCT: {
+        "MI250X": 1,
+        "MI300X": 2,
+        "MI325X": 3,
+        "MI350X": 4,
+        "MI355X": 5,
+    },
+    AcceleratorFamily.RADEON: {
+        "R9700": 2,
+        "W7900": 1,
+    },
+    AcceleratorFamily.CPU: {"CPU": 1},
 }
 
 
@@ -103,7 +133,6 @@ class ProfileTypeEvaluationResult:
     """Result of profile type evaluation."""
 
     profile_type: Optional[ProfileType] = None
-    manual_selection_only: bool = False
 
 
 class ProfileTypeEvaluator:
@@ -159,17 +188,7 @@ class ProfileTypeEvaluator:
             return "instinct"
 
     def evaluate(self) -> ProfileTypeEvaluationResult:
-        profile_type_manual_selection_mapping: Dict[Optional[ProfileType], bool] = {
-            ProfileType.UNOPTIMIZED: True,
-            ProfileType.GENERAL: False,
-            ProfileType.OPTIMIZED: False,
-            ProfileType.PREVIEW: False,
-        }
-
-        return ProfileTypeEvaluationResult(
-            profile_type=self.profile_type,
-            manual_selection_only=profile_type_manual_selection_mapping.get(self.profile_type, True),
-        )
+        return ProfileTypeEvaluationResult(profile_type=self.profile_type)
 
 
 class ProfileManager(AssetManager):
@@ -212,6 +231,63 @@ class ProfileManager(AssetManager):
 
         return profile_paths
 
+    def infer_accelerators(self) -> set[AcceleratorModel]:
+        result: set[AcceleratorModel] = set()
+
+        for profile_file in self.get_yamls():
+            profile_metadata = read_yaml(profile_file).get("metadata", {})
+            accelerator_model = profile_metadata.get("accelerator_model")
+            if accelerator_model:
+                resolved_model = AcceleratorModel.from_string(accelerator_model)
+                if resolved_model:
+                    result.add(resolved_model)
+
+        return result
+
+
+def release_suffix_for_profile_types(profile_types: set[ProfileType]) -> AIMVersionSuffixType:
+    """Map a model's set of profile types to the release channel it belongs to.
+
+    Single source of truth for the versioning strategy's rule:
+
+    * an ``optimized`` profile makes the model a STABLE release,
+    * a ``preview`` (but no optimized) profile makes it a PREVIEW release,
+    * only ``unoptimized`` profiles make it an internal RC that is *not*
+      released to users.
+
+    ``resolve_version.ModelSpecificSuffixResolver`` delegates here so CI
+    versioning and documentation generation stay in lockstep.
+    """
+    if ProfileType.OPTIMIZED in profile_types:
+        return AIMVersionSuffixType.STABLE
+    if ProfileType.PREVIEW in profile_types:
+        return AIMVersionSuffixType.PREVIEW
+    return AIMVersionSuffixType.RC
+
+
+def get_model_profile_types(assets_path: str, canonical_name: CanonicalName) -> set[ProfileType]:
+    """Return the set of ProfileType values declared across a model's profiles.
+
+    Args:
+        assets_path: Accelerator-family assets root (e.g. ``assets/instinct``).
+        canonical_name: The model whose profiles should be inspected.
+    """
+    profile_types: set[ProfileType] = set()
+    for profile_path in ProfileManager(assets_path).get_yamls(canonical_name):
+        metadata = read_yaml(profile_path).get("metadata")
+        if metadata:
+            profile_types.add(ProfileMetadata.from_dict(metadata).type)
+    return profile_types
+
+
+def resolve_model_release_suffix(assets_path: str, canonical_name: CanonicalName) -> AIMVersionSuffixType:
+    """Determine which release channel a model belongs to from its profile types.
+
+    Convenience wrapper combining :func:`get_model_profile_types` and
+    :func:`release_suffix_for_profile_types`.
+    """
+    return release_suffix_for_profile_types(get_model_profile_types(assets_path, canonical_name))
+
 
 @click.group(invoke_without_command=True)
 @click.pass_context
@@ -234,7 +310,7 @@ def sync_profiles_with_file(
     value_resolver = ProfileFileValueResolver(Path(file_path), sheet_name=sheet_name)
 
     canonical_name_value = CanonicalName.from_string(canonical_name)
-    profiles = ProfileManager(assets_path=assets_path).get_yamls(canonical_name=canonical_name_value)  # type: ignore[arg-type]
+    profiles = ProfileManager(assets_path=assets_path, skip_base=True).get_yamls(canonical_name=canonical_name_value)  # type: ignore[arg-type]
     for profile in profiles:
         evaluator = ProfileTypeEvaluator(profile, value_resolver)
         evaluation_result = evaluator.evaluate()
@@ -242,7 +318,6 @@ def sync_profiles_with_file(
         if evaluation_result.profile_type is not None:
             profile_data = read_yaml(profile)
             profile_data["metadata"]["type"] = evaluation_result.profile_type.value
-            profile_data["metadata"]["manual_selection_only"] = evaluation_result.manual_selection_only
             save_yaml(
                 profile_data,
                 path=profile,
@@ -329,7 +404,7 @@ def _get_metadata_profile_id_mismatches(
                     profile_path,
                     "accelerator_model",
                     accelerator.lower(),
-                    metadata.accelerator_model.value.lower() if metadata.accelerator_model is not None else None,
+                    metadata.accelerator_model.value.lower(),
                 ),
                 MetadataMismatch(profile_path, "precision", precision, metadata.precision.value),
                 MetadataMismatch(
@@ -359,7 +434,7 @@ def _check_profile_metadata(assets_path: str, canonical_name: Optional[str] = No
         raw_metadata = profile_data.get("metadata", {})
 
         try:
-            metadata = ProfileMetadata.model_validate(raw_metadata)
+            metadata = ProfileMetadata.model_validate(raw_metadata, context={"source": str(profile_path)})
         except (ValidationError, ValueError) as e:
             logger.error(f"{profile_path}: Failed to parse metadata: {e}")
             mismatches.append(MetadataMismatch(profile_path, "metadata", profile_path.stem, str(e)))
@@ -410,16 +485,12 @@ def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
             try:
                 data = read_yaml(filepath)
 
-                # Check and update the GPU value
-                if (
-                    data
-                    and "metadata" in data
-                    and "gpu" in data["metadata"]
-                    and data["metadata"]["gpu"] == old_gpu_name
-                ):
+                # Check and update the accelerator model
+                metadata = data.get("metadata", {}) if data else {}
+                if metadata.get("accelerator_model") == old_gpu_name:
 
                     logging.info(f"Found '{old_gpu_name}' in '{filepath.name}'. Updating...")
-                    data["metadata"]["gpu"] = new_gpu_name
+                    metadata["accelerator_model"] = new_gpu_name
 
                     # Create the new filename and path
                     new_filename = filepath.name.lower().replace(old_gpu_name.lower(), new_gpu_name.lower())
@@ -430,7 +501,9 @@ def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
 
                     logging.info(f"  -> Saved new profile to '{new_filepath}'")
                 else:
-                    logging.warning(f"Skipping '{filepath.name}': '{old_gpu_name}' not found in metadata.gpu field.")
+                    logging.warning(
+                        f"Skipping '{filepath.name}': '{old_gpu_name}' not found in metadata.accelerator_model field."
+                    )
 
             except Exception as e:
                 logging.error(f"An error occurred while processing '{filepath.name}': {e}")
@@ -536,29 +609,14 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
     Add recommended deployments for a single model based on its profiles for each GPU and metric.
 
     Selection criteria:
-    1. Prioritizes profiles with manual_selection_only=false
+    1. Prioritizes automatically selectable profiles (only unoptimized ranks lower;
+       optimized, preview and general tie)
     2. Lowest precision int4 > int8 > fp4 > fp8 > fp16 > bf16 > fp32 (lower is better)
     3. Lowest GPU count (minimal TP):
 
     Args:
         profile_yaml: Path to the metadata.yaml file
     """
-    # Define precision priority matching ProfileSelector logic (lower number = higher priority/lower precision)
-    # This matches the priority order in profile_selector.py
-    # TODO: Extract this into a common utility to avoid duplication
-    precision_priority = {
-        "int4": 1,
-        "int8": 2,
-        "fp4": 3,
-        "fp8": 4,
-        "fp16": 5,
-        "bf16": 6,
-        "fp32": 7,
-    }
-
-    # Unknown precision constant (matches ProfileSelector)
-    UNKNOWN_PRECISION_PRIORITY = 999
-
     # Parse profiles and organize by GPU model and metric
     # Structure: {gpu_model: {metric: [list of profile info]}}
     profiles_by_gpu: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
@@ -568,15 +626,10 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
 
         profile_metadata = profile.get("metadata", {})
 
-        manual = profile_metadata.get("manual_selection_only", False)
+        profile_type = profile_metadata.get("type")
         profile_id = profile_file.stem
-        accelerator_model = profile_metadata.get("gpu")
-        if accelerator_model is None:
-            accelerator_model = profile_metadata.get("accelerator_model")
-
-        accelerator_count = profile_metadata.get("gpu_count")
-        if accelerator_count is None:
-            accelerator_count = profile_metadata.get("accelerator_count")
+        accelerator_model = profile_metadata.get("accelerator_model")
+        accelerator_count = profile_metadata.get("accelerator_count")
 
         metric = profile_metadata.get("metric")
         precision = profile_metadata.get("precision")
@@ -595,8 +648,8 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
             "accelerator_count": accelerator_count,
             "metric": metric,
             "precision": precision,
-            "precision_priority": precision_priority.get(precision.lower(), UNKNOWN_PRECISION_PRIORITY),
-            "manual_selection_only": manual,
+            "precision_priority": PRECISION_PRIORITY.get(precision.lower(), UNKNOWN_PRIORITY),
+            "type": profile_type,
             "profileId": profile_id,
             "profile_file": profile_file,
         }
@@ -611,11 +664,16 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
         for metric in ["latency", "throughput"]:
             profiles = profiles_by_gpu[accelerator_model][metric]
             if profiles:
-                # Sort by: 1) manual_selection_only (False preferred), 2) precision priority (lower is better), 3) GPU count (lower is better)
-                # This heavily prioritizes manual_selection_only=False profiles
+                # Sort by: 1) auto-selectability (unoptimized ranks last; all other
+                # types tie), 2) precision priority (lower is better), 3) GPU count
+                # (lower is better)
                 best_profile = min(
                     profiles,
-                    key=lambda p: (p["manual_selection_only"], p["precision_priority"], p["accelerator_count"]),
+                    key=lambda p: (
+                        AUTO_SELECTABLE_PRIORITY.get(p["type"], UNKNOWN_PRIORITY),
+                        p["precision_priority"],
+                        p["accelerator_count"],
+                    ),
                 )
 
                 deployment = {
@@ -631,7 +689,7 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
                     f"  Selected {metric}: {best_profile['accelerator_model']} tp{best_profile['accelerator_count']} {best_profile['precision']}"
                 )
 
-                if best_profile["manual_selection_only"]:
+                if best_profile["type"] == ProfileType.UNOPTIMIZED:
                     deployment["profileId"] = best_profile["profileId"]
                     del deployment["precision"]
 
@@ -662,6 +720,84 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
 
     logger.debug(f"Updated primary flag in {modified_count} of {len(profile_files)} profiles")
     return modified_count
+
+
+def read_primary_profiles_for_model_in_order(profile_files: List[Path]) -> List[Path]:
+    """Return the minimal primary profile paths for a model, in a stable order.
+
+    Selection per (accelerator_model, metric) pair mirrors the criteria used by
+    _set_primary_flags_for_model:
+      - automatically selectable profiles are preferred (only unoptimized ranks
+        lower; optimized, preview and general tie)
+      - lowest precision (int4 > int8 > fp4 > fp8 > fp16 > bf16 > fp32)
+      - lowest accelerator count (minimal TP)
+
+    The returned list is ordered by:
+      1. accelerator performance rank from *accelerator_performance*
+         (lowest rank = least resource-hungry, comes first)
+      2. metric (latency before throughput)
+    """
+    profiles_by_gpu: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+    model_to_family: Dict[str, str] = {}
+
+    for profile_file in profile_files:
+        profile = read_yaml(profile_file)
+        profile_metadata = profile.get("metadata", {})
+
+        profile_type = profile_metadata.get("type")
+        accelerator_model = profile_metadata.get("accelerator_model")
+        accelerator_count = profile_metadata.get("accelerator_count")
+        metric = profile_metadata.get("metric")
+        precision = profile_metadata.get("precision")
+
+        if not all([accelerator_model, accelerator_count, metric, precision]):
+            logger.debug(f"Skipping {profile_file.name} - missing required metadata")
+            continue
+
+        try:
+            assets_index = profile_file.parts.index("assets")
+            family = profile_file.parts[assets_index + 1]
+        except (ValueError, IndexError):
+            family = "instinct"
+
+        model_to_family.setdefault(accelerator_model, family)
+
+        if accelerator_model not in profiles_by_gpu:
+            profiles_by_gpu[accelerator_model] = {"latency": [], "throughput": []}
+
+        profiles_by_gpu[accelerator_model][metric].append(
+            {
+                "accelerator_count": accelerator_count,
+                "precision_priority": PRECISION_PRIORITY.get(precision.lower(), UNKNOWN_PRIORITY),
+                "type": profile_type,
+                "profile_file": profile_file,
+            }
+        )
+
+    def _performance_rank(accelerator_model: str) -> int:
+        family_str = model_to_family.get(accelerator_model, "instinct")
+        try:
+            family_enum = AcceleratorFamily(family_str)
+        except ValueError:
+            return 999
+        return ACCELERATOR_PERFORMANCE.get(family_enum, {}).get(accelerator_model, 999)
+
+    result: List[Path] = []
+    for accelerator_model in sorted(profiles_by_gpu.keys(), key=_performance_rank):
+        for metric in ["latency", "throughput"]:
+            profiles = profiles_by_gpu[accelerator_model][metric]
+            if profiles:
+                best = min(
+                    profiles,
+                    key=lambda p: (
+                        AUTO_SELECTABLE_PRIORITY.get(p["type"], UNKNOWN_PRIORITY),
+                        p["precision_priority"],
+                        p["accelerator_count"],
+                    ),
+                )
+                result.append(best["profile_file"])
+
+    return result
 
 
 @cli.command(name="rename-key")

@@ -1,0 +1,29 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+model_id: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+metadata:
+  accelerator_count: 4
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: vllm_omni
+  metric: latency
+  precision: fp16
+  type: unoptimized
+  variant: usp4
+engine_args:
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  gpu-memory-utilization: 0.95
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  usp: 4
+  vae-patch-parallel-size: 4
+  vae-use-tiling: null
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_ROCM_USE_AITER: '1'

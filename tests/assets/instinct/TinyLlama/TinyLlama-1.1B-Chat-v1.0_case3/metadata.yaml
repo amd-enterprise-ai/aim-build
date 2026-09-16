@@ -15,11 +15,6 @@ com:
         variants:
         - "amd/TinyLlama-1.1B-Chat-v1.0"
         - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        recommendedDeployments:
-        - gpuModel: "MI300X"
-          gpuCount: 1
-        - gpuModel: "MI325X"
-          gpuCount: 1
         publisher: "TinyLlama"
       hfToken:
         required: false

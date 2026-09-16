@@ -1,0 +1,32 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: MiniMaxAI/MiniMax-M3
+model_id: MiniMaxAI/MiniMax-M3-MXFP8
+metadata:
+  accelerator_count: 4
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: vllm
+  metric: throughput
+  precision: fp8
+  primary: true
+  type: optimized
+engine_args:
+  attention-backend: TRITON_ATTN
+  attention-config:
+    indexer_kv_dtype: fp8
+  block-size: 128
+  enable-auto-tool-choice: null
+  linear-backend: emulation
+  max-model-len: -1
+  reasoning-parser: minimax_m3
+  tensor-parallel-size: 4
+  tool-call-parser: minimax_m3
+env_vars:
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_FUSION_SHARED_EXPERTS: '1'
+  VLLM_ROCM_USE_AITER_MOE: '1'
+  VLLM_USE_BREAKABLE_CUDAGRAPH: '0'

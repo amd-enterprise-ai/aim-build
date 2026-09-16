@@ -9,6 +9,7 @@ These tests cover ProfileValidator with Pydantic profile structure validation.
 Engine-specific arg validation is handled by engine_config.py and tested in test_engine_config.py.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -37,6 +38,23 @@ def test_validate_profile_with_missing_model_section_should_fail(
     assert "model" in str(e.value)
 
 
+def test_validate_profile_with_deprecated_gpu_keys_should_warn(
+    profile_validator: ProfileValidator, caplog: pytest.LogCaptureFixture
+):
+    """The pre-migration keys remain compatible and report their replacements."""
+    fixture = Path(__file__).parent / "deprecated_profiles" / "test_profile_deprecated_gpu_keys.yaml"
+    profile_data = read_yaml(fixture)
+    with caplog.at_level(logging.WARNING):
+        validated = profile_validator.validate(profile_data, source=str(fixture))
+
+    assert validated.metadata.accelerator_model.value == "MI300X"
+    assert validated.metadata.accelerator_count == 1
+    assert validated.metadata.accelerator_type.value == "gpu"
+    assert str(fixture) in caplog.text
+    assert "'gpu' (use 'accelerator_model')" in caplog.text
+    assert "'gpu_count' (use 'accelerator_count')" in caplog.text
+
+
 def test_validate_valid_model_profile_dict(profile_validator: ProfileValidator):
     """Test validating a valid model profile from a dict."""
     profile_data = {
@@ -44,11 +62,11 @@ def test_validate_valid_model_profile_dict(profile_validator: ProfileValidator):
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "metadata": {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "MI300X",
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "optimized",
         },
         "engine_args": {"dtype": "float16", "tensor-parallel-size": 1},
@@ -62,11 +80,11 @@ def test_validate_valid_general_profile_dict(profile_validator: ProfileValidator
     profile_data = {
         "metadata": {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "MI300X",
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "unoptimized",
         },
         "engine_args": {"dtype": "float16"},

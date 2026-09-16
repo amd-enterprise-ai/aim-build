@@ -12,9 +12,13 @@ and parses output files into a JSON-serializable response.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
+import os
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -23,9 +27,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Registry name used by openfold3 to look up the checkpoint filename (of3-p2-155k.pt).
-# Available checkpoints: https://huggingface.co/OpenFold/OpenFold3/tree/main/checkpoints
-DEFAULT_CHECKPOINT_REGISTRY_NAME = "openfold3-p2-155k"
+# Must match a key in OF3's OPENFOLD_MODEL_CHECKPOINT_REGISTRY that is valid
+# for the pinned OpenFold3 version (0.5.0 → OpenBind 174k). Used both to
+# pre-download at startup and as inference_ckpt_name so load cannot silently
+# pick a different default than we fetched.
+DEFAULT_CHECKPOINT_REGISTRY_NAME = "openbind-2025-06-30-174k"
+
+# ColabFold's client warns that an unset user agent "will become an error in the
+# future" and asks for "toolname/version contact". OF3 defaults to a bare
+# "openfold"; identify the AIM instead so the operators of the shared public
+# server can tell who is calling.
+DEFAULT_MSA_USER_AGENT = "aim-openfold3 (+https://github.com/amd-enterprise-ai/aim-build)"
 
 
 # OF3 only parses MSA files whose basename is a key in MSASettings.max_seq_counts;
@@ -134,16 +146,136 @@ def find_request_conflicts(
     return conflicts
 
 
+@contextlib.contextmanager
+def _download_lock(cache: Path) -> Iterator[None]:
+    """Serialize the checkpoint download across processes sharing ``cache``.
+
+    A multi-worker deployment starts N processes that all want the same 2.3 GB
+    file; without this they race on it. The lock holder downloads, the rest wait
+    and then find it cached.
+
+    A cache that cannot hold a lock file (read-only mount) yields unlocked
+    rather than failing: nothing can be downloaded there anyway, so there is
+    nothing to serialize.
+    """
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+        lock_file = (cache / ".parameters.lock").open("w")
+    except OSError:
+        logger.debug("Cannot create a lock file under %s; proceeding unlocked", cache)
+        yield
+        return
+
+    # Closing the file releases the lock, on the exception path too, so no
+    # explicit unlock is needed — but the close is then load-bearing.
+    with lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        yield
+
+
 def _ensure_model_parameters(cache: Path) -> None:
-    """Download model checkpoint if not already cached (idempotent)."""
+    """Download model checkpoint if not already cached (idempotent, multi-process safe)."""
     from openfold3.entry_points.parameters import download_model_parameters
 
-    cache.mkdir(parents=True, exist_ok=True)
-    download_model_parameters(
-        download_dir=cache,
-        parameter_name=DEFAULT_CHECKPOINT_REGISTRY_NAME,
-        skip_confirmation=True,
-    )
+    with _download_lock(cache):
+        download_model_parameters(
+            download_dir=cache,
+            parameter_name=DEFAULT_CHECKPOINT_REGISTRY_NAME,
+            skip_confirmation=True,
+        )
+
+
+def _scratch_runner_args(work_path: Path) -> dict[str, Any]:
+    """Runner args placing OF3's template scratch under ``work_path``.
+
+    ``output_directory`` defaults to ``get_of3_tmpdir(...)``, which is keyed only
+    on the OS user, so every worker in a container resolves to the same tree. OF3
+    then treats an already-staged file as a cache and deletes the tree after each
+    run, letting concurrent requests read each other's template data or lose
+    their own mid-run.
+
+    This has to be passed at construction, not assigned afterwards: the template
+    validator derives structure/cache/precache/array/log directories from
+    ``output_directory`` while building the model, and a later assignment would
+    leave those five behind on the shared tree.
+
+    ``work_path`` is the request's ``mkdtemp`` directory, so this is unique per
+    request. Kept under its own subdirectory to stay clearly distinct from
+    ``work_path/msas``, which holds caller-supplied inline alignments.
+
+    The MSA side needs no counterpart: OpenFold3 0.5.0 derives its
+    workspace from a per-run directory name and saves records under
+    ``output_dir/msas``, both already unique per request.
+    """
+    return {
+        "template_preprocessor_settings": {"output_directory": work_path / "of3_scratch" / "template_data"},
+    }
+
+
+def _msa_server_args() -> dict[str, Any]:
+    """``msa_computation_settings`` overrides for talking to the MSA server.
+
+    Kept separate from ``_scratch_runner_args`` because OpenFold3 manages
+    its own per-request MSA workspace.
+    """
+    return {"server_user_agent": os.environ.get("OPENFOLD3_MSA_USER_AGENT") or DEFAULT_MSA_USER_AGENT}
+
+
+def _colabfold_client() -> Any:
+    """OF3's ColabFold client module, patched in this image with a deadline hook."""
+    from openfold3.core.data.tools import colabfold_msa_server
+
+    return colabfold_msa_server
+
+
+def msa_deadline_hook_available() -> bool:
+    """Whether this image's MSA deadline patch is in place.
+
+    Called at service startup so that an upstream bump which silently defeats
+    ``of3_msa_server_deadline.patch`` fails loudly, rather than serving with the
+    only bound on MSA-server work quietly removed.
+    """
+    try:
+        client = _colabfold_client()
+    except ImportError:
+        return False
+    return hasattr(client, "msa_deadline") and hasattr(client, "MsaServerTimeout")
+
+
+@contextlib.contextmanager
+def bounded_msa_server(deadline: float | None) -> Iterator[None]:
+    """Give MSA-server work a ``time.monotonic()`` deadline; no-op when None.
+
+    One deadline covers the whole prediction: OF3 makes several server queries
+    (main MSAs, then one per unique complex for paired MSAs, then templates), and
+    they have to share a budget rather than each getting a fresh one.
+    """
+    if deadline is None:
+        yield
+        return
+    with _colabfold_client().msa_deadline(deadline):
+        yield
+
+
+def is_msa_server_timeout(exc: BaseException) -> bool:
+    """Whether ``exc`` (or something it wraps) is the MSA budget-exceeded error.
+
+    The chain is walked because the failure surfaces from inside Lightning's
+    predict loop, which may re-raise it wrapped.
+    """
+    try:
+        timeout_cls = _colabfold_client().MsaServerTimeout
+    except (ImportError, AttributeError):
+        return False
+
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if isinstance(current, timeout_cls):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _get_rocm_runner_args() -> dict[str, Any]:
@@ -188,7 +320,11 @@ def _load_model(cache: Path) -> "pl.LightningModule":
     runner_args["data_module_args"] = {"num_workers": 0}
     runner_args["output_writer_settings"] = {"structure_format": "cif"}
 
-    expt_config = InferenceExperimentConfig(cache_path=cache, **runner_args)
+    expt_config = InferenceExperimentConfig(
+        cache_path=cache,
+        inference_ckpt_name=DEFAULT_CHECKPOINT_REGISTRY_NAME,
+        **runner_args,
+    )
 
     warmup_output = cache / "warmup_output"
     warmup_output.mkdir(parents=True, exist_ok=True)
@@ -293,6 +429,7 @@ def run_openfold3_prediction(
     num_workers: int = 0,
     accelerator: str = "gpu",
     include_atom_confidences: bool = False,
+    msa_deadline: float | None = None,
 ) -> dict[str, Any]:
     """Run OpenFold3 prediction from a JSON request body.
 
@@ -310,6 +447,10 @@ def run_openfold3_prediction(
     Seeds: ``seeds`` is used as-is unless ``num_model_seeds`` is set, which makes
     OF3 regenerate them (mirrors run_openfold.py). Total structures =
     len(seeds) * num_diffusion_samples.
+
+    ``msa_deadline`` is a ``time.monotonic()`` reading past which MSA-server work
+    gives up with ``MsaServerTimeout`` instead of retrying indefinitely. Only
+    meaningful with ``use_msa_server``.
     """
     from openfold3.entry_points.experiment_runner import InferenceExperimentRunner
     from openfold3.entry_points.validator import InferenceExperimentConfig
@@ -347,6 +488,8 @@ def run_openfold3_prediction(
         runner_args["data_module_args"] = {
             "num_workers": num_workers,
         }
+        runner_args.update(_scratch_runner_args(work_path))
+        runner_args.setdefault("msa_computation_settings", {}).update(_msa_server_args())
 
         expt_config = InferenceExperimentConfig(
             cache_path=cache,
@@ -379,7 +522,10 @@ def run_openfold3_prediction(
         else:
             expt_runner.setup()
 
-        expt_runner.run(query_set)
+        # The MSA server is queried from inside run(), on this thread, so the
+        # deadline has to span the whole call rather than a preceding stage.
+        with bounded_msa_server(msa_deadline if use_msa_server else None):
+            expt_runner.run(query_set)
         expt_runner.cleanup()
 
         result = _parse_output_dir(output_dir, include_atom_confidences=include_atom_confidences)

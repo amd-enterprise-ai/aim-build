@@ -13,12 +13,6 @@ com:
         variants:
         - "mit/boltz2"
         publisher: "MIT"
-        recommendedDeployments:
-        - gpuModel: "MI300X"
-          gpuCount: 1
-          metric: "latency"
-          description: "Optimized for latency on MI300X using fp16 precision"
-          profileId: "bentoml-mi300x-fp16-tp1-latency"
       hfToken:
         required: false
       release:

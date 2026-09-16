@@ -12,7 +12,7 @@ and validating all available profiles before selection.
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from pydantic import ValidationError as PydanticValidationError
 
@@ -117,9 +117,16 @@ class ProfileRegistry:
         is_general = profile_handling.is_general
 
         # Validate the profile using the already-loaded data (this will raise ValidationError if invalid)
-        validator.validate(profile_data, is_general_profile=is_general)
-
-        metadata = ProfileMetadata.from_dict(profile_data["metadata"])
+        validated_profile = validator.validate(
+            profile_data,
+            is_general_profile=is_general,
+            source=profile_path,
+        )
+        metadata = (
+            validated_profile.metadata
+            if validated_profile is not None
+            else ProfileMetadata.from_dict(profile_data["metadata"], source=profile_path)
+        )
 
         # Validate env vars at load time using the profile's own engine, so
         # issues surface during discovery. Dispatched per-engine (e.g. only
@@ -156,8 +163,17 @@ class ProfileRegistry:
         """Get all general profiles."""
         return [p for p in self.profiles if p.profile_handling.is_general]
 
-    def log_summary(self) -> None:
-        """Log a summary of the profile registry."""
+    def log_summary(self, is_auto_selectable: Optional[Callable[[Profile], bool]] = None) -> None:
+        """Log a summary of the profile registry.
+
+        Args:
+            is_auto_selectable: Predicate deciding whether a profile can be
+                selected automatically. Profiles it rejects are marked
+                ``[manual-only]`` in the listing. The registry cannot answer
+                this itself: auto-selectability depends on runtime config
+                (``allow_general_profile_fallback``), which only the selector
+                knows. When omitted, no profile is marked.
+        """
         logger.info("=== Profile Registry Summary ===")
         logger.info(f"Search path: {self.search_path}")
         logger.info(f"Total valid profiles discovered: {self.total_discovered}")
@@ -182,7 +198,7 @@ class ProfileRegistry:
 
         logger.info("\nProfile listing:")
         for p in self.profiles:
-            manual_flag = " [manual-only]" if p.metadata.manual_selection_only else ""
+            manual_flag = "" if is_auto_selectable is None or is_auto_selectable(p) else " [manual-only]"
             logger.info(
                 f"    {p.profile_handling.filename}{manual_flag} (engine={p.metadata.engine}, accelerator_model={p.metadata.accelerator_model}, precision={p.metadata.precision}, metric={p.metadata.metric}, accelerator_count={p.metadata.accelerator_count}, type={p.metadata.type})"
             )

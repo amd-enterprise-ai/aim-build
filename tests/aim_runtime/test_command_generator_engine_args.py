@@ -12,7 +12,15 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from aim_common import Engine, GPUModel, Metric, Precision, ProfileMetadata, ProfileType
+from aim_common import (
+    AcceleratorType,
+    Engine,
+    GPUModel,
+    Metric,
+    Precision,
+    ProfileMetadata,
+    ProfileType,
+)
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import DEFAULT_CACHE_PATH, DEFAULT_PROFILE_BASE_PATH, AIMConfig
 from aim_runtime.engine_config import EngineConfig
@@ -59,12 +67,12 @@ def mock_profile():
     return Profile(
         profile_handling=ProfileHandling(path="/workspace/profiles/test.yaml", filename="test.yaml", priority=1),
         metadata=ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=GPUModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.UNOPTIMIZED,
         ),
         aim_id="meta-llama/Llama-3.1-8B-Instruct",
@@ -139,12 +147,12 @@ class TestCommandGeneratorEngineArgsOverride:
         empty_profile = Profile(
             profile_handling=ProfileHandling(path="/workspace/profiles/test.yaml", filename="test.yaml", priority=1),
             metadata=ProfileMetadata(
+                accelerator_type=AcceleratorType.GPU,
                 engine=Engine.VLLM,
                 accelerator_model=GPUModel.MI300X,
                 precision=Precision.FP16,
                 accelerator_count=1,
                 metric=Metric.LATENCY,
-                manual_selection_only=False,
                 type=ProfileType.UNOPTIMIZED,
             ),
             aim_id="meta-llama/Llama-3.1-8B-Instruct",

@@ -1,0 +1,26 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ── Shared MONAI AIM dependencies (identical across most models) ──
+bentoml>=1.1.0
+huggingface_hub
+nibabel
+pillow
+pytorch-ignite
+tqdm
+pydicom
+scipy
+numpy==1.26.4
+connected-components-3d
+# `monai` is installed with --no-deps in the Dockerfile (to keep the base
+# image's ROCm torch), so MONAI's own deps must be listed here. The
+# `python -m monai.bundle download` step (build time) needs `fire` (its CLI)
+# and `requests` (the monaihosting HTTP download).
+fire
+requests
+
+# ── Model-specific dependencies ──
+# SwinUNETR bundle uses einops; ITKReader needs itk.
+einops==0.7.0
+itk==5.4.0

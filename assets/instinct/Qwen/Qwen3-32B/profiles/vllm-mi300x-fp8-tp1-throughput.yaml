@@ -11,9 +11,6 @@ metadata:
   engine: vllm
   features:
   - adapters
-  gpu: MI300X
-  gpu_count: 1
-  manual_selection_only: true
   metric: throughput
   precision: fp8
   primary: false

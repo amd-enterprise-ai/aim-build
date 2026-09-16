@@ -11,9 +11,6 @@ metadata:
   engine: vllm
   features:
   - adapters
-  gpu: MI355X
-  gpu_count: 1
-  manual_selection_only: false
   metric: throughput
   precision: bf16
   primary: true

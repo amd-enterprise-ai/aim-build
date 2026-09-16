@@ -1,8 +1,8 @@
 diff --git a/openfold3/core/model/layers/triangular_multiplicative_update.py b/openfold3/core/model/layers/triangular_multiplicative_update.py
-index 2f33b6d..5f9b61c 100644
+index 59636b2..8995870 100644
 --- a/openfold3/core/model/layers/triangular_multiplicative_update.py
 +++ b/openfold3/core/model/layers/triangular_multiplicative_update.py
-@@ -19,6 +19,7 @@ Triangle multiplicative update layers. Includes TriangleMultiplicativeUpdate fro
+@@ -20,6 +20,7 @@ Triangle multiplicative update layers. Includes TriangleMultiplicativeUpdate fro
  and FusedTriangleMultiplicativeUpdate from AF2-Multimer.
  """
  
@@ -10,7 +10,7 @@ index 2f33b6d..5f9b61c 100644
  import warnings
  from abc import ABC, abstractmethod
  from functools import partialmethod
-@@ -44,6 +45,45 @@ except ImportError:
+@@ -51,6 +52,45 @@ _TRITON_UNAVAILABLE_ERROR = (
  
  warnings.filterwarnings("once")
  
@@ -56,7 +56,7 @@ index 2f33b6d..5f9b61c 100644
  if TRITON_AVAILABLE:
  
      @triton.jit
-@@ -386,6 +426,7 @@ def triton_sigmoid_mul(x: torch.Tensor, gate: torch.Tensor) -> torch.Tensor:
+@@ -393,6 +433,7 @@ def triton_sigmoid_mul(x: torch.Tensor, gate: torch.Tensor) -> torch.Tensor:
      return output_flat.reshape(broadcasted_shape)
  
  
@@ -64,7 +64,7 @@ index 2f33b6d..5f9b61c 100644
  def triton_layernorm(
      x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, eps: float = 1e-5
  ) -> torch.Tensor:
-@@ -427,6 +468,7 @@ def triton_layernorm(
+@@ -434,6 +475,7 @@ def triton_layernorm(
      return output_2d.reshape(input_shape)
  
  
@@ -72,7 +72,7 @@ index 2f33b6d..5f9b61c 100644
  def triton_linear(
      x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor | None = None
  ) -> torch.Tensor:
-@@ -452,6 +494,7 @@ def triton_linear(
+@@ -463,6 +505,7 @@ def triton_linear(
      BLOCK_M = min(128, triton.next_power_of_2(M))
      BLOCK_N = min(64, triton.next_power_of_2(N))
      BLOCK_K = min(64, triton.next_power_of_2(K))
@@ -80,7 +80,7 @@ index 2f33b6d..5f9b61c 100644
  
      grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
  
-@@ -481,6 +524,7 @@ def triton_linear(
+@@ -492,6 +535,7 @@ def triton_linear(
      return output_2d.reshape(output_shape)
  
  
@@ -88,7 +88,7 @@ index 2f33b6d..5f9b61c 100644
  def triton_linear_fused(
      x: torch.Tensor,
      weight: torch.Tensor,
-@@ -518,6 +562,7 @@ def triton_linear_fused(
+@@ -533,6 +577,7 @@ def triton_linear_fused(
      BLOCK_M = min(128, triton.next_power_of_2(M))
      BLOCK_N = min(64, triton.next_power_of_2(N))
      BLOCK_K = min(64, triton.next_power_of_2(K))
@@ -96,7 +96,7 @@ index 2f33b6d..5f9b61c 100644
  
      grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
  
-@@ -656,13 +701,13 @@ class BaseTriangleMultiplicativeUpdate(nn.Module, ABC):
+@@ -671,13 +716,13 @@ class BaseTriangleMultiplicativeUpdate(nn.Module, ABC):
              for i in range(0, a.shape[-3], _inplace_chunk_size):
                  a_chunk = a[..., i : i + _inplace_chunk_size, :, :]
                  b_chunk = b[..., i : i + _inplace_chunk_size, :, :]
@@ -113,7 +113,7 @@ index 2f33b6d..5f9b61c 100644
  
          return permute_final_dims(p, (1, 2, 0))
  
-@@ -975,7 +1020,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+@@ -990,7 +1035,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                  del z_chunk_b
  
                  if use_triton_triangle_kernels:
@@ -122,7 +122,7 @@ index 2f33b6d..5f9b61c 100644
                      x_chunk = permute_final_dims(x_chunk, (1, 2, 0))
                      x_chunk = triton_layernorm(
                          x_chunk,
-@@ -1020,7 +1065,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+@@ -1035,7 +1080,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                              apply_sigmoid=True,
                          )
                  else:
@@ -131,7 +131,7 @@ index 2f33b6d..5f9b61c 100644
                      x_chunk = permute_final_dims(x_chunk, (1, 2, 0))
                      x_chunk = self.layer_norm_out(x_chunk)
                      x_chunk = self.linear_z(x_chunk)
-@@ -1047,7 +1092,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+@@ -1062,7 +1107,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                  z, mask, False, False, use_triton=use_triton_triangle_kernels
              )
              if use_triton_triangle_kernels:
@@ -140,7 +140,7 @@ index 2f33b6d..5f9b61c 100644
                  x = triton_layernorm(
                      x,
                      self.layer_norm_out.weight,
-@@ -1074,7 +1119,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+@@ -1089,7 +1134,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                          apply_sigmoid=True,
                      )
              else:
@@ -149,7 +149,7 @@ index 2f33b6d..5f9b61c 100644
                  x = self.layer_norm_out(x)
                  x = self.linear_z(x)
                  g = self.linear_g(z)
-@@ -1277,13 +1322,13 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
+@@ -1295,13 +1340,13 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
              for i in range(0, a.shape[-3], _inplace_chunk_size):
                  a_chunk = a[..., i : i + _inplace_chunk_size, :, :]
                  b_chunk = b[..., i : i + _inplace_chunk_size, :, :]
@@ -209,10 +209,10 @@ index 7943698..8818fa5 100644
      token_feat = token_feat.reshape((*feat_batch_dims, n_token + 1, -1))[
          ..., :n_token, :
 diff --git a/openfold3/projects/of3_all_atom/model.py b/openfold3/projects/of3_all_atom/model.py
-index 28a9b24..6d76492 100644
+index 951e159..4053b66 100644
 --- a/openfold3/projects/of3_all_atom/model.py
 +++ b/openfold3/projects/of3_all_atom/model.py
-@@ -17,6 +17,7 @@
+@@ -18,6 +18,7 @@
  The main inference and training loops for AlphaFold3.
  """
  
@@ -220,8 +220,8 @@ index 28a9b24..6d76492 100644
  import random
  from enum import Enum
  
-@@ -48,6 +49,127 @@ from openfold3.core.utils.tensor_utils import add, tensor_tree_map
- MODEL_VERSION = torch.tensor([1, 0, 0], dtype=torch.float32)
+@@ -50,6 +51,127 @@ from openfold3.core.utils.tensor_utils import add, tensor_tree_map
+ MODEL_VERSION = torch.tensor([2, 0, 0], dtype=torch.float32)
  
  
 +# torch.compile dispatcher. Gated by OPENFOLD3_COMPILE_* env vars read
@@ -346,9 +346,9 @@ index 28a9b24..6d76492 100644
 +
 +
  class OffloadModules(Enum):
+     TEMPLATE_MODULE = "template_module"
      MSA_MODULE = "msa_module"
-     CONFIDENCE_HEADS = "confidence_heads"
-@@ -112,6 +234,109 @@ class OpenFold3(nn.Module):
+@@ -115,6 +237,109 @@ class OpenFold3(nn.Module):
  
          self.register_buffer("version_tensor", MODEL_VERSION)
  
@@ -458,7 +458,7 @@ index 28a9b24..6d76492 100644
      def _disable_activation_checkpointing(self):
          """
          Disable activation checkpointing for the TemplateEmbedder, MSAModule,
-@@ -630,6 +855,10 @@ class OpenFold3(nn.Module):
+@@ -641,6 +866,10 @@ class OpenFold3(nn.Module):
                      Training only, predicted atom positions
  
          """

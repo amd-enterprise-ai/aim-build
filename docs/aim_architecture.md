@@ -93,12 +93,12 @@ Each profile YAML file follows a standardized structure with the following key s
 **All Profiles:**
 * **`metadata`**: Structured information for profile selection and categorization:
   + `engine`: Backend engine (e.g., "vllm", "bentoml", "sglang")
-  + `gpu`: Target GPU model (e.g., "MI300X", "MI325X")
+  + `accelerator_type`: Accelerator family ("gpu" or "cpu")
+  + `accelerator_model`: Target accelerator model (e.g., "MI300X", "MI325X", "EPYC_9965")
   + `precision`: Data type precision (e.g., "fp16", "bf16", "fp8", "int8", "int4")
-  + `gpu_count`: Number of GPUs for tensor parallelism (1, 2, 4, 8)
+  + `accelerator_count`: Number of accelerators for tensor parallelism (1, 2, 4, 8)
   + `metric`: Optimization target ("latency" or "throughput")
-  + `manual_selection_only`: Boolean flag (true = only selectable via explicit `AIM_PROFILE_ID`)
-  + `type`: Profile type classification (`optimized`, `unoptimized`, `preview`, or `general`)
+  + `type`: Profile type classification (`optimized`, `unoptimized`, `preview`, or `general`). Also determines automatic-selection eligibility — see [Section 3.6](#36-controlling-profile-selection)
   + `primary`: Boolean flag marking this as the recommended profile for its accelerator model and metric combination (see [Section 3.7](#37-primary-profiles))
 * **`engine_args`**: Engine-specific command-line arguments and parameters
 * **`env_vars`**: Environment variables to set during runtime execution
@@ -144,7 +144,7 @@ Setting `AIM_MODEL_ID` for model-specific container is not supported because it 
 
 ### 3.3 Validation & Integrity
 
-Pydantic models (in `src/aim_common/`) enforce structural correctness: required fields (metadata section with engine/GPU/precision/gpu_count/metric, engine sections, args). Validation ensures at least:
+Pydantic models (in `src/aim_common/`) enforce structural correctness: required fields (metadata section with engine/`accelerator_model`/precision/`accelerator_count`/metric, engine sections, args). Validation ensures at least:
 * Valid YAML structure
 * Presence of complete metadata section with all required fields
 * Engine argument validation (via native vLLM `EngineArgs` with Pydantic model fallback)
@@ -162,23 +162,22 @@ The profile selector executes these stages:
 
 1. **Accelerator detection & health check** – `AcceleratorDetector` (GPU path: host/container/vLLM-visible counts and health via `GPUDetector`; CPU path via `EpycDetector` when `AIM_ACCELERATOR_TYPE=cpu`)
 2. **Profile Search & Collection** – Gather all candidate profiles from search paths (custom, model-specific, and general)
-3. **General Profile Fallback Control** – If `AIM_ALLOW_GENERAL_PROFILE_FALLBACK=false`, mark all general profiles as manual-selection-only (excluded from automatic selection but still listable)
-4. **Metadata-Based Filtering** – Apply sequential filters based on:
+3. **Metadata-Based Filtering** – Apply sequential filters based on:
    - Detected GPU model (e.g., MI300X, MI325X)
-   - Available GPU count (profile gpu_count ≤ detected count)
+   - Available GPU count (profile `accelerator_count` ≤ detected count)
    - Engine preference (vLLM by default)
    - Optimization metric (latency vs throughput)
-   - `manual-selection-only` flag (profiles with this flag are excluded from automatic selection)
-5. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
-6. **Type ordering** - Sort remaining profiles by type in the order of: `optimized`, `preview`, `unoptimized`, `general`.
-7. **Unoptimized Profile Fallback** – If the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true`, attempt a compatible **`unoptimized`** profile that is also **`manual_selection_only`** (emits a warning)
-8. **Profile Selection** – Return the best-matched profile from the ordered list
+   - Automatic-selection eligibility, derived from `type`: `unoptimized` profiles are always excluded, and `general` profiles are excluded unless `AIM_ALLOW_GENERAL_PROFILE_FALLBACK=true` (excluded profiles remain listable and explicitly selectable)
+4. **Precision Ordering** – Sort remaining profiles by precision preference (lower precision preferred for "auto")
+5. **Type ordering** - Sort remaining profiles by type in the order of: `optimized`, `preview`, `unoptimized`, `general`.
+6. **Unoptimized Profile Fallback** – If the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true`, attempt a compatible **`unoptimized`** profile (emits a warning)
+7. **Profile Selection** – Return the best-matched profile from the ordered list
 
 The selection algorithm leverages the structured metadata section to efficiently filter and rank profiles based on the runtime environment and user preferences. This metadata-driven approach ensures optimal profile selection while maintaining deterministic fallback behavior.
 
 **General Profile Fallback Behavior**:
 - **Base containers** (`AIM_ALLOW_GENERAL_PROFILE_FALLBACK=true` by default): General profiles can be automatically selected when no model-specific profiles match
-- **Model-specific containers** (`AIM_ALLOW_GENERAL_PROFILE_FALLBACK=false` by default): General profiles are marked as manual-selection-only, requiring explicit selection via `AIM_PROFILE_ID`
+- **Model-specific containers** (`AIM_ALLOW_GENERAL_PROFILE_FALLBACK=false` by default): General profiles are excluded from automatic selection, requiring explicit selection via `AIM_PROFILE_ID`
 - This ensures model-specific containers prioritize their optimized profiles while still allowing users to manually override with general profiles if needed
 
 ### 3.5 Profile Example
@@ -192,9 +191,9 @@ aim_id: meta-llama/Llama-3.1-8B-Instruct
 model_id: amd/Llama-3.1-8B-Instruct-FP8-KV
 metadata:
   engine: vllm
-  gpu: MI300X
-  gpu_count: 1
-  manual_selection_only: false
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   metric: latency
   precision: fp8
   primary: true
@@ -232,11 +231,11 @@ For comparison, a general profile (`profiles/general/vllm-mi300x-fp16-tp1-latenc
 ```yaml
 metadata:
   engine: vllm
-  gpu: MI300X
+  accelerator_type: gpu
+  accelerator_model: MI300X
   precision: fp16
-  gpu_count: 1
+  accelerator_count: 1
   metric: latency
-  manual_selection_only: false
   type: general
 
 engine_args:
@@ -252,9 +251,8 @@ env_vars:
 
 Users can influence profile selection through the following environment variables:
 - `AIM_PROFILE_ID`: Explicitly specify a profile filename (skips heuristic selection)
-- `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: When set to "false", general profiles become marked as `manual_selection_only: true`
-and are not considered for automatic selection
-- `AIM_ALLOW_UNOPTIMIZED`: When set to `"true"`, allows fallback to a compatible `unoptimized` profile that is `manual_selection_only` when the automatic pool is empty (default: `"false"`)
+- `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: When set to "false", `general` profiles are not considered for automatic selection
+- `AIM_ALLOW_UNOPTIMIZED`: When set to `"true"`, allows fallback to a compatible `unoptimized` profile when the automatic pool is empty (default: `"false"`)
 
 Profiles can be of different types (see Section 3.2 for details):
 * `optimized`
@@ -265,21 +263,23 @@ Profiles can be of different types (see Section 3.2 for details):
 Profiles of types `optimized` and `preview` are participating in automatic profile selection by default, and therefore can be
 selected without any intervention from the user. `General` profiles can be selected automatically if base container is
 used (see Section 12.2). `General` profiles can be automatically selected for model-specific containers as well, but
-only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". `Unoptimized` without `manual_selection_only` is auto-eligible like other types; with `manual_selection_only`, it is skipped until the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true` (warning), or set `AIM_PROFILE_ID` to force it.
+only if the environment variable `AIM_ALLOW_GENERAL_PROFILE_FALLBACK` is set to "true". `Unoptimized` profiles are never
+auto-eligible: they are skipped until the automatic pool is empty and `AIM_ALLOW_UNOPTIMIZED=true` (warning), or set
+`AIM_PROFILE_ID` to force one.
 
-It is still possible to select profiles with `manual_selection_only=true` for runtime. This is achieved by setting the
+It is still possible to select a profile that is excluded from automatic selection. This is achieved by setting the
 environment variable `AIM_PROFILE_ID` with the desired profile identifier. Profile identifier is the filename of the
 profile without the `.yaml` extension.
 
 ### 3.7 Primary Profiles
 
 The `primary` flag in a profile's `metadata` section is the way to express which profiles represent the
-recommended deployment for a given accelerator model and metric. It replaces the deprecated `recommendedDeployments`
+recommended deployment for a given accelerator model and metric. It replaces the removed `recommendedDeployments`
 field in `metadata.yaml`.
 
 #### Purpose
 
-`primary: true` marks a profile as a recommendation for its `(gpu, gpu_count, metric)` combination. Only
+`primary: true` marks a profile as a recommendation for its `(accelerator_model, metric)` combination. Only
 **one** profile per combination should carry `primary: true` within a model's profile set. The flag is informational
 for tooling and documentation purposes — it does not directly influence runtime profile selection, which is governed
 by the selection algorithm described in [Section 3.4](#34-selection-algorithm-overview).
@@ -289,9 +289,14 @@ by the selection algorithm described in [Section 3.4](#34-selection-algorithm-ov
 The flag is set automatically by the `profile_utils set-all-primary-flags` pre-commit hook using the same ranking
 criteria as the profile selector:
 
-1. Profiles with `manual_selection_only: false` are preferred over `manual_selection_only: true`.
+1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
+   `general` tie, since all three are eligible for automatic selection.
 2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
 3. Lower accelerator count (smaller tensor-parallel size) is preferred.
+
+Note this differs from the ordering the runtime selector uses to rank profiles it has already filtered, where
+`optimized` outranks `preview`. For the `primary` flag only auto-selectability matters, so the finer type ordering
+would override the precision and accelerator-count preferences that are meant to decide the tie.
 
 To regenerate `primary` flags after adding or removing profiles:
 
@@ -318,6 +323,8 @@ The `AIMRuntime` class orchestrates the complete workflow, coordinating profile 
      * Boolean flags (value = `true`/`false`)
      * Key-value pairs (string, numeric values)
      * Multi-value arguments (lists)
+   - The spelling above is defined once, in `src/aim_common/engine_args.py`, and is what anything *reading* a flag back out of `engine_args` uses too (the harness's accuracy evaluation, the CI accuracy job, the async benchmark), so a profile's flag means the same thing to the launcher and to them
+   - A profile that spells one flag twice (`trust-remote-code` and `trust_remote_code`) gets one flag and a warning. The last value in the profile wins, as it does on a command line. Both the launcher and a reader collapse the pair the same way
    - Extract and prepare environment variables from the profile's `env_vars` section
 5. **Model Resolution** – Determine the target model using precedence:
    - Model specified in profile's `model_id` field (model-specific profiles)
@@ -498,8 +505,8 @@ Recommended environment variables:
 | AIM_ENGINE_ARGS | JSON object of engine CLI overrides (merged after profile `engine_args`). |
 | AIM_METRIC | Optional metric to optimize for (e.g., `latency`, `throughput` ). |
 | AIM_PROFILE_ID | Optional explicit profile selection (skips heuristic). |
-| AIM_ALLOW_GENERAL_PROFILE_FALLBACK | Allow automatic selection of general profiles (true/false, default: true for base containers, false for model-specific containers). When false, general profiles are still loaded but marked as manual-selection-only. |
-| AIM_ALLOW_UNOPTIMIZED | When `true`, allow fallback to a compatible `manual_selection_only` `unoptimized` profile only if the automatic pool is empty (default: `false`). |
+| AIM_ALLOW_GENERAL_PROFILE_FALLBACK | Allow automatic selection of general profiles (true/false, default: true for base containers, false for model-specific containers). When false, general profiles are still loaded and explicitly selectable, but excluded from automatic selection. |
+| AIM_ALLOW_UNOPTIMIZED | When `true`, allow fallback to a compatible `unoptimized` profile only if the automatic pool is empty (default: `false`). |
 | AIM_CACHE_PATH | Override default cache root. |
 | AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: WARNING). |
 | AIM_LOG_LEVEL | Log level for AIM runtime packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |

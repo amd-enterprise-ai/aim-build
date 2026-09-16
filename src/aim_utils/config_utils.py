@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any, ClassVar, FrozenSet, Mapping, Optional
 
 import click
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field, field_validator, model_validator
 
 from aim_common.object_model import AcceleratorFamily
-from aim_utils.image_naming import LEGACY_VLLM_BASE_TARGET_ID, ImageName, get_base_image_name
+from aim_utils.image_naming import LEGACY_VLLM_BASE_TARGET_ID, ImageName, get_base_image_name, parse_image_name
 from aim_utils.specialized_utils import enumerate_specialized_base_targets, resolve_base_assets_dir
 
 from .asset_utils import AssetDescriptor, Initializer, assets_path_option
@@ -23,18 +23,46 @@ from .yaml_utils import read_yaml, save_yaml
 
 logger = logging.getLogger(__name__)
 
-# TEMPORARY: base targets that don't ship vLLM. Because they lack vLLM they can't
-# run the generic vLLM model-service smoke test, don't carry AITER kernels, and are
-# validated by their own model pipeline instead. Keyed by base target id. This is the
-# single source of truth for the "non-vLLM base" signal: it drives run_validation here,
-# and model_service_validation_supported / aiter_supported in
-# ci/discover_base_build_targets.py.
+# TEMPORARY: base targets EXCLUDED from the generic vLLM model-service smoke test.
+# Most lack vLLM entirely; vllm-omni is vLLM-family but serves generative media, so it
+# still can't run the harness's hardcoded Llama text smoke test. Excluded bases also
+# skip AITER and are validated by their own model pipeline instead. Keyed by base target
+# id (the base dir name). This is the single source of truth for the exclusion signal:
+# it drives run_validation here, and model_service_validation_supported / aiter_supported
+# in ci/discover_base_build_targets.py.
 #
-# REGISTER HERE: every new non-vLLM engine-level or model-level base must add its
+# REGISTER HERE: every new base that can't run the generic vLLM smoke test must add its
 # target_id to this set. Otherwise it defaults to "vLLM" and will silently run the
 # generic vLLM smoke test (and fail). Remove this set once an engine-agnostic,
 # harness-based base smoke test exists — see docs/plans/engine-agnostic-base-validation.md.
-NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset({"bentoml", "mit-boltz2", "openfold-openfold3"})
+NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset(
+    {
+        "bentoml",
+        "mit-boltz2",
+        "monai-swinunetr",
+        "monai-wholebrainseg-large-unest-segmentation",
+        "openfold-openfold3",
+        "vllm-omni",
+    }
+)
+
+
+class EvaluationDepsMixin(BaseModel):
+    """Declares the evaluation opt-in once, for every config that carries it.
+
+    A base target opts in with ``install_evaluation_deps`` in its
+    ``config.yaml``. The flag then travels unchanged: the file schema reads it,
+    the target config keeps it, and the CI configs hand it to the build. One
+    declaration keeps the four descriptions from drifting apart.
+    """
+
+    install_evaluation_deps: bool = Field(
+        default=False,
+        description=(
+            "Whether the build installs requirements/evaluation-requirements.txt into the image's "
+            "evaluation virtualenv, which is what makes `aim-runtime evaluate` runnable in-image"
+        ),
+    )
 
 
 class BaseImageConfig(BaseModel):
@@ -55,6 +83,26 @@ class BaseImageConfig(BaseModel):
     def _validate_registry_host(cls, v: str) -> str:
         if v not in cls.ALLOWED_REGISTRY_HOSTS:
             raise ValueError(f"Invalid registry host: '{v}'. Allowed registries: {sorted(cls.ALLOWED_REGISTRY_HOSTS)}")
+        return v
+
+    @field_validator("base_repository")
+    @classmethod
+    def _validate_base_repository(cls, v: str) -> str:
+        # AIM base images that have a public alias must be declared by that public name
+        # (e.g. 'aim-base', not 'aim-instinct-base'). The canonical name is the private
+        # CI push repository; only the public alias is published for consumers to pull.
+        try:
+            parsed = parse_image_name(v)
+        except ValueError:
+            # Upstream base images (pytorch, vllm-openai-rocm, ...) are not AIM-named.
+            return v
+
+        if not parsed.is_base:
+            return v
+
+        image_name = get_base_image_name(parsed.accelerator, parsed.base_target_id)
+        if image_name.has_alias and v == image_name.canonical:
+            raise ValueError(f"Invalid base repository: '{v}'. Use the public name '{image_name.public}'.")
         return v
 
     @field_validator("base_tag")
@@ -88,13 +136,31 @@ class BaseImageConfig(BaseModel):
         return self.model_dump_json()
 
 
-class BaseImageConfigFile(BaseModel):
+class BaseImageConfigFile(EvaluationDepsMixin):
     """Top-level YAML schema containing one required ``base_image`` block."""
 
     # Extra top-level keys allowed
     model_config = ConfigDict(extra="allow")
 
     base_image: BaseImageConfig
+
+    @model_validator(mode="before")
+    @classmethod
+    def _warn_about_a_nested_evaluation_opt_in(cls, data: Any) -> Any:
+        """Name the correct place when the opt-in sits under ``base_image``.
+
+        ``BaseImageConfig`` ignores a key it does not declare, so the nested flag
+        installs nothing and says nothing. The image then serves normally and
+        fails only the evaluation check, which is a long way from the typo.
+        """
+        if isinstance(data, Mapping):
+            base_image = data.get("base_image")
+            if isinstance(base_image, Mapping) and "install_evaluation_deps" in base_image:
+                logger.warning(
+                    "'install_evaluation_deps' under 'base_image:' has no effect. "
+                    "Move it to the top level of the base config, beside 'base_image:'."
+                )
+        return data
 
     @classmethod
     def from_yaml_file(cls, config_path: Path) -> "BaseImageConfigFile":
@@ -103,13 +169,13 @@ class BaseImageConfigFile(BaseModel):
         return cls.model_validate(config_dict)
 
 
-class BaseImageTargetConfig(BaseImageConfig):
+class BaseImageTargetConfig(EvaluationDepsMixin, BaseImageConfig):
     """Base image config extended with a target identifier."""
 
     target_id: str = Field(..., description="Target identifier (e.g. legacy_vllm, bentoml)")
 
 
-class CiBaseImageTarget(BaseModel):
+class CiBaseImageTarget(EvaluationDepsMixin):
     """CI build metadata for one normalized base image target."""
 
     target_id: str = Field(..., description="Target identifier (e.g. legacy_vllm, bentoml)")
@@ -176,7 +242,10 @@ def normalize_base_image_targets(
         parsed_config = BaseImageConfigFile.model_validate(config_dict)
         return {
             LEGACY_VLLM_BASE_TARGET_ID: _normalize_target_dict(
-                parsed_config.base_image.model_dump(),
+                {
+                    **parsed_config.base_image.model_dump(),
+                    "install_evaluation_deps": parsed_config.install_evaluation_deps,
+                },
                 LEGACY_VLLM_BASE_TARGET_ID,
             )
         }
@@ -185,7 +254,11 @@ def normalize_base_image_targets(
 def _load_base_target_config(config_path: Path, target_id: str) -> BaseImageTargetConfig:
     """Load one target config file and return normalized target config."""
     parsed_config = BaseImageConfigFile.from_yaml_file(config_path)
-    return BaseImageTargetConfig(target_id=target_id, **parsed_config.base_image.model_dump())
+    return BaseImageTargetConfig(
+        target_id=target_id,
+        install_evaluation_deps=parsed_config.install_evaluation_deps,
+        **parsed_config.base_image.model_dump(),
+    )
 
 
 def resolve_base_image_targets(accelerator_family: str) -> list[BaseImageTargetConfig]:
@@ -236,6 +309,7 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
                 dockerfile=dockerfile,
                 run_validation=run_validation,
                 upstream_image_ref=target.image_ref,
+                install_evaluation_deps=target.install_evaluation_deps,
             )
         )
         seen_target_ids.add(target.target_id)
@@ -270,7 +344,7 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
     return ci_targets
 
 
-class CiBaseImageConfig(BaseModel):
+class CiBaseImageConfig(EvaluationDepsMixin):
     """Complete build configuration for CI pipelines.
 
     Combines the base image config from YAML with CI-specific build metadata.
@@ -357,7 +431,9 @@ class ConfigInitializer(Initializer):
             accelerator = Path(self.assets_path).name
             # Use centralized naming utility
             image_name = get_base_image_name(accelerator, LEGACY_VLLM_BASE_TARGET_ID)
-            base_repository = image_name.canonical  # Use canonical name for config generation
+            # Public name, not canonical: configs declare the image consumers pull,
+            # and the canonical name is the private CI push repository.
+            base_repository = image_name.public
             base_registry_namespace = self._registry_namespace
             base_tag = file_reader.read_value("project.version")
             base_registry_host = self._registry_host
@@ -485,6 +561,7 @@ def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] 
         layer1_repository=ci_target.layer1_repository,
         layer1_context_path=ci_target.layer1_context_path,
         layer1_dockerfile=ci_target.layer1_dockerfile,
+        install_evaluation_deps=ci_target.install_evaluation_deps,
     )
 
     # Output as JSON

@@ -7,15 +7,12 @@ SPDX-License-Identifier: MIT
 ```{toctree}
 ---
 caption: AIMs
-maxdepth: 1
+maxdepth: 2
 hidden: True
 ---
-AIMs Overview <aims/overview.md>
-Deployment Overview <aims/deployment_overview.md>
-Raw Kubernetes Deployment <aims/kubernetes_deployment.md>
-KServe Deployment <aims/kserve_deployment.md>
-Docker Deployment <aims/docker_deployment.md>
+Overview <aims/overview.md>
+Deployment <aims/deployment_overview.md>
+Guides <aims/guides/guides.md>
 AIMs Catalog <aims/catalog/models.md>
-Custom Profiles <aims/custom_profiles.md>
-Supported GPU Models <aims/gpu_support.md>
+Supported Accelerator Models <aims/accelerator_support.md>
 ```

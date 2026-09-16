@@ -11,7 +11,7 @@ import click
 from pydantic import ValidationError
 
 from aim_common.metadata_models import BaseMetadataModel, ModelMetadataModel
-from aim_common.object_model import CanonicalName, ProfileMetadata
+from aim_common.object_model import CanonicalName
 
 from .asset_utils import (
     AssetDescriptor,
@@ -21,7 +21,7 @@ from .asset_utils import (
     assets_root_option,
     discover_assets_paths,
 )
-from .dict_utils import get_value, rename_keys, set_value
+from .dict_utils import get_value, set_value
 from .yaml_utils import get_yamls, read_yaml, save_yaml
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,6 @@ DEFAULT_METADATA: Metadata = {
                 "model": {
                     "canonicalName": "",
                     "publisher": "",
-                    "recommendedDeployments": [],
                     "source": "",
                     "tags": "",
                     "variants": [],
@@ -141,8 +140,6 @@ class MetadataInitializer(Initializer):
 
         save_yaml(metadata, path=output_path, enforce_double_quotes=True)
 
-        _add_recommended_deployments_for_model(output_path)
-
         logger.info(f"Generated metadata for {assets_descriptor.directory}")
 
 
@@ -154,14 +151,14 @@ class MetadataManager(AssetManager):
     def get_yamls(self, canonical_name: Optional[CanonicalName] = None) -> List[Path]:
         descriptors: List[AssetDescriptor] = self.get_descriptors(canonical_name=canonical_name)
 
-        metadata_paths = []
+        metadata_paths = set()
 
         for descriptor in descriptors:
             resolved_path = descriptor.directory / "metadata.yaml"
             if resolved_path.exists():
-                metadata_paths.append(resolved_path)
+                metadata_paths.add(resolved_path)
 
-        return metadata_paths
+        return list(metadata_paths)
 
     def update_value(
         self,
@@ -332,187 +329,6 @@ def rename_key_command(
     MetadataManager(assets_path=assets_path).rename_key(source_key, target_key, canonical_name)
 
 
-@cli.command(name="add-recommended-deployments")
-@assets_path_option
-@click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def add_recommended_deployments_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """
-    Add recommended deployment configurations based on available profiles.
-    Automatically detects latency and throughput profiles for each GPU model.
-
-    Args:
-        metadata_path: Root directory containing metadata.yaml files
-        canonical_name: If provided, only update files matching this canonical name
-    """
-    modified_count = _add_recommended_deployments(assets_path, canonical_name)
-    sys.exit(1 if modified_count > 0 else 0)
-
-
-@cli.command(name="add-all-recommended-deployments")
-@assets_root_option
-@click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def add_all_recommended_deployments_command(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
-    """Add recommended deployments across all accelerator asset directories."""
-    total_modified = 0
-    for assets_path in discover_assets_paths(assets_root):
-        total_modified += _add_recommended_deployments(assets_path, canonical_name)
-    sys.exit(1 if total_modified > 0 else 0)
-
-
-def _add_recommended_deployments(assets_path: str, canonical_name: Optional[str] = None) -> int:
-    """Core logic: returns the number of modified files."""
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
-
-    modified_count = 0
-    for metadata_file in metadata_files:
-        modified = _add_recommended_deployments_for_model(metadata_file)
-        if modified:
-            modified_count += 1
-
-    if modified_count > 0:
-        logger.info(f"✅ Recommended deployments added to {modified_count}/{len(metadata_files)} metadata files")
-
-    return modified_count
-
-
-def _add_recommended_deployments_for_model(metadata_file: Path) -> bool:
-    """
-    Add recommended deployments for a single model based on its profiles for each GPU and metric.
-
-    Selection criteria:
-    1. Prioritizes profiles with manual_selection_only=false
-    2. Lowest precision int4 > int8 > fp4 > fp8 > fp16 > bf16 > fp32 (lower is better)
-    3. Lowest GPU count (minimal TP):
-
-    Args:
-        metadata_file: Path to the metadata.yaml file
-    """
-    metadata = read_yaml(metadata_file)
-
-    # Get canonical name from metadata
-    canonical_name = get_value(metadata, "com.amd.aim.model.canonicalName")
-    if not canonical_name:
-        logger.warning(f"No canonical name found in {metadata_file}, skipping...")
-        return False
-
-    logger.debug(f"Processing {canonical_name}")
-
-    # Find corresponding profiles directory
-    profiles_path = metadata_file.parent / "profiles"
-
-    if not profiles_path.exists():
-        logger.warning(f"No profiles directory found at {profiles_path}, skipping...")
-        return False
-
-    # Get all profile files
-    profile_files = list(profiles_path.glob("*.yaml"))
-    if not profile_files:
-        logger.warning(f"No profile files found in {profiles_path}, skipping...")
-        return False
-
-    # Define precision priority matching ProfileSelector logic (lower number = higher priority/lower precision)
-    # This matches the priority order in profile_selector.py
-    # TODO: Extract this into a common utility to avoid duplication
-    precision_priority = {
-        "int4": 1,
-        "int8": 2,
-        "fp4": 3,
-        "fp8": 4,
-        "fp16": 5,
-        "bf16": 6,
-        "fp32": 7,
-    }
-
-    # Unknown precision constant (matches ProfileSelector)
-    UNKNOWN_PRECISION_PRIORITY = 999
-
-    # Parse profiles and organize by GPU model and metric
-    # Structure: {gpu_model: {metric: [list of profile info]}}
-    profiles_by_gpu: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
-
-    for profile_file in profile_files:
-        profile = read_yaml(profile_file)
-
-        profile_metadata = profile.get("metadata", {})
-
-        manual = profile_metadata.get("manual_selection_only", False)
-        profile_id = profile_file.stem
-        gpu_model = profile_metadata.get("gpu")
-        gpu_count = profile_metadata.get("gpu_count")
-        metric = profile_metadata.get("metric")
-        precision = profile_metadata.get("precision")
-
-        if not all([gpu_model, gpu_count, metric, precision]):
-            logger.debug(f"Skipping {profile_file.name} - missing required metadata")
-            continue
-
-        # Initialize nested structure
-        if gpu_model not in profiles_by_gpu:
-            profiles_by_gpu[gpu_model] = {"latency": [], "throughput": []}
-
-        # Store the profile info with precision priority matching ProfileSelector
-        profile_info = {
-            "gpuModel": gpu_model,
-            "gpuCount": gpu_count,
-            "metric": metric,
-            "precision": precision,
-            "precision_priority": precision_priority.get(precision.lower(), UNKNOWN_PRECISION_PRIORITY),
-            "manual_selection_only": manual,
-            "profileId": profile_id,
-        }
-
-        profiles_by_gpu[gpu_model][metric].append(profile_info)
-
-    # Select best profiles for each GPU model and metric
-    # Strategy: For each GPU model and metric, select minimal precision and minimal TP
-    recommended_deployments = []
-
-    for gpu_model in sorted(profiles_by_gpu.keys()):
-        for metric in ["latency", "throughput"]:
-            profiles = profiles_by_gpu[gpu_model][metric]
-            if profiles:
-                # Sort by: 1) manual_selection_only (False preferred), 2) precision priority (lower is better), 3) GPU count (lower is better)
-                # This heavily prioritizes manual_selection_only=False profiles
-                best_profile = min(
-                    profiles, key=lambda p: (p["manual_selection_only"], p["precision_priority"], p["gpuCount"])
-                )
-
-                deployment = {
-                    "gpuModel": best_profile["gpuModel"],
-                    "gpuCount": best_profile["gpuCount"],
-                    "precision": best_profile["precision"],
-                    "metric": metric,
-                    "description": f"Optimized for {metric} on {best_profile['gpuModel']} using {best_profile['precision']} precision",
-                }
-
-                logger.debug(
-                    f"  Selected {metric}: {best_profile['gpuModel']} tp{best_profile['gpuCount']} {best_profile['precision']}"
-                )
-
-                if best_profile["manual_selection_only"]:
-                    deployment["profileId"] = best_profile["profileId"]
-                    del deployment["precision"]
-
-                recommended_deployments.append(deployment)
-
-    if not recommended_deployments:
-        logger.warning(f"No valid deployment configurations found for {canonical_name}")
-        return False
-
-    # Update metadata
-    metadata = set_value(
-        metadata,
-        "com.amd.aim.model.recommendedDeployments",
-        recommended_deployments,
-        add_if_missing=True,
-    )
-
-    modified = save_yaml(metadata, path=metadata_file, enforce_double_quotes=True)
-    if modified:
-        logger.debug(f"Added {len(recommended_deployments)} recommended deployments to {metadata_file}")
-    return modified
-
-
 @cli.command(name="validate")
 @assets_path_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
@@ -543,6 +359,22 @@ def validate_all_metadata_command(assets_root: str = "assets", canonical_name: O
     sys.exit(0 if totals["invalid_count"] == 0 else 1)
 
 
+@cli.command(name="validate-files")
+@click.argument("files", nargs=-1, type=click.Path(exists=True, path_type=Path))
+def validate_files_command(files: tuple) -> None:
+    """
+    Validate the given metadata.yaml files against Pydantic models.
+
+    Scoped to the files passed on the command line, so pre-commit only checks
+    metadata a change actually touches. This lets deprecated fields be retired
+    from the schema and cleaned out of asset YAMLs gradually, file by file,
+    instead of requiring one repo-wide migration.
+    """
+    results = validate_metadata_files(list(files))
+    _report_validation_results(results)
+    sys.exit(0 if results["invalid_count"] == 0 else 1)
+
+
 def _report_validation_results(results: Dict[str, int]) -> None:
     if results["invalid_count"] == 0:
         logger.info(f"✅ All {results['total_count']} metadata files are valid!")
@@ -565,6 +397,24 @@ def validate_metadata(assets_path: str, canonical_name: Optional[str] = None) ->
     # Get metadata files to validate
     metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
 
+    if not metadata_files:
+        logger.warning("No metadata files found")
+        return {"total_count": 0, "valid_count": 0, "invalid_count": 0}
+
+    return validate_metadata_files(metadata_files)
+
+
+def validate_metadata_files(metadata_files: List[Path]) -> Dict[str, int]:
+    """
+    Validate the given metadata.yaml files against Pydantic models.
+    Uses BaseMetadataModel for base/metadata.yaml and ModelMetadataModel for all others.
+
+    Args:
+        metadata_files: Explicit list of metadata.yaml paths to validate
+
+    Returns:
+        Dictionary with validation results: {"total_count": int, "valid_count": int, "invalid_count": int}
+    """
     if not metadata_files:
         logger.warning("No metadata files found")
         return {"total_count": 0, "valid_count": 0, "invalid_count": 0}
@@ -656,128 +506,6 @@ def list_keys_command(assets_path: str, canonical_name: Optional[str] = None) ->
         logger.info(f"Total: {len(keys)} unique keys")
     else:
         logger.info("No keys found")
-
-
-@cli.command(name="validate-recommended-deployments-profile-ids")
-@assets_path_option
-@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_recommended_deployments_profile_ids(assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """Validate that profile ids in recommended deployments exist and match."""
-    failed = _validate_recommended_deployments_profile_ids(assets_path, canonical_name)
-    if failed:
-        logger.error("❌ Recommended deployments validation failed")
-        sys.exit(1)
-    logger.info("✅ Recommended deployments validation passed.")
-
-
-@cli.command(name="validate-all-recommended-deployments-profile-ids")
-@assets_root_option
-@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_all_recommended_deployments_profile_ids(
-    assets_root: str = "assets", canonical_name: Optional[str] = None
-) -> None:
-    """Validate recommended deployment profile ids across all accelerator asset directories."""
-    any_failed = False
-    for assets_path in discover_assets_paths(assets_root):
-        if _validate_recommended_deployments_profile_ids(assets_path, canonical_name):
-            any_failed = True
-    if any_failed:
-        logger.error("❌ Recommended deployments validation failed")
-        sys.exit(1)
-    logger.info("✅ All recommended deployments validation passed.")
-    sys.exit(0)
-
-
-def _validate_recommended_deployments_profile_ids(assets_path: str, canonical_name: Optional[str] = None) -> bool:
-    """Core logic: returns True if validation failed."""
-
-    def rd_to_profile_metadata(rd: Dict[str, Any], profile_metadata: ProfileMetadata) -> ProfileMetadata:
-        key_mapping = {
-            "gpuModel": "gpu",
-            "gpuCount": "gpu_count",
-        }
-
-        rd = dict(rd)
-        rd["engine"] = profile_metadata.engine
-        rd["type"] = profile_metadata.type
-        rd["manual_selection_only"] = profile_metadata.manual_selection_only
-        if "precision" not in rd:
-            rd["precision"] = profile_metadata.precision
-        # Profile-intrinsic capabilities are not deployment-selection attributes and
-        # cannot be expressed in a recommendedDeployment entry, so inherit them from
-        # the referenced profile to keep the equality check focused on selection keys
-        # (gpu/metric/precision/...). Without this, any recommendedDeployment pointing
-        # at a profile that declares e.g. ``features: [adapters]`` (ADR-0004) fails.
-        rd["features"] = profile_metadata.features
-        rd["capabilities"] = profile_metadata.capabilities
-
-        rd = rename_keys(rd, key_mapping)
-        return ProfileMetadata.from_dict(rd)
-
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
-    summary = {}
-    for metadata_file in metadata_files:
-        metadata = read_yaml(metadata_file)
-
-        recommended_deployments = get_value(metadata, "com.amd.aim.model.recommendedDeployments", [])
-        canonical_name_from_metadata = get_value(metadata, "com.amd.aim.model.canonicalName")
-
-        if not canonical_name_from_metadata and "base" not in metadata_file.parts:
-            logger.error(
-                f"❌ Recommended deployments validation failed. {metadata_file} is missing canonical name ('com.amd.aim.model.canonicalName')."
-            )
-            return True
-
-        count_non_existent_profiles = 0
-        count_metadata_mismatches = 0
-        count_rd_with_profiles = 0
-
-        for rd in recommended_deployments:
-            profile_id = rd.get("profileId")
-            if profile_id:
-                count_rd_with_profiles += 1
-                profile_path = metadata_file.parent / "profiles" / f"{profile_id}.yaml"
-                if not profile_path.exists():
-                    logger.error(f"Recommended deployment references non-existent profile: {profile_path}")
-                    count_non_existent_profiles += 1
-                    continue
-
-                profile = read_yaml(profile_path)
-                profile_metadata = profile.get("metadata", {})
-                profile_metadata.pop("accelerator_type", None)
-                profile_metadata.pop("primary", None)
-                profile_metadata.pop("variant", None)
-                from_profile = ProfileMetadata.from_dict(profile_metadata)
-                from_metadata = rd_to_profile_metadata(rd, from_profile)
-
-                if from_profile != from_metadata:
-                    logger.error(
-                        f"Metadata mismatch for recommended deployment in {metadata_file} referencing profile {profile_path}"
-                    )
-                    count_metadata_mismatches += 1
-
-        summary[metadata_file] = {
-            "total_recommended_deployments": len(recommended_deployments),
-            "count_non_existent_profiles": count_non_existent_profiles,
-            "count_metadata_mismatches": count_metadata_mismatches,
-            "count_rd_with_profiles": count_rd_with_profiles,
-        }
-
-    failed = False
-    for k, v in summary.items():
-        count_non_existent_profiles = v["count_non_existent_profiles"]
-        count_metadata_mismatches = v["count_metadata_mismatches"]
-        if count_non_existent_profiles > 0 or count_metadata_mismatches > 0:
-            failed = True
-            logger.error(
-                f"Validation failed for {k}: {count_non_existent_profiles} non-existent profiles, {count_metadata_mismatches} metadata mismatches"
-            )
-
-    if failed:
-        return True
-
-    logger.info(f"✅ All {len(metadata_files)} metadata files passed recommended deployment check.")
-    return False
 
 
 if __name__ == "__main__":

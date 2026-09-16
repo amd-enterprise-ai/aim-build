@@ -56,7 +56,7 @@ def test_enumerate_model_level_target_uses_model_key(assets_root):
     assert len(targets) == 1
     target = targets[0]
     assert target.scope == "model"
-    # target_id == sanitized <org>-<model>; Layer 3 is target-qualified and repeats the key.
+    # target_id == sanitized <org>-<model>; Layer 3 drops the duplicate (aim-<acc>-model-<org>-<model>).
     assert target.target_id == "example-echo-model"
     assert target.base_repository == "aim-cpu-example-echo-model-base"
     assert target.layer1_repository == "aim-cpu-specialized-example-echo-model"

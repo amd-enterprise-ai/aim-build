@@ -23,27 +23,6 @@ com:
         source: "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct"
         variants:
         - "Qwen/Qwen3-VL-8B-Instruct"
-        recommendedDeployments:
-        - gpuModel: "W7900"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on W7900 using bf16 precision"
-        - gpuModel: "W7900"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on W7900 using bf16 precision"
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on R9700 using bf16 precision"
-        - gpuModel: "R9700"
-          gpuCount: 1
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on R9700 using bf16 precision"
         publisher: "Qwen"
       hfToken:
         required: false

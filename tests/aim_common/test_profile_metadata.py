@@ -4,6 +4,7 @@
 
 """Tests for the ProfileMetadata dataclass."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -34,12 +35,12 @@ class TestProfileMetadata:
     def test_profile_str_representation(self):
         """Test that str(ProfileMetadata) returns the accelerator_label."""
         profile = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         assert str(profile) == "vllm-mi300x-fp16-tp1-throughput"
@@ -47,29 +48,57 @@ class TestProfileMetadata:
     def test_accelerator_label_property(self):
         """Test that accelerator_label property returns the same as str()."""
         profile = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI325X,
             precision=Precision.FP8,
             accelerator_count=2,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         assert profile.accelerator_label == str(profile)
         assert profile.accelerator_label == "vllm-mi325x-fp8-tp2-latency"
 
-    def test_accelerator_label_none_accelerator(self):
-        """Test accelerator_label when accelerator is None (e.g. CPU-only profile)."""
+    def test_accelerator_label_cpu_profile(self):
+        """CPU-only profiles name their accelerator explicitly rather than omitting it."""
         profile = ProfileMetadata(
+            accelerator_type=AcceleratorType.CPU,
             engine=Engine.VLLM,
-            accelerator_model=None,
+            accelerator_model=AcceleratorModel.CPU,
             precision=Precision.BF16,
-            accelerator_count=0,
+            accelerator_count=124,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
-        assert profile.accelerator_label == "vllm-none-bf16-tp0-latency"
+        # CPU profiles collapse to tp1 regardless of the core count they request.
+        assert profile.accelerator_label == "vllm-cpu-bf16-tp1-latency"
+
+    def test_accelerator_model_none_rejected(self):
+        """accelerator_model is required: None is no longer an accepted value."""
+        with pytest.raises(ValidationError):
+            ProfileMetadata(
+                accelerator_type=AcceleratorType.GPU,
+                engine=Engine.VLLM,
+                accelerator_model=None,
+                precision=Precision.BF16,
+                accelerator_count=1,
+                metric=Metric.LATENCY,
+                type=ProfileType.GENERAL,
+            )
+
+    def test_accelerator_count_zero_rejected(self):
+        """A profile must claim at least one accelerator; zero is not a deployment target."""
+        with pytest.raises(ValidationError) as exc_info:
+            ProfileMetadata(
+                accelerator_type=AcceleratorType.GPU,
+                engine=Engine.VLLM,
+                accelerator_model=AcceleratorModel.MI300X,
+                precision=Precision.BF16,
+                accelerator_count=0,
+                metric=Metric.LATENCY,
+                type=ProfileType.GENERAL,
+            )
+        assert "accelerator_count" in str(exc_info.value)
 
     def test_profile_to_dict(self):
         """Test ProfileMetadata serialization to dictionary."""
@@ -80,7 +109,6 @@ class TestProfileMetadata:
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         result = profile.to_dict()
@@ -91,7 +119,6 @@ class TestProfileMetadata:
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "throughput",
-            "manual_selection_only": False,
             "type": "general",
         }
 
@@ -99,11 +126,11 @@ class TestProfileMetadata:
         """Test ProfileMetadata deserialization from dictionary."""
         data = {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "mi325x",
             "precision": "fp8",
             "accelerator_count": 2,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "general",
         }
         profile = ProfileMetadata.from_dict(data)
@@ -112,18 +139,17 @@ class TestProfileMetadata:
         assert profile.precision == Precision.FP8
         assert profile.accelerator_count == 2
         assert profile.metric == Metric.LATENCY
-        assert profile.manual_selection_only is False
         assert profile.type == ProfileType.GENERAL
 
     def test_profile_to_dict_includes_capabilities_when_any_enabled(self):
         """Test that capabilities is serialized only when at least one flag is enabled."""
         profile = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
             capabilities=ProfileCapabilities(reasoning=True),
         )
@@ -135,53 +161,114 @@ class TestProfileMetadata:
             "reasoning": True,
         }
 
-    def test_profile_from_dict_with_old_field_names(self):
-        """Test that old YAML field names (gpu, gpu_count) still parse correctly."""
+    def test_profile_from_dict_accepts_old_field_names_with_warning(self, caplog):
+        """Deprecated accelerator fields remain compatible during the warning period."""
         data = {
             "engine": "vllm",
             "gpu": "MI300X",
             "precision": "fp16",
             "gpu_count": 1,
             "metric": "throughput",
-            "manual_selection_only": False,
             "type": "general",
         }
-        profile = ProfileMetadata.from_dict(data)
+        with caplog.at_level(logging.WARNING):
+            profile = ProfileMetadata.from_dict(data, source="profiles/legacy.yaml")
+
         assert profile.accelerator_model == AcceleratorModel.MI300X
         assert profile.accelerator_count == 1
+        assert profile.accelerator_type == AcceleratorType.GPU
+        assert "'gpu' (use 'accelerator_model')" in caplog.text
+        assert "'gpu_count' (use 'accelerator_count')" in caplog.text
+        assert "profiles/legacy.yaml" in caplog.text
+        assert "will stop working in a future release" in caplog.text
 
-    def test_profile_from_dict_with_none_sentinel(self):
-        """Test that legacy 'NONE' sentinel value in YAML parses as Python None."""
+    def test_profile_from_dict_accepts_unknown_field_with_warning(self, caplog):
+        """Unknown metadata keys are accepted temporarily but produce a migration warning."""
         data = {
             "engine": "vllm",
-            "gpu": "NONE",
-            "precision": "bf16",
-            "gpu_count": 0,
-            "metric": "latency",
-            "manual_selection_only": False,
+            "accelerator_type": "gpu",
+            "accelerator_model": "MI300X",
+            "precision": "fp16",
+            "accelerator_count": 1,
+            "metric": "throughput",
+            "type": "general",
+            "tensor_parallel_size": 1,
+        }
+        with caplog.at_level(logging.WARNING):
+            profile = ProfileMetadata.from_dict(data)
+
+        assert profile.tensor_parallel_size == 1
+        assert "'tensor_parallel_size' (unsupported)" in caplog.text
+        assert "will stop working in a future release" in caplog.text
+
+    def test_profile_from_dict_accepts_retired_field_with_warning(self, caplog):
+        """Retired metadata remains loadable but no longer affects runtime behavior."""
+        data = {
+            "engine": "vllm",
+            "accelerator_type": "gpu",
+            "accelerator_model": "MI300X",
+            "precision": "fp16",
+            "accelerator_count": 1,
+            "metric": "throughput",
+            "type": "general",
+            "manual_selection_only": True,
+        }
+        with caplog.at_level(logging.WARNING):
+            profile = ProfileMetadata.from_dict(data)
+
+        assert profile.manual_selection_only is True
+        assert "'manual_selection_only' (retired and ignored)" in caplog.text
+        assert "will stop working in a future release" in caplog.text
+
+    def test_canonical_fields_win_over_deprecated_fields(self):
+        """Dual-spelled metadata uses canonical values while retaining compatibility."""
+        data = {
+            "engine": "vllm",
+            "accelerator_type": "gpu",
+            "accelerator_model": "MI325X",
+            "gpu": "MI300X",
+            "precision": "fp16",
+            "accelerator_count": 2,
+            "gpu_count": 1,
+            "metric": "throughput",
             "type": "general",
         }
         profile = ProfileMetadata.from_dict(data)
-        assert profile.accelerator_model is None
+        assert profile.accelerator_model == AcceleratorModel.MI325X
+        assert profile.accelerator_count == 2
+
+    def test_profile_from_dict_rejects_none_sentinel(self):
+        """The legacy 'NONE' sentinel is no longer accepted now that the field is required."""
+        data = {
+            "engine": "vllm",
+            "accelerator_type": "gpu",
+            "accelerator_model": "NONE",
+            "precision": "bf16",
+            "accelerator_count": 1,
+            "metric": "latency",
+            "type": "general",
+        }
+        with pytest.raises(ValidationError):
+            ProfileMetadata.from_dict(data)
 
     def test_profile_equality(self):
         """Test that Profiles with same values are equal."""
         profile1 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         profile2 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         assert profile1 == profile2
@@ -189,21 +276,21 @@ class TestProfileMetadata:
     def test_profile_inequality(self):
         """Test that Profiles with different values are not equal."""
         profile1 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         profile2 = ProfileMetadata(
+            accelerator_type=AcceleratorType.GPU,
             engine=Engine.VLLM,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=2,
             metric=Metric.THROUGHPUT,
-            manual_selection_only=False,
             type=ProfileType.GENERAL,
         )
         assert profile1 != profile2
@@ -215,11 +302,11 @@ class TestProfileMetadataVariant:
     def _base_profile(self, **kwargs) -> ProfileMetadata:
         defaults = dict(
             engine=Engine.VLLM,
+            accelerator_type=AcceleratorType.GPU,
             accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.FP16,
             accelerator_count=1,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.OPTIMIZED,
         )
         defaults.update(kwargs)
@@ -256,11 +343,11 @@ class TestProfileMetadataVariant:
         """ProfileMetadata.from_dict should accept and parse the variant key."""
         data = {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "MI300X",
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "optimized",
             "variant": "inductor-diff",
         }
@@ -272,11 +359,11 @@ class TestProfileMetadataVariant:
         """YAML profiles without variant key must parse to variant=None."""
         data = {
             "engine": "vllm",
+            "accelerator_type": "gpu",
             "accelerator_model": "MI300X",
             "precision": "fp16",
             "accelerator_count": 1,
             "metric": "latency",
-            "manual_selection_only": False,
             "type": "optimized",
         }
         profile = ProfileMetadata.from_dict(data)

@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import json
 
-from aim_common import Engine, Metric, Precision, ProfileMetadata, ProfileType
+from aim_common import (
+    AcceleratorModel,
+    AcceleratorType,
+    Engine,
+    Metric,
+    Precision,
+    ProfileMetadata,
+    ProfileType,
+)
 from aim_runtime.command_generator import CommandGenerator
 from aim_runtime.config import AIMConfig
 from aim_runtime.engine_config import EngineConfig
@@ -148,10 +156,11 @@ def _adapter_profile(features):
         profile_handling=ProfileHandling(path="/x/test.yaml", filename="test.yaml", priority=1),
         metadata=ProfileMetadata(
             engine=Engine.VLLM,
+            accelerator_type=AcceleratorType.GPU,
+            accelerator_model=AcceleratorModel.MI300X,
             precision=Precision.BF16,
             accelerator_count=1,
             metric=Metric.LATENCY,
-            manual_selection_only=False,
             type=ProfileType.OPTIMIZED,
             features=features,
         ),

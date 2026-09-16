@@ -9,7 +9,6 @@ metadata:
   accelerator_model: EPYC_ZEN5
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: true
   metric: throughput
   precision: bf16
   primary: true
@@ -21,7 +20,7 @@ engine_args:
 env_vars:
   OMP_NUM_THREADS: '128'
   TORCHINDUCTOR_FREEZING: '0'
-  VLLM_CPU_KVCACHE_SPACE: '80'
+  VLLM_CPU_KVCACHE_SPACE: '17'
   VLLM_CPU_NUM_OF_RESERVED_CPU: '12'
   VLLM_CPU_OMP_THREADS_BIND: auto
   ZENDNNL_MATMUL_ALGO: '1'

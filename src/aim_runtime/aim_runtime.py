@@ -281,7 +281,7 @@ class AIMRuntime:
 
         # Install pre-built AITER kernels for the target GPU architecture
         # (only for engines that use them, e.g. vLLM).
-        if self.engine.requires_aiter_kernels and profile.metadata and profile.metadata.accelerator_model:
+        if self.engine.requires_aiter_kernels and profile.metadata:
             _install_aiter_prebuilt_kernels(profile.metadata.accelerator_model)
 
         # Step 3: Generate execution parameters

@@ -34,6 +34,16 @@ config_suites:
 settings:
   timeout_seconds_per_config: 14400  # 4 hours per configuration
   ignore_eos: true
+  # Warmup requests per configuration, as a non-negative integer; 0 omits the flag.
+  # vllm bench serve warms up nothing by default, which leaves the first
+  # configuration of a sweep paying the first-request cost inside the measured
+  # window and reporting a markedly worse TTFT than every configuration that
+  # follows it.
+  num_warmups: 5
+  # Unset follows the profile's trust-remote-code engine arg, so the benchmark
+  # client loads the tokenizer the same way the served engine did. Set true or
+  # false — unquoted, as booleans — to force it.
+  trust_remote_code: null
   percentile_metrics: "ttft,tpot,itl,e2el"
   metric_percentiles: "75,90,99"
   dataset_name: "random"

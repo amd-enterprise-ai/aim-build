@@ -158,6 +158,18 @@ class TestVllmEngineArgsModel:
             m = VllmEngineArgsModel.model_validate({"kv-cache-dtype": value})
             assert m.kv_cache_dtype == value
 
+    def test_valid_block_size(self):
+        """Valid block-size values are accepted."""
+        for value in (1, 8, 16, 32, 64, 128, 256):
+            m = VllmEngineArgsModel.model_validate({"block-size": value})
+            assert m.block_size == value
+
+    def test_valid_tokenizer_mode(self):
+        """Valid tokenizer-mode values are accepted."""
+        for value in ("auto", "custom", "deepseek_v32", "deepseek_v4", "hf", "mistral", "slow"):
+            m = VllmEngineArgsModel.model_validate({"tokenizer-mode": value})
+            assert m.tokenizer_mode == value
+
     def test_valid_tensor_parallel_size(self):
         """Integer tensor-parallel-size is accepted."""
         m = VllmEngineArgsModel.model_validate({"tensor-parallel-size": 8})

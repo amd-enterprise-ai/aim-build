@@ -1,0 +1,10 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Optional extra deps for the vllm-omni base, installed on top of the core + family
+# requirements (and after the LMCache build) so omni gets the versions it needs. The
+# vllm-omni vendor image ships huggingface-hub 1.x; the instinct lock and LMCache would
+# otherwise downgrade it (<1.0) and break omni. Pinned for reproducible base images;
+# bump to match the vendor image's huggingface-hub when it changes.
+huggingface-hub==1.24.0

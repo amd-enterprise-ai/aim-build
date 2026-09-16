@@ -9,10 +9,7 @@ metadata:
   precision: fp16
   accelerator_count: 1
   metric: latency
-  manual_selection_only: false
   type: general
-  gpu: MI300X
-  gpu_count: 1
 env_vars:
   DUMMY_VAR: dummy_value
 engine_args:

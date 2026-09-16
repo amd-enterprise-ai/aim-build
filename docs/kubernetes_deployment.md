@@ -14,7 +14,7 @@ correctly.
 ## Prerequisites
 
 - Kubernetes cluster with kubectl configured (v1.32.8+rke2r1)
-- AMD GPU with ROCm support (e.g., MI300X for Instinct, W7900 or R9700 for Radeon Pro)
+- AMD GPU with ROCm support (e.g., MI300X for Instinct™, W7900 or R9700 for Radeon™ Pro) or EPYC™ CPU
 
 ## Deployment
 
@@ -39,6 +39,10 @@ secret/hf-token created
 ```
 
 ### 2. Install AMD device plugin if it is not already in place
+
+```{admonition} EPYC™ CPU
+This step can be skipped if you plan to deploy AIM on EPYC™ CPU.
+```
 
 Fetch plugin manifest and create the DaemonSet:
 
@@ -126,6 +130,10 @@ spec:
             medium: Memory
             sizeLimit: 32Gi
 
+```
+
+```{admonition} EPYC™ CPU
+Resource request for AMD GPU (`amd.com/gpu`) is not required if you plan to deploy AIM on EPYC™ CPU.
 ```
 
 #### Example of service.yaml

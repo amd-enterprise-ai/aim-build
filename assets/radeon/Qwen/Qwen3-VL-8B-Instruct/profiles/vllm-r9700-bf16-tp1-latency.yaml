@@ -9,7 +9,6 @@ metadata:
   accelerator_model: R9700
   accelerator_type: gpu
   engine: vllm
-  manual_selection_only: false
   metric: latency
   precision: bf16
   primary: true

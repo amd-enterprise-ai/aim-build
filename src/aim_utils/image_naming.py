@@ -10,6 +10,10 @@ Provides canonical, private, and public repository names.
 Canonical: aim-{accelerator}-{org}-{model}
 Private: aim-{accelerator}-{org}-{model}
 Public: aim-{org}-{model} (for instinct)
+
+Model-dedicated images (where the target id equals the model's own canonical
+name) drop the duplicated ``target-`` segment for a simpler
+``aim-{accelerator}-model-{org}-{model}`` name.
 """
 
 import re
@@ -42,7 +46,18 @@ _LEGACY_ACCELERATOR = AcceleratorFamily.INSTINCT
 # Named targets (base/<target_id>/config.yaml) include their target_id in the image name.
 LEGACY_VLLM_BASE_TARGET_ID = "legacy_vllm"
 _TARGET_QUALIFIED_MODEL_PREFIX = "target-"
-_TARGET_QUALIFIED_MODEL_SEPARATOR = "-model-"
+
+# Introduces the model-name segment in image names: ``model-{canonical_name}``.
+# Used standalone for model-dedicated images whose target id equals the model's
+# own canonical name (the duplicated ``target-{id}`` segment is dropped, leaving
+# ``aim-{accelerator}-model-{canonical_name_sanitized}``) and reused to build the
+# target/model separator below. Reserved so no base target_id may collide with
+# this namespace (see ``get_base_image_name``).
+_MODEL_NAME_PREFIX = "model-"
+
+# Separator between target id and model name in target-qualified model image
+# names (``aim-{acc}-target-{id}-model-{model}``); derived from the model prefix.
+_TARGET_QUALIFIED_MODEL_SEPARATOR = f"-{_MODEL_NAME_PREFIX}"
 
 # Built once at import time; AcceleratorFamily is a fixed enum.
 _KNOWN_BASE_IMAGES: dict[str, AcceleratorFamily] = {
@@ -90,7 +105,9 @@ def get_image_name(
     Named base targets produce ``aim-{accelerator}-{target_id}-base`` with no public alias.
     Named model targets produce
     ``aim-{accelerator}-target-{target_id}-model-{canonical_name_sanitized}``
-    with no public alias.
+    with no public alias. When the target_id equals ``canonical_name_sanitized``
+    (a model-dedicated base), the duplicated target segment is dropped, yielding
+    the simpler ``aim-{accelerator}-model-{canonical_name_sanitized}``.
     """
     warnings.warn(
         "get_image_name() is deprecated and will be removed in a future version. "
@@ -115,10 +132,15 @@ def get_base_image_name(accelerator: str, base_target_id: str) -> ImageName:
     if family is None:
         valid = ", ".join(a.value for a in AcceleratorFamily)
         raise ValueError(f"Unknown accelerator: '{accelerator}'. Must be one of: {valid}")
-    if base_target_id.startswith("target-"):
+    if base_target_id.startswith(_TARGET_QUALIFIED_MODEL_PREFIX):
         raise ValueError(
             f"Invalid base_target_id: '{base_target_id}'. "
-            "Must not start with 'target-' (reserved prefix for model image names)."
+            f"Must not start with '{_TARGET_QUALIFIED_MODEL_PREFIX}' (reserved prefix for model image names)."
+        )
+    if base_target_id.startswith(_MODEL_NAME_PREFIX):
+        raise ValueError(
+            f"Invalid base_target_id: '{base_target_id}'. "
+            f"Must not start with '{_MODEL_NAME_PREFIX}' (reserved prefix for model-dedicated image names)."
         )
     if not _is_safe_image_ref_component(base_target_id):
         raise ValueError(
@@ -153,6 +175,7 @@ def parse_image_name(repository: str) -> ParsedImageName:
     parsers = [
         _parse_known_base_image,
         _parse_target_qualified_model_image,
+        _parse_self_targeted_model_image,
         _parse_target_qualified_base_image,
         _parse_legacy_or_standard_model_image,
     ]
@@ -188,7 +211,7 @@ def _parse_target_qualified_base_image(repository: str) -> Optional[ParsedImageN
             if (
                 middle
                 and middle != LEGACY_VLLM_BASE_TARGET_ID
-                and not middle.startswith("target-")
+                and not middle.startswith(_TARGET_QUALIFIED_MODEL_PREFIX)
                 and _is_safe_image_ref_component(middle)
             ):
                 return ParsedImageName(
@@ -223,6 +246,30 @@ def _parse_target_qualified_model_image(repository: str) -> Optional[ParsedImage
                     canonical_name_sanitized=canonical_name_sanitized,
                     is_base=False,
                     base_target_id=target_id,
+                )
+    return None
+
+
+def _parse_self_targeted_model_image(repository: str) -> Optional[ParsedImageName]:
+    """Parse simplified model-dedicated model repository names.
+
+    Expected format: aim-{acc}-model-{canonical_name_sanitized}
+
+    Generated when the target_id equals the model's own canonical name; both
+    ``base_target_id`` and ``canonical_name_sanitized`` resolve to the same value.
+    The reserved ``model-`` prefix (see ``get_base_image_name``) keeps this
+    namespace disjoint from base image names.
+    """
+    for family in _FAMILIES_BY_SPECIFICITY:
+        prefix = f"aim-{family.value}-{_MODEL_NAME_PREFIX}"
+        if repository.startswith(prefix):
+            canonical_name_sanitized = repository[len(prefix) :]
+            if canonical_name_sanitized and _is_safe_image_ref_component(canonical_name_sanitized):
+                return ParsedImageName(
+                    accelerator=family.value,
+                    canonical_name_sanitized=canonical_name_sanitized,
+                    is_base=False,
+                    base_target_id=canonical_name_sanitized,
                 )
     return None
 
@@ -283,7 +330,15 @@ def _get_base_image_name(family: AcceleratorFamily, base_target_id: str) -> Imag
 
 
 def _get_model_image_name(family: AcceleratorFamily, canonical_name_sanitized: str, target_id: str) -> ImageName:
-    """Return canonical/public repository names for a model-specific AIM image."""
+    """Return canonical/public repository names for a model-specific AIM image.
+
+    The ``legacy_vllm`` target keeps the historical ``aim-{acc}-{model}`` form.
+    A model-dedicated base (``target_id == canonical_name_sanitized``) drops the
+    duplicated target segment, producing ``aim-{acc}-model-{model}``. Any other
+    named target is target-qualified as
+    ``aim-{acc}-target-{target_id}-model-{model}``. Named targets have no public
+    alias (``public == canonical``).
+    """
     is_legacy = target_id == LEGACY_VLLM_BASE_TARGET_ID
 
     if is_legacy:
@@ -296,11 +351,26 @@ def _get_model_image_name(family: AcceleratorFamily, canonical_name_sanitized: s
 
         return ImageName(canonical=canonical, public=public)
 
+    # Model-dedicated base: the target id equals the model's own canonical name.
+    # Drop the duplicated 'target-{id}' segment for a simpler name.
+    if target_id == canonical_name_sanitized:
+        canonical = f"aim-{family.value}-{_MODEL_NAME_PREFIX}{canonical_name_sanitized}"
+        return ImageName(canonical=canonical, public=canonical)
+
     canonical = (
         f"aim-{family.value}-{_TARGET_QUALIFIED_MODEL_PREFIX}{target_id}"
         f"{_TARGET_QUALIFIED_MODEL_SEPARATOR}{canonical_name_sanitized}"
     )
     return ImageName(canonical=canonical, public=canonical)
+
+
+def get_image_ref_label(image_ref: str) -> str:
+    """Return the repository and tag for an image reference."""
+    try:
+        _, _, repository, tag = parse_image_ref(image_ref)
+        return f"{repository}:{tag}"
+    except ValueError:
+        return image_ref.rsplit("/", 1)[-1]
 
 
 def parse_image_ref(image_ref: str) -> tuple[str, str, str, str]:

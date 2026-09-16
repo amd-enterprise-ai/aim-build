@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      description:
+        full: "GLM-5.2 is a ~743B-parameter Mixture-of-Experts model (39B active) from Z.ai with multi-turn conversation, tool use, and reasoning (thinking) capabilities. It supports speculative decoding with Multi-Token Prediction (5 draft tokens) and a native 1M-token context window."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "zai-org/GLM-5.2"
+        publisher: "Z.ai"
+        source: "https://huggingface.co/zai-org/GLM-5.2"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "tool-use"
+        variants:
+        - "zai-org/GLM-5.2-FP8"
+        - "zai-org/GLM-5.2"
+      release:
+        notes: ""
+      title: "GLM-5.2"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "GLM-5.2 is a large Mixture-of-Experts language model with multi-turn conversation, tool use, and reasoning capabilities."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -1,0 +1,29 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ── Shared MONAI AIM dependencies (identical across most models) ──
+bentoml>=1.1.0
+huggingface_hub
+nibabel
+pillow
+pytorch-ignite
+tqdm
+pydicom
+scipy
+numpy==1.26.4
+connected-components-3d
+
+# ── Model-specific dependencies ──
+# UNesT-Large is the bundle-shipped scripts.networks.unest_base_patch_4.UNesT
+# (3-level Nested Hierarchical Transformer 3D). The bundle's metadata.json
+# declares required_packages_version = {einops, fire, timm, torchvision,
+# tensorboard, ...}; of those, einops + timm + torchvision are actually
+# imported by the bundle's scripts/networks/* files at network-construction
+# time. `fire` and `tensorboard` are training-only — not needed for inference.
+einops
+timm
+torchvision
+# monai installed --no-deps; bundle-download CLI needs fire + requests
+fire
+requests

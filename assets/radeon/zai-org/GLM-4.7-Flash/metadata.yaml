@@ -13,27 +13,6 @@ com:
         source: "https://huggingface.co/zai-org/GLM-4.7-Flash"
         variants:
         - "zai-org/GLM-4.7-Flash"
-        recommendedDeployments:
-        - gpuModel: "W7900"
-          gpuCount: 2
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on W7900 using bf16 precision with tensor parallelism"
-        - gpuModel: "W7900"
-          gpuCount: 2
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on W7900 using bf16 precision with tensor parallelism"
-        - gpuModel: "R9700"
-          gpuCount: 4
-          precision: "bf16"
-          metric: "latency"
-          description: "Preview deployment for latency on R9700 using bf16 precision with tensor parallelism"
-        - gpuModel: "R9700"
-          gpuCount: 4
-          precision: "bf16"
-          metric: "throughput"
-          description: "Preview deployment for throughput on R9700 using bf16 with tensor parallelism"
         publisher: "Z.ai"
       hfToken:
         required: false

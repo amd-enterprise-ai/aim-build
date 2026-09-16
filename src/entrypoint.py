@@ -9,6 +9,7 @@ AIM Runtime Entrypoint
 Lean CLI interface that delegates to business logic in aim_runtime package.
 This module handles Click command definitions and command logic.
 """
+
 import json
 import logging
 import os
@@ -17,14 +18,17 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from typing import TYPE_CHECKING, Iterator, NoReturn
 
 import click
 
 from aim_runtime.logging_config import configure_logging
 from aim_runtime.utils import dump_yaml
+
+if TYPE_CHECKING:
+    from aim_runtime.harness import HarnessConfig, ModelHarness
 
 root_log_level = os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING")
 configure_logging(
@@ -284,42 +288,63 @@ def list_profiles(state, format, skip_compatibility_check, verbose):
         sys.exit(1)
 
 
-def _wait_for_service(service_url: str, timeout_seconds: int, poll_interval: float = 2.0) -> None:
-    deadline = time.time() + timeout_seconds
-    last_error = None
-
-    while time.time() < deadline:
-        try:
-            with urlopen(Request(f"{service_url}/v1/models"), timeout=5) as response:
-                if response.status == 200:
-                    return
-                last_error = f"status {response.status}"
-        except HTTPError as exc:
-            last_error = f"status {exc.code}"
-        except URLError as exc:
-            last_error = str(exc)
-
-        time.sleep(poll_interval)
-
-    raise RuntimeError(
-        f"Service not ready at {service_url} after {timeout_seconds}s" + (f": {last_error}" if last_error else "")
-    )
+#: How long a crashed server can pass for one that is still loading. The async
+#: benchmark path allows 7200s for startup, so without this a crash wastes the
+#: whole two hours.
+READINESS_POLL_SLICE_SECONDS = 30
 
 
-def _wait_for_harness_readiness(harness, service_url: str, timeout_seconds: int) -> None:
+def _raise_if_server_exited(server_process: subprocess.Popen | None) -> None:
+    """Fail fast when a server the CLI started has already exited."""
+    if server_process is None:
+        return
+    returncode = server_process.poll()
+    if returncode is not None:
+        raise RuntimeError(f"Model server exited with code {returncode} before becoming ready")
+
+
+def _wait_for_harness_readiness(
+    harness,
+    service_url: str,
+    timeout_seconds: int,
+    server_process: subprocess.Popen | None = None,
+) -> float:
     """Block until ``harness.health_check`` reports the service is ready.
 
-    Delegates to the harness so specialized engines (e.g. BentoML ``/healthz``)
-    use their own readiness endpoint instead of the OpenAI-compatible
-    ``/v1/models`` probe that :func:`_wait_for_service` hardcodes.
+    Delegates to the harness so each engine uses its own readiness endpoint
+    (e.g. BentoML ``/healthz`` vs the OpenAI-compatible ``/v1/models`` probe
+    used by the default :class:`ModelHarness.health_check`).
+
+    ``health_check`` blocks for however long it is given and returns only
+    yes/no, so there is no way to notice a dead server from inside it. When we
+    started the server we therefore call it in short slices and check the
+    process between them. With no process to watch it gets the whole budget in
+    one call.
+
+    Returns elapsed wall-clock seconds so callers can preserve the startup
+    duration for reporting (the harness re-probes on an already-live service and
+    would otherwise report ~0).
     """
-    if not harness.health_check(service_url, timeout_seconds=timeout_seconds):
-        raise RuntimeError(f"Service not ready at {service_url} after {timeout_seconds}s")
+    start = time.monotonic()
+    if server_process is None:
+        if not harness.health_check(service_url, timeout_seconds=timeout_seconds):
+            raise RuntimeError(f"Service not ready at {service_url} after {timeout_seconds}s")
+        return round(time.monotonic() - start, 3)
+
+    deadline = start + timeout_seconds
+    while True:
+        _raise_if_server_exited(server_process)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(f"Service not ready at {service_url} after {timeout_seconds}s")
+        slice_seconds = max(1, int(min(READINESS_POLL_SLICE_SECONDS, remaining)))
+        if harness.health_check(service_url, timeout_seconds=slice_seconds):
+            return round(time.monotonic() - start, 3)
 
 
 def _start_server_in_background(config: AIMConfig) -> subprocess.Popen:
     runtime = AIMRuntime(config)
-    logger.info("Selecting profile for benchmark server...")
+    logger.info("Selecting profile for the model server...")
     profile = runtime.profile_selector.find_profile()
     logger.info(f"Selected profile: {profile.profile_handling.path}")
 
@@ -327,8 +352,62 @@ def _start_server_in_background(config: AIMConfig) -> subprocess.Popen:
     env = os.environ.copy()
     env.update({key: str(value) for key, value in env_vars.items()})
 
-    logger.info(f"Starting benchmark server: {shlex.join(command_list)}")
+    logger.info(f"Starting model server: {shlex.join(command_list)}")
     return subprocess.Popen(command_list, env=env)
+
+
+def _stop_server(server_process) -> None:
+    """Stop a background model server started by the CLI, if any.
+
+    A server that already exited is logged with its exit code, which tells a
+    crash apart from an unreachable service. That is all ``validate`` gets: it
+    has already spent its full timeout polling a dead port to get here.
+    """
+    if not server_process:
+        return
+    if (returncode := server_process.poll()) is not None:
+        logger.error("Model server had already exited with code %s", returncode)
+        return
+
+    logger.info("Stopping model server...")
+    try:
+        server_process.send_signal(signal.SIGINT)
+        server_process.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        logger.warning("Model server did not exit after SIGINT; sending SIGTERM.")
+        server_process.terminate()
+        try:
+            server_process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            logger.warning("Model server did not exit cleanly; killing it.")
+            server_process.kill()
+    except OSError:
+        pass  # Process already exited between poll() and send_signal()
+
+
+@contextmanager
+def _managed_service(
+    service_url: str | None,
+) -> Iterator[tuple[str, subprocess.Popen | None]]:
+    """Yield (service_url, server_process) to run against, starting a server if we must.
+
+    Same decision as ``benchmark``: an explicit ``--service-url`` means someone
+    else owns a running service, anything else means the CLI starts one for the
+    duration of the run and tears it down afterwards.
+
+    This helper only manages lifecycle. Callers that need startup waiting must
+    explicitly invoke ``_wait_for_harness_readiness`` with their own timeout.
+    """
+    if service_url:
+        yield service_url, None
+        return
+
+    aim_config = AIMConfig.from_environment()
+    server_process = _start_server_in_background(aim_config)
+    try:
+        yield f"http://localhost:{aim_config.port}", server_process
+    finally:
+        _stop_server(server_process)
 
 
 def _benchmark_via_harness(
@@ -337,38 +416,71 @@ def _benchmark_via_harness(
     timeout_seconds: int,
     output_dir: str,
     startup_timeout: int,
-    config_overrides: dict | None = None,
+    config_file: str | None = None,
 ) -> None:
-    """Run the benchmark through the discovered ModelHarness and exit."""
-    from aim_runtime.harness import HarnessConfig
-    from aim_runtime.harness.discovery import discover_harness
+    """Run the benchmark through the discovered ModelHarness and exit.
 
+    This is the single benchmark flow for every image. It discovers the active
+    harness — a custom one for specialized images, otherwise the shipped
+    :class:`VLLMHarness` — and delegates the run to it, so the CLI drives
+    standard and specialized harnesses identically. The CLI owns process
+    lifecycle (starting a local server when no service URL is given) and writes
+    the ``HarnessResult`` to ``harness_benchmark_results.json``.
+
+    That name is deliberately not ``benchmark_results.json``: the vLLM suite
+    already writes a file by that name in a different schema
+    (``overall_success`` / ``benchmark_configs``), which is what
+    ``ci/benchmarking/parse_benchmark_results.py`` reads.
+    """
+    from aim_runtime.harness import HarnessConfig
+    from aim_runtime.harness.discovery import discover_harness, has_custom_harness
+
+    custom = has_custom_harness()
     resolved_profile = _resolve_profile_dict(None)
     harness = discover_harness(profile=resolved_profile)
 
-    config = HarnessConfig(
-        profile=resolved_profile,
-        service_url=service_url,
-        timeout_seconds=timeout_seconds,
-        output_format="json",
-        extra=config_overrides or {},
-    )
+    # ``--config`` means different things per path: a per-run overrides mapping
+    # for specialized harnesses, or the benchmark-suite file that the standard
+    # vLLM path forwards straight to AIMBenchmark.
+    if custom:
+        extra = _load_config_yaml(config_file)
+    else:
+        extra = {"config_file": config_file} if config_file else {}
 
-    svc_url = config.resolve_service_url()
-    if not service_url:
-        logger.info("Waiting for service readiness at %s ...", svc_url)
-        _wait_for_harness_readiness(harness, svc_url, startup_timeout)
+    # A harness that writes its own artifacts needs the destination, but a
+    # ``--config`` entry of the same name still wins.
+    extra.setdefault("output_dir", output_dir)
 
-    result = harness.benchmark(config)
+    server_process = None
+    try:
+        # Service lifecycle: when no URL is given, the CLI starts the server the
+        # same way for every image. The command generator is engine-aware
+        # (vLLM, vLLM-Omni, BentoML, ...), so the only thing that varies is the
+        # readiness endpoint — and that is handled by the harness's own
+        # ``health_check`` (e.g. ``/v1/models`` vs ``/healthz``).
+        if not service_url:
+            aim_config = AIMConfig.from_environment()
+            server_process = _start_server_in_background(aim_config)
+            service_url = f"http://localhost:{aim_config.port}"
+            logger.info("Waiting for service readiness at %s ...", service_url)
+            _wait_for_harness_readiness(harness, service_url, startup_timeout, server_process)
 
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    results_file = output_path / "benchmark_results.json"
-    results_file.write_text(json.dumps(result.to_dict(), indent=2))
-    logger.info("Benchmark results written to %s", results_file)
+        config = HarnessConfig(
+            profile=resolved_profile,
+            service_url=service_url,
+            timeout_seconds=timeout_seconds,
+            output_format="json",
+            extra=extra,
+        )
 
-    _report_harness_result(result, "json")
-    sys.exit(0 if result.success else 1)
+        result = harness.benchmark(config)
+
+        _write_results_json(result, output_dir, "harness_benchmark_results.json")
+
+        _report_harness_result(result, "json")
+        sys.exit(0 if result.success else 1)
+    finally:
+        _stop_server(server_process)
 
 
 @cli.command(name="benchmark")
@@ -409,79 +521,28 @@ def _benchmark_via_harness(
 def benchmark(service_url, timeout_seconds, config_file, output_dir, startup_timeout):
     """Run the benchmark suite against a running AIM service.
 
-    When a custom ModelHarness is found (specialized images), the benchmark is
-    delegated to the harness.  Otherwise, the legacy AIMBenchmark runner is used.
+    The benchmark is always delegated to the discovered ModelHarness — a custom
+    harness for specialized images, otherwise the shipped ``VLLMHarness`` — so
+    the CLI drives standard and specialized harnesses through the same path.
     """
-    server_process = None
     try:
         configure_logging(
             root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
             aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
         )
 
-        from aim_runtime.harness.discovery import has_custom_harness
-
-        if has_custom_harness():
-            _benchmark_via_harness(
-                service_url=service_url,
-                timeout_seconds=timeout_seconds,
-                output_dir=output_dir,
-                startup_timeout=startup_timeout,
-                config_overrides=_load_config_yaml(config_file),
-            )
-            return
-
-        # ---- Legacy AIMBenchmark path (vLLM / standard images) ----
-
-        # If no service URL is provided, start the server and use the local address
-        if not service_url:
-            config = AIMConfig.from_environment()
-            server_process = _start_server_in_background(config)
-
-            service_url = f"http://localhost:{config.port}"
-
-            logger.info(f"Waiting for server readiness at {service_url}...")
-            _wait_for_service(service_url, startup_timeout)
-
-        from aim_runtime.benchmarking import AIMBenchmark
-
-        benchmark_runner = AIMBenchmark(
+        _benchmark_via_harness(
             service_url=service_url,
             timeout_seconds=timeout_seconds,
+            output_dir=output_dir,
+            startup_timeout=startup_timeout,
             config_file=config_file,
         )
-
-        results = benchmark_runner.run_benchmark_suite()
-
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        benchmark_runner.export_results(results, output_dir=str(output_path))
-
-        if results.get("overall_success"):
-            sys.exit(0)
-        else:
-            sys.exit(1)
-
-    except Exception as e:
-        logger.error(f"Benchmarking failed: {e}")
+    except click.ClickException:
+        raise  # Let Click render usage errors (e.g. a bad --config path) itself.
+    except Exception:
+        logger.exception("Benchmarking failed")
         sys.exit(1)
-    finally:
-        if server_process:
-            logger.info("Stopping benchmark server...")
-            if server_process.poll() is None:
-                try:
-                    server_process.send_signal(signal.SIGINT)
-                    server_process.wait(timeout=15)
-                except subprocess.TimeoutExpired:
-                    logger.warning("Benchmark server did not exit after SIGINT; sending SIGTERM.")
-                    server_process.terminate()
-                    try:
-                        server_process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        logger.warning("Benchmark server did not exit cleanly; killing it.")
-                        server_process.kill()
-                except OSError:
-                    pass  # Process already exited between poll() and send_signal()
 
 
 @cli.command(name="validate")
@@ -490,7 +551,10 @@ def benchmark(service_url, timeout_seconds, config_file, output_dir, startup_tim
     "--service-url",
     type=str,
     required=False,
-    help="Service URL including port (e.g. http://localhost:8000). Defaults to localhost:{profile.port}.",
+    help=(
+        "Service URL including port (e.g. http://localhost:8000). "
+        "When omitted, the CLI starts the model server itself and stops it afterwards."
+    ),
 )
 @click.option(
     "--scope",
@@ -506,42 +570,72 @@ def benchmark(service_url, timeout_seconds, config_file, output_dir, startup_tim
     default=None,
     help="Path to config YAML with per-run overrides.",
 )
-@click.option("--timeout", default=300, show_default=True, help="Timeout in seconds.")
+@click.option(
+    "--startup-timeout",
+    type=int,
+    default=3600,
+    show_default=True,
+    help="Seconds to wait for the service to become ready before validating.",
+)
+@click.option(
+    "--timeout",
+    default=300,
+    show_default=True,
+    help="Timeout in seconds for individual validation requests/checks.",
+)
 @click.option(
     "--output-format",
     default="json",
     type=click.Choice(["json", "table", "ci"]),
     help="Output format.",
 )
-def validate(profile, service_url, scope, config_file, timeout, output_format):
-    """Validate that the model service is healthy and producing correct output."""
+@click.option(
+    "--output-dir",
+    type=str,
+    default=None,
+    help="Directory to write validation results. If set, writes validate_results.json.",
+)
+def validate(profile, service_url, scope, config_file, startup_timeout, timeout, output_format, output_dir):
+    """Validate that the model service is healthy and producing correct output.
+
+    With ``--service-url`` the checks run against that service. Without it, the
+    CLI starts the model server for the profile being validated, runs the checks
+    once it serves a model, and shuts it down again. ``--startup-timeout`` is
+    the readiness budget for the service to come up. ``--timeout`` controls the
+    per-request timeout of each check; warmup keeps its own
+    ``max_warmup_time`` budget (``--config``).
+    """
     try:
-        configure_logging(
-            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
-            aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
-        )
+        _configure_harness_logging()
 
-        from aim_runtime.harness import CheckScope, HarnessConfig
-        from aim_runtime.harness.discovery import discover_harness, has_custom_harness
+        from aim_runtime.harness import STARTUP_READY_TIME_SECONDS_KEY, CheckScope
 
-        if not has_custom_harness():
-            logger.error("No custom harness found — validate requires a ModelHarness implementation.")
-            sys.exit(1)
-
-        resolved_profile = _resolve_profile_dict(profile)
-        harness = discover_harness(profile=resolved_profile)
-        config = HarnessConfig(
-            profile=resolved_profile,
+        # Resolving the profile first also pins AIM_PROFILE_ID, so a server the
+        # CLI starts below runs the very profile being validated.
+        harness, config = _harness_session(
+            profile,
             service_url=service_url,
             timeout_seconds=timeout,
             output_format=output_format,
             check_scopes={CheckScope(s) for s in scope},
             extra=_load_config_yaml(config_file),
         )
-        result = harness.validate(config)
-        _report_harness_result(result, output_format)
-        sys.exit(0 if result.success else 1)
 
+        with ExitStack() as stack:
+            # Only the offline checks need a live service; runtime-only
+            # validation reads the profile and never touches the network.
+            if CheckScope.OFFLINE in config.check_scopes:
+                config.service_url, server_process = stack.enter_context(_managed_service(service_url))
+                ready_time = _wait_for_harness_readiness(harness, config.service_url, startup_timeout, server_process)
+                # Inject the pre-measured startup time so the harness doesn't re-probe
+                # an already-live service and report ~0 for ready_time_seconds.
+                config.extra.setdefault(STARTUP_READY_TIME_SECONDS_KEY, ready_time)
+            result = harness.validate(config)
+            if output_dir:
+                _write_results_json(result, output_dir, "validate_results.json")
+            _report_and_exit(result, output_format)
+    except click.ClickException:
+        raise  # Let Click render usage errors (e.g. a bad --config path) itself.
     except Exception:
         logger.exception("Validation failed")
         sys.exit(1)
@@ -585,47 +679,37 @@ def validate(profile, service_url, scope, config_file, timeout, output_format):
 def evaluate(profile, service_url, config_file, timeout, output_dir, startup_timeout, output_format):
     """Run accuracy/quality evaluation against the model service."""
     try:
-        configure_logging(
-            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
-            aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
-        )
+        _configure_harness_logging()
 
-        from aim_runtime.harness import HarnessConfig
-        from aim_runtime.harness.discovery import discover_harness, has_custom_harness
+        extra = _load_config_yaml(config_file)
+        # The harness writes the results envelope, the per-task CSV and the raw
+        # backend document itself, so it needs the destination; a ``--config``
+        # entry of the same name still wins.
+        extra.setdefault("output_dir", output_dir)
 
-        if not has_custom_harness():
-            logger.error("No custom harness found — evaluate requires a ModelHarness implementation.")
-            sys.exit(1)
-
-        resolved_profile = _resolve_profile_dict(profile)
-        harness = discover_harness(profile=resolved_profile)
-        config = HarnessConfig(
-            profile=resolved_profile,
+        harness, config = _harness_session(
+            profile,
             service_url=service_url,
             timeout_seconds=timeout,
             output_format=output_format,
-            extra=_load_config_yaml(config_file),
+            extra=extra,
         )
 
-        svc_url = config.resolve_service_url()
+        # evaluate never starts the service itself; it only waits for the one
+        # already serving the image.
         if not service_url:
-            logger.info("Waiting for service readiness at %s ...", svc_url)
-            _wait_for_harness_readiness(harness, svc_url, startup_timeout)
+            resolved_url = config.resolve_service_url()
+            logger.info("Waiting for service readiness at %s ...", resolved_url)
+            _wait_for_harness_readiness(harness, resolved_url, startup_timeout)
 
         result = harness.evaluate(config)
-
         if output_dir:
-            out = Path(output_dir)
-            out.mkdir(parents=True, exist_ok=True)
-            results_file = out / "evaluate_results.json"
-            results_file.write_text(json.dumps(result.to_dict(), indent=2))
-            logger.info("Evaluation results written to %s", results_file)
-
-        _report_harness_result(result, output_format)
-        sys.exit(0 if result.success else 1)
-
-    except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
+            _write_results_json(result, output_dir, "evaluate_results.json")
+        _report_and_exit(result, output_format)
+    except click.ClickException:
+        raise  # Let Click render usage errors (e.g. a bad --config path) itself.
+    except Exception:
+        logger.exception("Evaluation failed")
         sys.exit(1)
 
 
@@ -640,19 +724,9 @@ def evaluate(profile, service_url, config_file, timeout, output_dir, startup_tim
 def list_checks(profile, output_format):
     """List available checks and their result types for this image."""
     try:
-        configure_logging(
-            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
-            aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
-        )
+        _configure_harness_logging()
 
-        from aim_runtime.harness.discovery import discover_harness, has_custom_harness
-
-        if not has_custom_harness():
-            logger.error("No custom harness found — list-checks requires a ModelHarness implementation.")
-            sys.exit(1)
-
-        resolved_profile = _resolve_profile_dict(profile)
-        harness = discover_harness(profile=resolved_profile)
+        harness, _ = _harness_session(profile, output_format=output_format)
         checks = harness.list_checks()
 
         if output_format == "json":
@@ -671,20 +745,60 @@ def list_checks(profile, output_format):
                 )
             )
         else:
-            header = f"{'Name':<22} {'Type':<14} {'Scope':<10} Description"
+            width = max((len(c.name) for c in checks), default=4) + 2
+            header = f"{'Name':<{width}} {'Type':<14} {'Scope':<10} Description"
             print(header)
             print("-" * len(header))
             for c in checks:
-                print(f"{c.name:<22} {c.result_type.value:<14} {c.scope.value:<10} {c.description}")
+                print(f"{c.name:<{width}} {c.result_type.value:<14} {c.scope.value:<10} {c.description}")
 
-    except Exception as e:
-        logger.error(f"list-checks failed: {e}")
+    except Exception:
+        logger.exception("list-checks failed")
         sys.exit(1)
 
 
 # --------------------------------------------------------------------- #
 # Harness helpers
 # --------------------------------------------------------------------- #
+
+
+def _configure_harness_logging() -> None:
+    """Apply the env-driven log levels shared by all harness commands."""
+    configure_logging(
+        root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
+        aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
+    )
+
+
+def _harness_session(
+    profile: str | None,
+    *,
+    service_url: str | None = None,
+    timeout_seconds: int = 300,
+    output_format: str = "json",
+    check_scopes: set | None = None,
+    extra: dict | None = None,
+) -> "tuple[ModelHarness, HarnessConfig]":
+    """Resolve the profile, discover its harness, and build the harness config.
+
+    Every harness command needs this same trio. The profile has to be resolved
+    before discovery so multi-engine images can dispatch on the engine it names.
+    """
+    from aim_runtime.harness import HarnessConfig
+    from aim_runtime.harness.discovery import discover_harness
+
+    resolved_profile = _resolve_profile_dict(profile)
+    harness = discover_harness(profile=resolved_profile)
+    config = HarnessConfig(
+        profile=resolved_profile,
+        service_url=service_url,
+        timeout_seconds=timeout_seconds,
+        output_format=output_format,
+        extra=extra or {},
+    )
+    if check_scopes is not None:
+        config.check_scopes = check_scopes
+    return harness, config
 
 
 def _load_config_yaml(path: str | None) -> dict:
@@ -717,6 +831,11 @@ def _resolve_profile_dict(profile_name: str | None) -> dict:
     resolution.  When it is None the runtime's auto-selection logic picks
     the best match.  The returned dict is the profile content suitable for
     passing to :class:`HarnessConfig`.
+
+    Whichever way it was resolved, the result is pinned back into
+    ``AIM_PROFILE_ID`` so that a model server the CLI starts afterwards runs
+    the profile that was actually resolved here, instead of re-running
+    auto-selection and possibly landing somewhere else.
     """
     try:
         if profile_name:
@@ -725,6 +844,7 @@ def _resolve_profile_dict(profile_name: str | None) -> dict:
         config = AIMConfig.from_environment()
         runtime = AIMRuntime(config)
         selected = runtime.profile_selector.find_profile()
+        os.environ["AIM_PROFILE_ID"] = selected.profile_id
 
         profile_dict = {
             "aim_id": selected.aim_id,
@@ -742,6 +862,22 @@ def _resolve_profile_dict(profile_name: str | None) -> dict:
         return {"profile_id": profile_name} if profile_name else {}
 
 
+def _write_results_json(result, output_dir: str, filename: str) -> Path:
+    """Write a harness result to ``output_dir/filename`` and return the path."""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    results_file = output_path / filename
+    results_file.write_text(json.dumps(result.to_dict(), indent=2))
+    logger.info("Results written to %s", results_file)
+    return results_file
+
+
+def _report_and_exit(result, output_format: str) -> NoReturn:
+    """Print a harness result and exit with a status reflecting its verdict."""
+    _report_harness_result(result, output_format)
+    sys.exit(0 if result.success else 1)
+
+
 def _report_harness_result(result, output_format: str) -> None:
     """Print a :class:`HarnessResult` in the requested format."""
     if output_format == "json":
@@ -751,8 +887,13 @@ def _report_harness_result(result, output_format: str) -> None:
     else:
         print(result.summary)
         for check in result.checks:
-            mark = "PASS" if check.success else "FAIL"
+            mark = "SKIP" if check.skipped else ("PASS" if check.success else "FAIL")
             print(f"  [{mark}] {check.name}: {check.detail or check.value}")
+            for warning in check.warnings:
+                print(f"         warning: {warning}")
+        for key, value in result.metrics.items():
+            if value is not None:
+                print(f"  {key}: {value}")
 
 
 @cli.command(name="detect-hardware")

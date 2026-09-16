@@ -18,12 +18,18 @@ import re
 import shlex
 import subprocess
 import time
+from functools import cached_property
 from pathlib import Path
-from typing import Any, Dict
-from urllib.error import URLError
+from typing import Any, Dict, Mapping, Optional
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
+import requests
+
+from aim_common.engine_args import (
+    ENGINE_ARG_TRUST_REMOTE_CODE,
+    engine_flag_enabled,
+    tokenizer_mode_from_engine_args,
+)
 from aim_runtime.utils import read_yaml
 
 logger = logging.getLogger(__name__)
@@ -105,7 +111,13 @@ CSV_HEADER = [
 class AIMBenchmark:
     """Benchmark runner for AIM LLM service."""
 
-    def __init__(self, service_url: str, timeout_seconds: int = 30, config_file: str = None):
+    def __init__(
+        self,
+        service_url: str,
+        timeout_seconds: int = 30,
+        config_file: str = None,
+        engine_args: Optional[Mapping[str, Any]] = None,
+    ):
         self.timeout_seconds = timeout_seconds
         self.profile_id = os.getenv("AIM_PROFILE_ID") or os.getenv("PROFILE_ID")
         self.accelerator_count = None
@@ -113,6 +125,8 @@ class AIMBenchmark:
             match = re.search(r"-tp(\d+)-", self.profile_id)
             self.accelerator_count = int(match.group(1)) if match else None
         self.config = self._load_config(config_file)
+        self._engine_args = engine_args
+        self._engine_args_resolved = engine_args is not None
 
         parsed_url = urlparse(service_url)
 
@@ -132,6 +146,8 @@ class AIMBenchmark:
         self.config["settings"] = settings
 
         self.service_url = service_url
+
+        self._validate_settings()
 
     def _load_config(self, config_file: str = None) -> Dict[str, Any]:
         """Load benchmark configuration from YAML file."""
@@ -231,6 +247,50 @@ class AIMBenchmark:
 
         return config
 
+    @property
+    def engine_args(self) -> Mapping[str, Any]:
+        """Engine args of the profile the benchmarked service was started with.
+
+        Callers that have already resolved the profile pass them in; callers
+        that construct this class directly fall back to selecting the profile
+        the same way the server did. An empty mapping means no profile-derived
+        flags are added.
+        """
+        if not self._engine_args_resolved:
+            self._engine_args = self._resolve_profile_engine_args()
+            self._engine_args_resolved = True
+        return self._engine_args or {}
+
+    @cached_property
+    def tokenizer_mode(self) -> Optional[str]:
+        """The tokenizer mode the benchmark client has to match the engine on.
+
+        Resolved once per run rather than per configuration: the engine args
+        cannot change between configurations, so a profile declaring a mode the
+        engine would reject should say so once instead of once per point in the
+        sweep.
+        """
+        return tokenizer_mode_from_engine_args(self.engine_args)
+
+    @staticmethod
+    def _resolve_profile_engine_args() -> Dict[str, Any]:
+        from aim_runtime.aim_runtime import AIMRuntime
+        from aim_runtime.config import AIMConfig
+
+        try:
+            runtime = AIMRuntime(AIMConfig.from_environment())
+            profile = runtime.profile_selector.find_profile()
+        except Exception as e:
+            logger.warning(
+                "Could not resolve the profile for benchmark flags (%s); "
+                "tokenizer mode and trust-remote-code will not be derived from it",
+                e,
+            )
+            return {}
+
+        logger.info("Resolved engine args for benchmark flags from profile '%s'", profile.profile_id)
+        return dict(profile.engine_args or {})
+
     def _parse_benchmark_output(self, output: str) -> Dict[str, Any]:
         """Parse vLLM benchmark output using regex patterns from Jenkins pipeline."""
         logger.info("Parsing benchmark metrics...")
@@ -243,24 +303,92 @@ class AIMBenchmark:
     def get_model_info(self) -> Dict[str, Any] | None:
         """Get model information from the service."""
         try:
-            req = Request(f"{self.service_url}/v1/models")
-            with urlopen(req, timeout=self.timeout_seconds) as response:
-                model_data = json.loads(response.read().decode())
-                logger.info("Retrieved model information")
+            response = requests.get(f"{self.service_url}/v1/models", timeout=self.timeout_seconds)
+            response.raise_for_status()
+            model_data = response.json()
+            logger.info("Retrieved model information")
 
-                if "data" in model_data and model_data["data"]:
-                    model_names = [model["id"] for model in model_data["data"]]
-                    logger.info(f"Available models: {model_names}")
-                else:
-                    logger.warning("No models found in response")
+            if "data" in model_data and model_data["data"]:
+                model_names = [model["id"] for model in model_data["data"]]
+                logger.info(f"Available models: {model_names}")
+            else:
+                logger.warning("No models found in response")
 
-                return model_data
-        except URLError as e:
-            logger.error(f"Failed to get model info: {e}")
-            return None
-        except json.JSONDecodeError as e:
+            return model_data
+        # requests.JSONDecodeError is also a RequestException, so it must be caught first.
+        except requests.JSONDecodeError as e:
             logger.error(f"Failed to parse model info JSON: {e}")
             return None
+        except requests.RequestException as e:
+            logger.error(f"Failed to get model info: {e}")
+            return None
+
+    @staticmethod
+    def _trust_remote_code_setting(settings: Dict[str, Any]) -> Optional[bool]:
+        """The boolean the settings force, or None to follow the profile.
+
+        Only a real boolean forces it, and anything else is rejected rather than
+        interpreted. ``bool()`` reads ``"false"`` and ``"no"`` as True, which is
+        the wrong way round for the strings a YAML author would reach for to turn
+        this off, and quietly falling back to the profile would leave someone who
+        wrote ``"true"`` with the opposite of what they asked for. Both mistakes
+        are silent in a benchmark that then reports plausible numbers, so the run
+        stops instead.
+        """
+        setting = settings.get("trust_remote_code")
+        if setting is None or isinstance(setting, bool):
+            return setting
+        raise ValueError(
+            f"Benchmark setting trust_remote_code must be a boolean or unset, got {setting!r}. "
+            f"Write it unquoted as true or false to force the flag, or leave it unset "
+            f"(null) to follow the profile's engine args."
+        )
+
+    @staticmethod
+    def _num_warmups(settings: Dict[str, Any]) -> int:
+        """How many warmup requests precede the measured window.
+
+        A missing key takes the packaged default, because ``--config-file``
+        replaces the settings block rather than layering over it and a custom
+        config silent about warmups would otherwise measure its first
+        configuration cold. An explicit null and 0 both mean no warmup.
+
+        A count is rejected the same way a malformed ``trust_remote_code`` is,
+        rather than left to ``int()``: a bare conversion turns 2.7 into 2 and
+        reports a string as an unhelpful "invalid literal", and a negative count
+        would silently drop the flag and reintroduce the very skew it removes.
+        """
+        setting = settings.get("num_warmups", 5)
+        if setting is None:
+            return 0
+        if isinstance(setting, bool) or not isinstance(setting, int) or setting < 0:
+            raise ValueError(
+                f"Benchmark setting num_warmups must be a non-negative integer or unset, "
+                f"got {setting!r}. Use 0 to measure without warmup."
+            )
+        return setting
+
+    def _validate_settings(self) -> None:
+        """Reject malformed benchmark settings before anything is measured.
+
+        Reading them at construction means a typo surfaces immediately, rather
+        than after the service has been started and probed and the first
+        configuration is about to run.
+        """
+        settings = self.config.get("settings", {})
+        self._trust_remote_code_setting(settings)
+        self._num_warmups(settings)
+
+    def _trust_remote_code(self, settings: Dict[str, Any]) -> bool:
+        """Whether the benchmark client may execute remote tokenizer code.
+
+        Unset follows the profile, so the client and the served engine agree;
+        an explicit boolean in the settings forces it either way.
+        """
+        setting = self._trust_remote_code_setting(settings)
+        if setting is not None:
+            return setting
+        return engine_flag_enabled(self.engine_args, ENGINE_ARG_TRUST_REMOTE_CODE)
 
     def run_vllm_benchmark(self, model_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run vLLM benchmark for a specific configuration."""
@@ -300,11 +428,21 @@ class AIMBenchmark:
         if settings.get("ignore_eos", True):
             cmd.append("--ignore-eos")
 
-        # Add extra vllm bench kwargs if provided via environment variable
-        extra_args = os.getenv("VLLM_BENCH_EXTRA_ARGS", "").strip()
+        num_warmups = self._num_warmups(settings)
+        if num_warmups > 0:
+            cmd.extend(["--num-warmups", str(num_warmups)])
+
+        if self.tokenizer_mode:
+            cmd.extend(["--tokenizer-mode", self.tokenizer_mode])
+
+        extra_args = shlex.split(os.getenv("VLLM_BENCH_EXTRA_ARGS", "").strip())
+
+        if self._trust_remote_code(settings) and "--trust-remote-code" not in extra_args:
+            cmd.append("--trust-remote-code")
+
         if extra_args:
-            cmd.extend(shlex.split(extra_args))
-            logger.info(f"Added extra vllm bench args: {extra_args}")
+            cmd.extend(extra_args)
+            logger.info(f"Added extra vllm bench args: {shlex.join(extra_args)}")
 
         logger.info(f"Running command: {shlex.join(cmd)}")
 
@@ -419,11 +557,13 @@ class AIMBenchmark:
 
         return results
 
-    def export_results(self, results: Dict[str, Any], output_dir: str = ".") -> None:
+    def export_results(self, results: Dict[str, Any], output_dir: str = ".") -> list[Path]:
         """Export benchmark results to both CSV and JSON formats."""
         # Always export both formats - use environment variables or defaults
         json_filename = os.getenv("BENCHMARK_JSON_FILE", "benchmark_results.json")
         csv_filename = os.getenv("BENCHMARK_CSV_FILE", "benchmark_results.csv")
+
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         # Export JSON
         json_path = Path(output_dir) / json_filename
@@ -435,6 +575,8 @@ class AIMBenchmark:
         csv_path = Path(output_dir) / csv_filename
         self._export_csv(results, csv_path)
         logger.info(f"CSV results saved to {csv_path}")
+
+        return [json_path, csv_path]
 
     def _export_csv(self, results: Dict[str, Any], csv_path: Path) -> None:
         """Export results to CSV format matching Jenkins pipeline."""

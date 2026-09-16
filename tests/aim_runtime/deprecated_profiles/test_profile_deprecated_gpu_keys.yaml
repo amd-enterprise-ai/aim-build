@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Uses the pre-migration `gpu` / `gpu_count` metadata keys.
+# Kept on disk so the compatibility period stays encoded in a test: loading
+# this profile succeeds with a warning that names the canonical replacements.
+#
+# This lives outside tests/assets/ on purpose: the asset scanners
+# (ProfileManager.get_yamls, get_model_profile_types) walk every profile under a
+# model directory and validate strictly, so an intentionally-broken profile
+# placed there would fail unrelated tests.
+aim_id: meta-llama/Llama-3.1-8B-Instruct
+model_id: meta-llama/Llama-3.1-8B-Instruct
+metadata:
+  engine: vllm
+  precision: fp16
+  metric: latency
+  type: optimized
+  gpu: MI300X
+  gpu_count: 1
+engine_args:
+  dtype: float16
+  tensor-parallel-size: 1
+env_vars: {}

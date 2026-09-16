@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # Deployment Overview
 
-The main use-case for AIM is to provide optimized microservice for large AI models inference on AMD GPUs with simplified
+The main use-case for AIM is to provide optimized microservice for large AI models inference on AMD accelerators with simplified
 deployment process. AIM can be deployed in multiple ways depending on the use-case. The following options are available:
 
 - Kubernetes deployment with AIM-Engine (recommended)
@@ -16,13 +16,18 @@ deployment process. AIM can be deployed in multiple ways depending on the use-ca
 
 ## AIM-Engine
 
-AIM (AMD Inference Microservice) Engine is a Kubernetes operator that simplifies the deployment and management of AI inference workloads on AMD GPUs. It provides a declarative, cloud-native approach to running ML models at scale. AIM Engine automatically resolves the AIM model, selects an optimal runtime configuration for your hardware, deploys a KServe InferenceService, and optionally creates HTTP routing through Gateway API. In addition to standard KServe deployment, AIM-Engine offers:
+{doc}`AIM Engine </aim-engine/README>` is a Kubernetes operator that simplifies the deployment and management of AI inference workloads on AMD accelerators. It provides a declarative, cloud-native approach to running ML models at scale. AIM Engine automatically resolves the AIM model, selects an optimal runtime configuration for your hardware, deploys a KServe InferenceService, and optionally creates HTTP routing through Gateway API. In addition to standard KServe deployment, AIM-Engine offers:
 
 - Automatic discovery of AIMs catalog and images
 - Automatic selection of optimized images and profiles to match discovered accelerators
 - Automatic model lifecycle management of model caches
 - Automatic resource requests/allocation by model type
 - Simple, single CRD to handle everything from routing to auto-scaling
+
+See the {doc}`AIM Engine documentation </aim-engine/getting-started/quickstart>` for a quick introduction to deploying AIMs with AIM Engine.
+
+## AMD AI Workbench
+The {doc}`AMD AI Workbench </workbench/overview>` provides developers with a streamlined way to manage the lifecycle of their AI stack. It offers an intuitive, low-code experience for deploying and managing AI workloads. Key capabilities include **one-click deployment of AIMs**. For more information, see the {doc}`AMD AI Workbench documentation </workbench/inference/how-to-deploy-and-inference>`.
 
 ## Raw Kubernetes deployment
 
@@ -46,7 +51,7 @@ See [Kubernetes deployment documentation](./kubernetes_deployment.md) for more i
 KServe is a Kubernetes-based platform for model serving that provides standardized APIs and advanced features like
 autoscaling, canary deployments, and multi-framework support. It simplifies the deployment and management of machine
 learning models at scale. AIM can be integrated with KServe to provide optimized inference services for large AI models
-on AMD GPUs.
+on AMD accelerators.
 
 KServe offers several advantages over standard Kubernetes deployments such as:
 - Automatic scaling based on traffic
@@ -59,3 +64,14 @@ See [KServe deployment documentation](./kserve_deployment.md) for detailed setup
 
 It is possible to run AIM with Docker just as a regular image. Please refer to [Docker documentation](https://docs.docker.com/reference/cli/docker/)
 on how to use Docker. Also, see [AIM Docker deployment documentation](./docker_deployment.md) for AIM-specific instructions.
+
+```{toctree}
+---
+maxdepth: 1
+hidden: True
+---
+Docker <docker_deployment.md>
+Pure Kubernetes <kubernetes_deployment.md>
+KServe <kserve_deployment.md>
+Customize AIM Deployment <custom_profiles.md>
+```

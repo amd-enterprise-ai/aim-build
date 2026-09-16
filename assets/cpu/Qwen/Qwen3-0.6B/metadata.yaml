@@ -22,12 +22,6 @@ com:
         source: "https://huggingface.co/Qwen/Qwen3-0.6B"
         variants:
         - "Qwen/Qwen3-0.6B"
-        recommendedDeployments:
-        - gpuModel: "CPU"
-          gpuCount: 1
-          metric: "latency"
-          description: "Optimized for latency on CPU using bf16 precision"
-          profileId: "vllm-cpu-bf16-tp1-latency"
         publisher: "Qwen"
       hfToken:
         required: false

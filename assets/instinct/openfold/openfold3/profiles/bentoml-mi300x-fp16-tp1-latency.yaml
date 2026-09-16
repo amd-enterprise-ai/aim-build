@@ -9,7 +9,7 @@
 # medium / med_high / high request sizes that dominate large-complex
 # inference; expected ~-13% to -18% warm e2e-forward latency vs eager on
 # those tiers (see OF3-TORCH-COMPILE.md). CD_TUNE is intentionally
-# omitted - it erodes the gain at the longest sequences.
+# omitted as it doesn't yield gains at the longest sequences.
 #
 # First /predict per distinct sequence length pays a one-time
 # torch.compile + Triton/GEMM autotune cost (tens of seconds, up to ~80s
@@ -24,22 +24,22 @@
 # Eager baseline is not available via this profile - profile-exported
 # env vars dominate the subprocess environment, so `docker run -e
 # OPENFOLD3_COMPILE_*=none` cannot disable the compile. To benchmark
-# eager, run bentoml directly (bypassing aim-runtime) or revert this
-# profile's OPENFOLD3_COMPILE_* lines locally.
+# eager, revert this profile's OPENFOLD3_COMPILE_* lines locally.
 
 aim_id: openfold/openfold3
 model_id: openfold/openfold3
 metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
   engine: bentoml
-  gpu: MI300X
-  gpu_count: 1
-  manual_selection_only: false
   metric: latency
   precision: fp16
   primary: true
   type: optimized
 engine_args: {}
 env_vars:
+  BENTOML_DISABLE_GPU_ALLOCATION: '1'
   NCCL_MIN_NCHANNELS: '112'
   OPENFOLD3_ACCELERATOR: gpu
   OPENFOLD3_COMPILE_DIFFUSION_CONDITIONING: inductor

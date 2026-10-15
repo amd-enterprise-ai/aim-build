@@ -34,6 +34,7 @@ from aim_runtime.engines.engine_args_models import (
 if TYPE_CHECKING:
     from aim_runtime.config import AIMConfig
     from aim_runtime.engine_config import EngineConfig
+    from aim_runtime.model_cache_resolver import ResolvedModelPath
     from aim_runtime.object_model import Profile
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,18 @@ class BaseEngine(ABC):
     def model_arg(self) -> str:
         """CLI flag used to pass the model path (empty when the model is embedded in launch)."""
         return self.engine_config.model_arg
+
+    def resolve_model_path(self, resolved: "ResolvedModelPath", engine_args: dict[str, Any], profile: "Profile") -> str:
+        """Return the value passed via ``model_arg``. Base: the resolved path.
+
+        Also runs for ``dry-run``, so it must not modify the cache; do that in
+        :meth:`prepare_model`, which ``serve`` calls before building the command.
+        """
+        return resolved.path
+
+    def prepare_model(self, model_id: str, profile: "Profile") -> None:
+        """Make the model available on disk before the command is built (``serve`` only). Base: no-op."""
+        return None
 
     def apply_engine_defaults(self, engine_args: dict[str, Any], served_model_names: list[str]) -> None:
         """Apply engine-specific argument defaults in place. Base: no-op."""

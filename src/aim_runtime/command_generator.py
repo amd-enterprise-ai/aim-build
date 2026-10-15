@@ -139,6 +139,8 @@ class CommandGenerator:
 
         # Merge and validate engine arguments
         engine_args = self._merge_and_validate_engine_args(profile)
+        if resolved_model is not None:
+            model_path = self.engine.resolve_model_path(resolved_model, engine_args, profile)
 
         # Merge LoRA adapter engine args when the profile declares support, so
         # they flow through serialization (the env half is added in

@@ -33,13 +33,23 @@ RUN python3 -c "import torch, sys; print('torch:', torch.__version__, 'hip:', to
 ENV BENTOML_PORT=8000
 ENV AIM_ENGINE=bentoml
 
-# Fetch the MONAI bundle at build time (configs + weights) rather than vendoring
-# third-party (Apache-2.0) content into this repo — mirrors how the openfold3
-# image clones its upstream in the Dockerfile. The service reads the bundle from
+# Fetch the MONAI bundle configs at build time rather than vendoring third-party
+# (Apache-2.0) content into this repo — mirrors how the openfold3 image clones
+# its upstream in the Dockerfile. The service reads the bundle from
 # /workspace/model/bundles/swin_unetr_btcv_segmentation (SWINUNETR_BUNDLE_DIR).
+#
+# Model weights are NOT baked into this image. monai.bundle download pulls
+# configs/ and models/ together, so the checkpoint is removed in the same layer
+# and is never committed. It is fetched at service startup by
+# ensure_checkpoint() (see pipeline.py) from MONAI/swin_unetr_btcv_segmentation.
+# The glob is deliberate: name the files and the list drifts -- the pancreas and
+# spleen bundles also ship a model.ts that no service reads.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m monai.bundle download "swin_unetr_btcv_segmentation" \
-        --bundle_dir /workspace/model/bundles
+    pip install fire==0.7.1 \
+ && python3 -m monai.bundle download "swin_unetr_btcv_segmentation" \
+        --bundle_dir /workspace/model/bundles \
+ && rm -rf /workspace/model/bundles/swin_unetr_btcv_segmentation/models/* \
+ && pip uninstall -y fire termcolor
 
 # BentoML serving wrapper (src layout).
 COPY --link pyproject.toml /workspace/model/pyproject.toml

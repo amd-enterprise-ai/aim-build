@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# BentoML profile — validated by ci/validate_profiles.py (Pydantic).
+# Structure is identical for all MONAI models.
+
+aim_id: monai/spleen_deepedit_annotation
+model_id: monai/spleen_deepedit_annotation
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: latency
+  precision: fp16
+  primary: true
+  type: optimized
+engine_args: {}
+env_vars:
+  SPLEEN_DEEPEDIT_AUTOCAST: 'true'
+  SPLEEN_DEEPEDIT_COMPILE: 'true'
+  SPLEEN_DEEPEDIT_GPU_TRANSFORMS: 'true'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

@@ -45,8 +45,13 @@ NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset(
     {
         "bentoml",
         "example-echo-model",
+        "facebookresearch-dinov2-vitl14-embedding",
         "mit-boltz2",
+        "monai-pancreas-ct-dints-segmentation",
+        "monai-spleen-deepedit-annotation",
         "monai-swinunetr",
+        "monai-vista3d",
+        "monai-wholebody-ct-segmentation",
         "monai-wholebrainseg-large-unest-segmentation",
         "openfold-openfold3",
         "vllm-omni",

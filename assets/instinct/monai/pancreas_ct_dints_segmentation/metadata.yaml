@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata — same schema as aim-build/assets/instinct/mit/boltz2/metadata.yaml.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/pancreas_ct_dints_segmentation"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "ct"
+        - "pancreas"
+        - "dints"
+        - "neural-architecture-search"
+        source: "https://huggingface.co/MONAI/pancreas_ct_dints_segmentation"
+        variants:
+        - "monai/pancreas_ct_dints_segmentation"
+        publisher: "MONAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "A 3D segmentation model for the pancreas and pancreatic tumor in portal-venous-phase abdominal CT, trained on the Medical Segmentation Decathlon Task07_Pancreas dataset. The network topology was discovered automatically via Differentiable Neural Architecture Search (DiNTS) and is constructed from a saved architecture artifact at runtime. Sliding-window inference uses 96x96x96 patches; outputs are 3-channel one-hot masks (background, pancreas, pancreatic tumor). Reported per-class mean Dice across both foreground structures is 0.62."
+      title: "Pancreas and Tumor DiNTS Segmentation"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Pancreas and pancreatic tumor 3D CT segmentation (DiNTS)."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

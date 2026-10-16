@@ -1,0 +1,28 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# DINOv2 ViT-L/14 image-embedding profile.
+#
+# Configured for fp16 + torch.compile at fixed 224x224 input resolution.
+
+aim_id: facebookresearch/dinov2-vitl14-embedding
+model_id: facebookresearch/dinov2-vitl14-embedding
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  metric: latency
+  precision: fp16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  DINOV2_COMPILE_MODE: default
+  DINOV2_DISABLE_XFORMERS: 'true'
+  DINOV2_IMAGE_SIZE: '224'
+  DINOV2_PRECISION: fp16
+  DINOV2_TORCH_COMPILE: 'true'
+  TORCH_HOME: /workspace/model-cache/torch
+  XFORMERS_DISABLED: '1'

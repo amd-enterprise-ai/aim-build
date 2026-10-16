@@ -10,7 +10,7 @@ base_image:
   registry_host: docker.io
   base_registry_namespace: silogenai
   base_repository: aim-instinct-monai-swinunetr-base
-  base_tag: "0.13.0"
+  base_tag: "2026.14.0"
 specialized: true
 templates:
   deployment: docs/templates/DEPLOYMENT.bentoml.md

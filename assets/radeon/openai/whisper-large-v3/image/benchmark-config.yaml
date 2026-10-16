@@ -1,0 +1,12 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+active_config: default_dev
+# Audio benchmark configuration for Whisper large v3 model.
+# Each entry in a config suite is a list of the form [concurrency, num_prompts, min_audio_sec, max_audio_sec].
+config_suites:
+  # Default development presets. LibriSpeech.
+  default_dev: [[1, 10, 0, 5], [2, 20, 5, 30]]
+  # LibriSpeech presets.
+  default_opt: [[1, 10, 5, 30], [2, 20, 5, 30], [4, 40, 5, 30], [8, 80, 5, 30], [16, 160, 5, 30], [32, 320, 5, 30], [64, 640, 5, 30], [128, 1280, 5, 30], [256, 2560, 5, 30]]

@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Versions pinned to `pip freeze` of this image built on
+# docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1.
+
+# serving engine (compliance R11)
+bentoml==1.4.39
+anyio==4.12.1
+
+# request/response models and image IO
+pydantic==2.13.4
+pillow==11.3.0
+
+# DINOv2 lightweight runtime imports. torch/numpy stay inherited from the ROCm base.
+omegaconf==2.3.1
+fvcore==0.1.5.post20221221
+iopath==0.1.10

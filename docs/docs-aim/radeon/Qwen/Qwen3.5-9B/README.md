@@ -102,10 +102,10 @@ The following profiles are available for this model:
 
 |Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type|
 |-------|-------------------|---------|------|---------|------|----|
-|vllm-r9700-bf16-tp1-latency|R9700|bf16|vllm|1|latency|preview|
-|vllm-r9700-bf16-tp1-throughput|R9700|bf16|vllm|1|throughput|preview|
-|vllm-w7900-bf16-tp1-latency|W7900|bf16|vllm|1|latency|preview|
-|vllm-w7900-bf16-tp1-throughput|W7900|bf16|vllm|1|throughput|preview|
+|vllm-r9700-bf16-tp1-latency|R9700|bf16|vllm|1|latency|optimized|
+|vllm-r9700-bf16-tp1-throughput|R9700|bf16|vllm|1|throughput|optimized|
+|vllm-w7900-bf16-tp1-latency|W7900|bf16|vllm|1|latency|optimized|
+|vllm-w7900-bf16-tp1-throughput|W7900|bf16|vllm|1|throughput|optimized|
 
 The columns should be read as follows:
 * **Profile**: Name of the deployment profile.

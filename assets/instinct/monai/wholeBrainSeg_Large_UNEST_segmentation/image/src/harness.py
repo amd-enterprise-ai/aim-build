@@ -90,6 +90,7 @@ import os
 from typing import Any, ClassVar
 
 import monai_harness
+from constants import BUNDLE_NAME
 
 from aim_runtime.harness import CheckInfo, CheckResultType, CheckScope
 
@@ -108,7 +109,7 @@ _FOREGROUND_CLASS_INDICES = tuple(range(1, 133))
 class WholebrainsegHarness(monai_harness.MonaiHarness):
     """Harness for the Whole Brain Segmentation Large UNEST AIM."""
 
-    MODEL_ID: ClassVar[str] = "monai/wholeBrainSeg_Large_UNEST_segmentation"
+    MODEL_ID: ClassVar[str] = f"monai/{BUNDLE_NAME}"
 
     # The base class' default METRIC_NAME = "dice" is correct — we still
     # compute Dice, just per-class and averaged. Keep the name so
@@ -120,7 +121,7 @@ class WholebrainsegHarness(monai_harness.MonaiHarness):
         CheckInfo(
             "bentoml_health",
             CheckResultType.PASS_FAIL,
-            CheckScope.RUNTIME,
+            CheckScope.OFFLINE,
             "BentoML readiness (GET /healthz returns 200)",
         ),
         CheckInfo(

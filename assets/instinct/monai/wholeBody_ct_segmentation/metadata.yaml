@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata — same schema as aim-build/assets/instinct/mit/boltz2/metadata.yaml.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/wholeBody_ct_segmentation"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "ct"
+        - "whole-body"
+        - "totalsegmentator"
+        source: "https://huggingface.co/MONAI/wholeBody_ct_segmentation"
+        variants:
+        - "monai/wholeBody_ct_segmentation"
+        publisher: "MONAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "A SegResNet-based volumetric segmentation model that segments 104 distinct anatomical structures (organs, bones, muscles, vessels) from whole-body CT scans. Trained on the TotalSegmentator dataset (Wasserthal et al. 2022), the bundle runs 96x96x96 sliding-window inference with gaussian patch fusion and an RAS-oriented intensity-normalized preprocessing chain mirroring inference.json. Two variants are bundled: a 1.5 mm high-resolution model (default, ~28.7 GB GPU at full-volume inference) and a 3.0 mm low-resolution model that fits tighter GPU budgets; the displayable_configs#highres flag selects between them. Bundle published mean Dice = 0.8 (per-class mean over the 104 foreground structures on its TotalSegmentator validation split). Intended use per the bundle: an example, not for diagnostic purposes."
+      title: "Whole Body CT Segmentation"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "104-class whole-body CT segmentation."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -14,7 +14,7 @@ metadata:
   metric: latency
   precision: bf16
   primary: true
-  type: preview
+  type: optimized
 engine_args:
   disable-uvicorn-access-log: null
   distributed_executor_backend: mp

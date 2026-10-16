@@ -1,0 +1,29 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pancreas_ct_dints_segmentation-aim"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "AIM serving wrapper for the MONAI pancreas_ct_dints_segmentation bundle"
+dependencies = [
+    "bentoml==1.4.39",
+    "pydantic>=2.0,<3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+    "service",
+    "harness",
+    "monai_harness",
+    "pipeline",
+    "config",
+    "constants",
+    "schemas",
+]

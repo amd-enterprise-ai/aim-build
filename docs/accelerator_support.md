@@ -43,6 +43,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <th style="border:1px solid #ccc;padding:10px">MI250X</th>
 <th style="border:1px solid #ccc;padding:10px">MI300X</th>
 <th style="border:1px solid #ccc;padding:10px">MI325X</th>
+<th style="border:1px solid #ccc;padding:10px">MI350P</th>
 <th style="border:1px solid #ccc;padding:10px">MI350X</th>
 <th style="border:1px solid #ccc;padding:10px">MI355X</th>
 </tr>
@@ -54,6 +55,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -63,6 +65,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -72,6 +75,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -81,6 +85,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -90,6 +95,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -99,6 +105,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -108,6 +115,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -117,6 +125,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -126,6 +135,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -135,6 +145,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -144,6 +155,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -153,6 +165,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -162,6 +175,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -171,6 +185,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -180,6 +195,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -189,6 +205,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -198,6 +215,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -207,6 +225,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -216,6 +235,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -225,6 +245,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -234,6 +255,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -243,6 +265,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -252,6 +275,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -261,6 +285,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -269,6 +294,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-target-monai-swinunetr-model-monai-swinunetr/tags">monai/swinunetr</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
@@ -281,6 +307,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">27</td>
@@ -288,6 +315,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -297,6 +325,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -308,6 +337,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">30</td>
@@ -315,6 +345,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -324,6 +355,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 </tr>
@@ -333,6 +365,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -342,6 +375,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -351,6 +385,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -361,7 +396,8 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">36</td>
@@ -369,6 +405,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
@@ -378,6 +415,7 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 </tr>
@@ -609,23 +647,35 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <tr>
 <td style="border:1px solid #ccc;padding:10px">2</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-meta-llama-llama-3-1-8b-instruct/tags">meta-llama/Llama-3.1-8B-Instruct</a></td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">3</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-vl-8b-instruct/tags">Qwen/Qwen3-VL-8B-Instruct</a></td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-model-openai-whisper-large-v3/tags">openai/whisper-large-v3</a></td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">4</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-5-9b/tags">Qwen/Qwen3.5-9B</a></td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-vl-8b-instruct/tags">Qwen/Qwen3-VL-8B-Instruct</a></td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">5</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-5-9b/tags">Qwen/Qwen3.5-9B</a></td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">6</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-6-35b-a3b/tags">Qwen/Qwen3.6-35B-A3B</a></td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">7</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-radeon-zai-org-glm-4-7-flash/tags">zai-org/GLM-4.7-Flash</a></td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>

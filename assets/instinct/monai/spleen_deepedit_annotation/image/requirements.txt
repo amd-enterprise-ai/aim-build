@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ── Shared MONAI AIM dependencies (identical across most models) ──
+bentoml==1.4.39
+huggingface_hub==1.20.1
+nibabel==5.4.2
+pillow==12.1.0
+pytorch-ignite==0.5.4
+tqdm==4.67.1
+pydicom==3.0.2
+scipy==1.17.0
+numpy==1.26.4
+connected-components-3d==4.0.0
+
+# ── Model-specific dependencies ──
+# einops is required by the bundle's scripts/transforms.py — the custom
+# OrientationGuidanceMultipleLabelDeepEditd transform uses einops.rearrange.
+# The version pin matches what the bundle's required_packages_version
+# declares in configs/metadata.json (einops 0.7.0+).
+einops==0.8.2
+# itk-pip provides the ITKReader used by configs/inference.json's LoadImaged
+itk==5.4.6
+# scikit-image is listed in the bundle's configs/metadata.json and imported by
+# monai.apps.deepedit.transforms, which this bundle's guidance chain uses.
+# tifffile is pinned with it: the current release requires numpy 2.
+scikit-image==0.24.0
+tifffile==2024.8.30
+# monai installed --no-deps; requests is used by huggingface_hub at runtime.
+# fire is NOT listed here — it is only needed at build time for the
+# `monai.bundle download` CLI (see Dockerfile) and is installed there.
+requests==2.34.2

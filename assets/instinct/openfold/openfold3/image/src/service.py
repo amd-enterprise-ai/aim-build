@@ -55,8 +55,9 @@ class OpenFold3Request(BaseModel):
 
     @model_validator(mode="after")
     def _reject_conflicting_inputs(self) -> "OpenFold3Request":
-        """Reject mutually-exclusive inputs. The raised ValueError surfaces as a
-        pydantic ValidationError -> HTTP 400, before any compute runs."""
+        """Reject the requests that ``find_request_conflicts`` flags. The raised
+        ValueError surfaces as a pydantic ValidationError -> HTTP 400, before
+        any compute runs."""
         conflicts = find_request_conflicts(
             self.queries,
             use_msa_server=self.use_msa_server,
@@ -318,8 +319,7 @@ class OpenFold3Prediction:
                 - "confidence": {}
                 - "timing": {}
 
-        Mutually-exclusive inputs (e.g. inline MSAs with use_msa_server=True) are
-        rejected during request validation with HTTP 400 before reaching here.
+        A request that fails schema validation answers HTTP 400 before reaching here.
 
         Prediction failures answer HTTP 200 with the error body above. The two
         transient conditions answer HTTP 503 with the same body plus Retry-After:

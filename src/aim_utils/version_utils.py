@@ -32,14 +32,14 @@ class AIMVersionSuffixType(StrEnum):
 
 class AIMVersionSuffix:
 
-    SUFFIX_PATTERN = re.compile(r"^(rc\d+|preview|)$")
+    SUFFIX_PATTERN = re.compile(r"^(pr[1-9]\d*-rc[1-9]\d*|rc\d+|preview|)$")
 
     def __init__(self, suffix: str) -> None:
         self.suffix_type = None
 
         match = self.SUFFIX_PATTERN.match(suffix)
         if match:
-            if suffix.startswith("rc"):
+            if suffix.startswith("rc") or re.fullmatch(r"pr[1-9]\d*-rc[1-9]\d*", suffix):
                 self.suffix_type = AIMVersionSuffixType.RC
             else:
                 self.suffix_type = AIMVersionSuffixType.read_enum(suffix)
@@ -59,9 +59,23 @@ class AIMVersionSuffix:
             Optional[int]: The RC number if suffix is rcN, None otherwise
         """
         if self.suffix_type == AIMVersionSuffixType.RC:
-            rc_match = re.match(r"rc(\d+)", self.suffix)
+            rc_match = re.search(r"rc(\d+)$", self.suffix)
             if rc_match:
                 return int(rc_match.group(1))
+        return None
+
+    @property
+    def pr_number(self) -> Optional[int]:
+        """
+        Extract the PR number from a PR-scoped RC suffix.
+
+        Returns:
+            Optional[int]: The PR number if suffix is prP-rcN, None otherwise (including bare rcN)
+        """
+        if self.suffix_type == AIMVersionSuffixType.RC:
+            pr_match = re.match(r"pr(\d+)-rc\d+$", self.suffix)
+            if pr_match:
+                return int(pr_match.group(1))
         return None
 
 
@@ -69,12 +83,14 @@ class AIMVersionSuffix:
 class AIMVersion:
 
     # Compiled patterns aligned with .github/versioning-strategy.md.
-    # Full version: MAJOR.MINOR.PATCH with optional -rcN or -preview suffix (model-specific images)
-    pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(rc[1-9]\d*|preview))?$")
-    # Base version: MAJOR.MINOR with an optional .PATCH and optional -rcN or -preview suffix (base images).
+    # Full version: MAJOR.MINOR.PATCH with an optional RC, PR-scoped RC, or preview suffix.
+    pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(pr[1-9]\d*-rc[1-9]\d*|rc[1-9]\d*|preview))?$")
+    # Base version: MAJOR.MINOR with an optional .PATCH and an optional RC, PR-scoped RC, or preview suffix.
     # PATCH is optional so both legacy two-part tags (0.13-rc5) and the three-part tags emitted since
     # PR #1188 (0.13.0-rc5) validate.
-    base_pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-(rc[1-9]\d*|preview))?$")
+    base_pattern = re.compile(
+        r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-(pr[1-9]\d*-rc[1-9]\d*|rc[1-9]\d*|preview))?$"
+    )
     # Stable full version: MAJOR.MINOR.PATCH without any suffix
     pattern_stable = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
     # Stable base version: MAJOR.MINOR with an optional .PATCH and without any suffix
@@ -83,19 +99,15 @@ class AIMVersion:
     def __init__(self, version: str, is_base: bool = False) -> None:
         pattern = self.base_pattern if is_base else self.pattern
         if not pattern.fullmatch(version):
-            expected_fmt = "MAJOR.MINOR[.PATCH][-rcN|-preview]" if is_base else "MAJOR.MINOR.PATCH[-rcN|-preview]"
+            expected_fmt = (
+                "MAJOR.MINOR[.PATCH][-prPR-rcN|-rcN|-preview]"
+                if is_base
+                else "MAJOR.MINOR.PATCH[-prPR-rcN|-rcN|-preview]"
+            )
             raise ValueError(f"Invalid version format: '{version}'. Expected {expected_fmt}")
 
         self.version = version
         self.is_base = is_base
-
-    @classmethod
-    def __patch_preview(cls, version: str) -> str:
-        return version.replace("preview", "rcpreview")
-
-    @classmethod
-    def __patch_rc(cls, version: str) -> str:
-        return version.replace("rc", "rc.")
 
     def __patch_base(self, version: str) -> str:
         def convert_base_to_semver(version: str) -> str:
@@ -118,27 +130,36 @@ class AIMVersion:
         This ensures that versions are sorted correctly:
         - Base versions (X.Y-suffix) are converted to X.Y.0-suffix
         - Preview versions are converted to rcpreview for proper ordering
+        - PR-scoped RCs are ordered by numeric PR number before RC number
+
+        Callers selecting the latest RC for a specific PR should still filter
+        by PR before taking max(); ordering is a deterministic fallback, not a
+        cross-PR allocation policy.
+
         :param other: other version to compare
         :return: bool indicating if self is less than other
         """
-        self_version = self.version
-        other_version = other.version
+        return self.__comparison_key() < other.__comparison_key()
 
-        if self.is_base:
-            self_version = self.__patch_base(self_version)
+    def __comparison_key(self) -> tuple[int, int, int, int, int, int]:
+        version = self.__patch_base(self.version) if self.is_base else self.version
+        core, _, suffix = version.partition("-")
+        major, minor, patch = (int(part) for part in core.split("."))
 
-        if other.is_base:
-            other_version = self.__patch_base(other.version)
+        if not suffix:
+            return (major, minor, patch, 3, 0, 0)
+        if suffix == "preview":
+            return (major, minor, patch, 2, 0, 0)
 
-        self_version = self.__patch_preview(self_version)
-        other_version = self.__patch_preview(other_version)
+        pr_match = re.fullmatch(r"pr([1-9]\d*)-rc([1-9]\d*)", suffix)
+        if pr_match:
+            return (major, minor, patch, 0, int(pr_match.group(1)), int(pr_match.group(2)))
 
-        self_version = self.__patch_rc(self_version)
-        other_version = self.__patch_rc(other_version)
+        rc_match = re.fullmatch(r"rc([1-9]\d*)", suffix)
+        if rc_match:
+            return (major, minor, patch, 1, 0, int(rc_match.group(1)))
 
-        from semver import VersionInfo
-
-        return VersionInfo.parse(self_version) < VersionInfo.parse(other_version)
+        raise ValueError(f"Invalid version suffix: {suffix}")
 
     def __eq__(self, other) -> bool:
         return self.version == other.version
@@ -241,8 +262,8 @@ class AIMVersion:
 def validate_version_tag(version: str, is_base: bool = False) -> None:
     """Validate a version string against the AIM versioning strategy.
 
-    Base images use MAJOR.MINOR[-rcN|-preview] format.
-    Model-specific images use MAJOR.MINOR.PATCH[-rcN|-preview] format.
+    Base images use MAJOR.MINOR[-prPR-rcN|-rcN|-preview] format.
+    Model-specific images use MAJOR.MINOR.PATCH[-prPR-rcN|-rcN|-preview] format.
     RC numbers start at 1 (rc0 is not valid).
 
     Args:

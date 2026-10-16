@@ -1,0 +1,9 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Points BentoML at the service when launched via
+#   python -m bentoml serve --working-dir /workspace/model
+# src/ is copied to /workspace/model/src/ by the Dockerfile, so the service
+# module is importable as `src.service`.
+service: "src.service:PancreasDintsService"

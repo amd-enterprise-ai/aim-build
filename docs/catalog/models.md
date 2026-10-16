@@ -28,6 +28,17 @@ AIMs are available for AMD Instinct™, Radeon™, and EPYC™. Browse the catal
 
 <div id="aim-catalog-tabs-marker"></div>
 
+<style>
+/* Keep normal table layout so columns stay intact and the theme can scroll
+   the table sideways. Only the model name is capped: those strings have no
+   spaces, so they would otherwise force the whole table wider than the page. */
+#aim-catalog-tabs-marker ~ .sd-tab-set table th:nth-child(1),
+#aim-catalog-tabs-marker ~ .sd-tab-set table td:nth-child(1) {
+  max-width: 15em;
+  overflow-wrap: anywhere;
+}
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   var search = document.getElementById("aim-catalog-search");
@@ -188,9 +199,11 @@ document.addEventListener("DOMContentLoaded", function () {
 | Model | Organization | Description | Resources |
 |-------|--------------|-------------|-----------|
 | [google/gemma-3n-E4B-it](https://hub.docker.com/r/amdenterpriseai/aim-radeon-google-gemma-3n-e4b-it/tags) (preview) | Google | Gemma 3n E4B IT is a gated multimodal instruction-tuned model supporting text, image, video, and audio inputs. | [Spec](../docs-aim/radeon/google/gemma-3n-E4B-it/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/google/gemma-3n-E4B-it/DEPLOYMENT.md) |
-| [meta-llama/Llama-3.1-8B-Instruct](https://hub.docker.com/r/amdenterpriseai/aim-radeon-meta-llama-llama-3-1-8b-instruct/tags) (preview) | Meta | Multilingual 8B parameter instruction-tuned language model for dialogue use cases. | [Spec](../docs-aim/radeon/meta-llama/Llama-3.1-8B-Instruct/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/meta-llama/Llama-3.1-8B-Instruct/DEPLOYMENT.md) |
-| [Qwen/Qwen3-VL-8B-Instruct](https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-vl-8b-instruct/tags) (preview) | Qwen | 8B parameter vision-language model with advanced multimodal reasoning. | [Spec](../docs-aim/radeon/Qwen/Qwen3-VL-8B-Instruct/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/Qwen/Qwen3-VL-8B-Instruct/DEPLOYMENT.md) |
-| [Qwen/Qwen3.5-9B](https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-5-9b/tags) (preview) | Qwen | 9B parameter hybrid language model with Gated DeltaNet and dual thinking modes. | [Spec](../docs-aim/radeon/Qwen/Qwen3.5-9B/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/Qwen/Qwen3.5-9B/DEPLOYMENT.md) |
+| [meta-llama/Llama-3.1-8B-Instruct](https://hub.docker.com/r/amdenterpriseai/aim-radeon-meta-llama-llama-3-1-8b-instruct/tags) (stable) | Meta | Multilingual 8B parameter instruction-tuned language model for dialogue use cases. | [Spec](../docs-aim/radeon/meta-llama/Llama-3.1-8B-Instruct/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/meta-llama/Llama-3.1-8B-Instruct/DEPLOYMENT.md) |
+| [openai/whisper-large-v3](https://hub.docker.com/r/amdenterpriseai/aim-radeon-model-openai-whisper-large-v3/tags) (stable) | OpenAI | Whisper Large v3 is a multilingual speech recognition and translation model from OpenAI. | [Spec](../docs-aim/radeon/openai/whisper-large-v3/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/openai/whisper-large-v3/DEPLOYMENT.md) |
+| [Qwen/Qwen3-VL-8B-Instruct](https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-vl-8b-instruct/tags) (stable) | Qwen | 8B parameter vision-language model with advanced multimodal reasoning. | [Spec](../docs-aim/radeon/Qwen/Qwen3-VL-8B-Instruct/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/Qwen/Qwen3-VL-8B-Instruct/DEPLOYMENT.md) |
+| [Qwen/Qwen3.5-9B](https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-5-9b/tags) (stable) | Qwen | 9B parameter hybrid language model with Gated DeltaNet and dual thinking modes. | [Spec](../docs-aim/radeon/Qwen/Qwen3.5-9B/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/Qwen/Qwen3.5-9B/DEPLOYMENT.md) |
+| [Qwen/Qwen3.6-35B-A3B](https://hub.docker.com/r/amdenterpriseai/aim-radeon-qwen-qwen3-6-35b-a3b/tags) (stable) | Qwen | Qwen3.6-35B-A3B is a Mixture-of-Experts LLM with 35B total parameters and ~3B active per token, balancing high quality with efficient inference. | [Spec](../docs-aim/radeon/Qwen/Qwen3.6-35B-A3B/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/Qwen/Qwen3.6-35B-A3B/DEPLOYMENT.md) |
 | [zai-org/GLM-4.7-Flash](https://hub.docker.com/r/amdenterpriseai/aim-radeon-zai-org-glm-4-7-flash/tags) (preview) | Z.ai | 30B-A3B MoE language model with balanced performance and efficiency for lightweight deployment. | [Spec](../docs-aim/radeon/zai-org/GLM-4.7-Flash/README.md#model-specific-aim) [Deploy](../docs-aim/radeon/zai-org/GLM-4.7-Flash/DEPLOYMENT.md) |
 
 :::

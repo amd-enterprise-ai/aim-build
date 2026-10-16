@@ -13,6 +13,7 @@ import os
 import sys
 
 import torch._dynamo.config as dynamo_config
+from constants import BUNDLE_NAME, ENV_PREFIX  # noqa: F401  (re-exported)
 
 # ---------------------------------------------------------------------------
 # torch.compile global settings
@@ -28,7 +29,6 @@ dynamo_config.automatic_dynamic_shapes = True
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-ENV_PREFIX = "SWINUNETR"
 
 LOG_LEVEL = os.environ.get(f"{ENV_PREFIX}_LOG_LEVEL", "INFO").upper()
 SERVICE_TIMEOUT_SECONDS = int(os.environ.get(f"{ENV_PREFIX}_TIMEOUT_SECONDS", "1800"))

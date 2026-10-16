@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from config import LOGGER, OPT_GPU_TRANSFORMS
+from config import BUNDLE_NAME, ENV_PREFIX, LOGGER, OPT_GPU_TRANSFORMS
 from huggingface_hub import hf_hub_download
 from monai.networks.nets import SwinUNETR
 from monai.transforms import (
@@ -38,13 +38,13 @@ from monai.transforms import (
 # ---------------------------------------------------------------------------
 
 
-def ensure_checkpoint(bundle_dir: Path, ckpt_path: Path) -> None:
+def ensure_checkpoint(weights_dir: Path, ckpt_path: Path) -> None:
     """Download model weights from Hugging Face if not present locally."""
     if ckpt_path.exists():
         return
 
-    repo_id = os.environ.get("SWINUNETR_HF_REPO", "MONAI/swin_unetr_btcv_segmentation")
-    filename = os.environ.get("SWINUNETR_HF_FILENAME", "models/model.pt")
+    repo_id = os.environ.get(f"{ENV_PREFIX}_HF_REPO", f"MONAI/{BUNDLE_NAME}")
+    filename = os.environ.get(f"{ENV_PREFIX}_HF_FILENAME", "models/model.pt")
 
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     LOGGER.info("Checkpoint not found at %s — downloading %s from %s …", ckpt_path, filename, repo_id)
@@ -52,7 +52,7 @@ def ensure_checkpoint(bundle_dir: Path, ckpt_path: Path) -> None:
     downloaded = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
-        local_dir=str(bundle_dir),
+        local_dir=str(weights_dir),
     )
     LOGGER.info("Downloaded checkpoint to %s", downloaded)
 
@@ -68,8 +68,13 @@ def ensure_checkpoint(bundle_dir: Path, ckpt_path: Path) -> None:
 
 
 def build_device() -> torch.device:
-    """Pick cuda:0 if available, else cpu. Single source of truth."""
-    return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    """Return cuda:0. Raises RuntimeError if no GPU is available."""
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "No GPU detected. swinunetr requires a ROCm/CUDA GPU (MI300X). "
+            "Ensure the GPU is mounted and the ROCm driver is accessible."
+        )
+    return torch.device("cuda:0")
 
 
 # ---------------------------------------------------------------------------

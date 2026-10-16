@@ -40,7 +40,7 @@ class SwinunetrHarness(monai_harness.MonaiHarness):
         CheckInfo(
             "bentoml_health",
             CheckResultType.PASS_FAIL,
-            CheckScope.RUNTIME,
+            CheckScope.OFFLINE,
             "BentoML readiness (GET /healthz returns 200)",
         ),
         CheckInfo(

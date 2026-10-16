@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      title: DINOv2 ViT-L/14 Image Embeddings
+      model:
+        canonicalName: "facebookresearch/dinov2-vitl14-embedding"
+        publisher: Meta AI
+        source: https://github.com/facebookresearch/dinov2
+        tags:
+          - computer-vision
+          - image-embedding
+          - pytorch
+          - dinov2
+        variants:
+          - "facebookresearch/dinov2-vitl14-embedding"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "DINOv2 ViT-L/14 is a self-supervised Vision Transformer (Large, patch size 14) from Meta AI, with about 300 million parameters, distilled from the ViT-g/14 DINOv2 model. DINOv2 models were pretrained on a curated dataset of 142 million images without using any labels or annotations, and produce general-purpose visual features that can be used directly with simple classifiers such as linear layers across many computer vision tasks, including classification, segmentation, depth estimation, and retrieval, without fine-tuning. This AIM returns the 1024-dimensional CLS-token embedding for an RGB image. Licensed under Apache 2.0."
+org:
+  opencontainers:
+    image:
+      vendor: AMD
+      authors: ""
+      licenses: Apache-2.0
+      description: "Served DINOv2 ViT-L/14 image embedding AIM."
+      documentation: ""
+      source: https://github.com/facebookresearch/dinov2

@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata for the MONAI VISTA-3D AIM.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/vista3d"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "ct"
+        - "foundation-model"
+        - "promptable"
+        source: "https://huggingface.co/MONAI/vista3d"
+        variants:
+        - "monai/vista3d"
+        publisher: "MONAI"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "VISTA-3D is MONAI's 3D promptable segmentation foundation model. It maps 3D CT volumes to a 132-class semantic mask, supporting two inference modes: (a) automatic — `label_prompt=None` triggers segmentation over the bundle's 117-class everything-mode subset; (b) interactive — a non-empty `label_prompt=[<class_ids>]` runs targeted class-prompt segmentation, and optional `points` + `point_labels` extend that to single-object point-prompt segmentation in the original-image coordinate frame. Built on a SegResNet-like backbone with a prompt encoder; trained jointly on class prompts and point prompts across 20+ partial-label datasets. Outputs class-ID masks at the original input resolution via SaveImaged. The model weights are included in the base image and are governed by the NVIDIA OneWay Noncommercial License (§3.3 non-commercial use only); users must accept the license terms at https://huggingface.co/MONAI/vista3d and provide a Hugging Face token before use."
+      title: "MONAI VISTA-3D — Whole-body 3D CT promptable foundation segmentation"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, NVIDIA OneWay Noncommercial"
+      description: "3D promptable CT segmentation foundation model: automatic 117-class, class-prompt, or point-prompt modes."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

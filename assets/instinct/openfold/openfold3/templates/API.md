@@ -33,12 +33,17 @@ Each entry of `chains` describes one molecule:
 |---|---|---|
 | `molecule_type` | string | `protein`, `dna`, `rna` or `ligand`. |
 | `chain_ids` | list of strings | Chain identifiers, for example `["A"]`. |
-| `sequence` | string | The residue or atom sequence. |
+| `sequence` | string | Amino-acid or nucleotide sequence for `protein`, `dna`, and `rna`. |
+| `smiles` | string | SMILES string for a `ligand`. |
+| `ccd_codes` | string or list of strings | One Chemical Component Dictionary code for a `ligand`, for example `"ATP"`. |
 | `main_msa` | string or list of strings | Optional precomputed MSA as a3m text. |
 | `paired_msa` | string or list of strings | Optional precomputed paired MSA as a3m text. |
 
-The service rejects these combinations with HTTP 400, before any computation starts:
+A `ligand` chain uses `smiles` or `ccd_codes` instead of `sequence`. A list given as `ccd_codes` must hold a single code. If a chain sets both `smiles` and `ccd_codes`, `smiles` is used.
 
+The service rejects these requests with HTTP 400, before any computation starts:
+
+* `queries` set to `{}`. There is nothing to fold.
 * `main_msa` or `paired_msa` together with `use_msa_server: true`. The server MSA would overwrite the inline one.
 * `seeds` together with `num_model_seeds`. One generates seeds, the other lists them.
 * `use_templates: true` together with `use_msa_server: false`. Templates are fetched through the same server.
@@ -129,7 +134,38 @@ curl http://localhost:8000/predict \
   }'
 ```
 
-### 4.6 Response
+### 4.6 Request with a ligand
+
+A ligand chain carries `smiles` or `ccd_codes` instead of `sequence`. This folds ubiquitin together with toluene. The protein chain still uses the MSA server:
+
+```bash
+curl http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": {
+      "queries": {
+        "ubiquitin": {
+          "chains": [
+            {
+              "molecule_type": "protein",
+              "chain_ids": ["A"],
+              "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+            },
+            {
+              "molecule_type": "ligand",
+              "chain_ids": ["L"],
+              "smiles": "Cc1ccccc1"
+            }
+          ]
+        }
+      }
+    }
+  }'
+```
+
+To name the ligand with a Chemical Component Dictionary code instead, omit `smiles` and set `"ccd_codes": "ATP"` on that chain. `"ccd_codes": ["ATP"]` is the same request.
+
+### 4.7 Response
 
 A successful response has this shape:
 
@@ -163,17 +199,17 @@ A successful response has this shape:
 When a prediction fails, the service answers HTTP 200 with `"error": true`, a `message` field, and empty `structures` and
 `confidence`. `timing` is then `{}`, because the service records a runtime only for a sample that produced a structure.
 
-### 4.7 Status codes
+### 4.8 Status codes
 
 | Code | Meaning | Retry |
 |---|---|---|
 | `200` with `"error": false` | Success. | — |
 | `200` with `"error": true` | The prediction failed. `message` holds the reason. | No. The same request fails again. |
-| `400` | The request combines mutually exclusive inputs. See section 4.3. | No. Correct the request. |
+| `400` | The request is not valid. See section 4.3. | No. Correct the request. |
 | `429` | Too many requests in flight. | Yes. |
 | `503` | The MSA server did not answer within its budget, or the request queued too long. The `Retry-After` header gives the interval. | Yes. |
 
-### 4.8 What to know before you deploy
+### 4.9 What to know before you deploy
 
 **The `tpN` in a profile name is the number of data-parallel workers, not tensor parallelism.** OpenFold3 has no
 tensor parallelism. A profile named `bentoml-mi300x-fp16-tp4-latency` runs four workers, each pinned to one
@@ -201,7 +237,7 @@ persistent volume there, as described in section 2.
 
 **This model does not need a Hugging Face token.**
 
-### 4.9 Request budget environment variables
+### 4.10 Request budget environment variables
 
 | Variable | Default | Effect |
 |---|---|---|

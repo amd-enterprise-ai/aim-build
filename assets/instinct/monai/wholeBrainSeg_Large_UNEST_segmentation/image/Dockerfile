@@ -23,12 +23,23 @@ RUN python3 -c "import torch, sys; print('torch:', torch.__version__, 'hip:', to
 ENV BENTOML_PORT=8000
 ENV AIM_ENGINE=bentoml
 
-# Fetch the MONAI bundle at build time (configs + weights) rather than vendoring
-# third-party content. The service reads it from
+# Fetch the MONAI bundle configs at build time so the service does not need
+# network access for non-weight assets. The service reads the bundle from
 # /workspace/model/bundles/wholeBrainSeg_Large_UNEST_segmentation (BRAINSEG_BUNDLE_DIR).
+#
+# Model weights are NOT baked into this image. monai.bundle download pulls
+# configs/ and models/ together, so the checkpoint is removed in the same layer
+# and is never committed. It is fetched at service startup by
+# ensure_checkpoint() (see pipeline.py) from
+# MONAI/wholeBrainSeg_Large_UNEST_segmentation.
+# The glob is deliberate: name the files and the list drifts -- the pancreas and
+# spleen bundles also ship a model.ts that no service reads.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m monai.bundle download "wholeBrainSeg_Large_UNEST_segmentation" \
-        --bundle_dir /workspace/model/bundles
+    pip install fire==0.7.1 \
+ && python3 -m monai.bundle download "wholeBrainSeg_Large_UNEST_segmentation" \
+        --bundle_dir /workspace/model/bundles \
+ && rm -rf /workspace/model/bundles/wholeBrainSeg_Large_UNEST_segmentation/models/* \
+ && pip uninstall -y fire termcolor
 
 COPY --link pyproject.toml /workspace/model/pyproject.toml
 COPY --link src /workspace/model/src

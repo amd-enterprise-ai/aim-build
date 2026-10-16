@@ -112,14 +112,18 @@ def find_request_conflicts(
     num_model_seeds: int | None,
     seeds_explicit: bool,
 ) -> list[str]:
-    """Return error messages for mutually-exclusive request inputs.
+    """Return error messages for requests that must be rejected before prediction.
 
-    Each case is a conflict where one input would silently override another, so
-    the request is rejected rather than guessing intent:
+    An empty ``queries`` map is rejected on its own: there is nothing to fold.
+    The remaining cases are conflicts where one input would silently
+    override another, so the request is rejected rather than guessing intent:
       - inline MSAs with use_msa_server (ColabFold MSAs would overwrite inline)
       - both seeds and num_model_seeds (num_model_seeds would regenerate, ignoring seeds)
       - use_templates without use_msa_server (templates are only server-fetched)
     """
+    if not queries:
+        return ["queries must contain at least one query."]
+
     conflicts: list[str] = []
 
     chains = [

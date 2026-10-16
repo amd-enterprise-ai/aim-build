@@ -26,7 +26,7 @@ This AIM does **not** serve the OpenAI `/v1/completions` or `/v1/chat/completion
 |---|---|---|---|
 | `prompt` | string | required | Text description of the video to generate. |
 | `negative_prompt` | string | not set | Text to steer generation away from. The model runs classifier-free guidance, so a negative prompt is supported. |
-| `size` | string | model default | Frame resolution as `WIDTHxHEIGHT`, for example `832x480`. |
+| `size` | string | model default | Frame resolution as `WIDTHxHEIGHT`. The model targets 480P and 720P; the AIM is benchmarked at `854x480` and `1280x720`. |
 | `seconds` | integer | model default | Clip length in seconds. |
 | `fps` | integer | model default | Frames per second. |
 | `num_inference_steps` | integer | model default | Number of denoising steps. Fewer steps are faster and lower quality; this dominates wall-clock time. |
@@ -151,3 +151,6 @@ The 1800-second timeout applies to the whole benchmark. Increase it if the run n
 
 `validate` reports `health` and `smoke_video`; `benchmark` reports `throughput_qps` and latency percentiles for the
 chosen recipe.
+
+`aim-runtime evaluate` is not available for this AIM yet: the image does not ship a video-quality evaluation, so the
+command returns a placeholder result.

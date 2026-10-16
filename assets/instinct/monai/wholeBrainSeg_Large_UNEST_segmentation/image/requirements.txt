@@ -24,6 +24,7 @@ connected-components-3d
 einops
 timm
 torchvision
-# monai installed --no-deps; bundle-download CLI needs fire + requests
-fire
+# monai installed --no-deps; requests is used by huggingface_hub at runtime.
+# fire is NOT listed here — it is only needed at build time for the
+# `monai.bundle download` CLI (see Dockerfile) and is installed there.
 requests

@@ -16,6 +16,7 @@ This guide walks you through AMD Inference Microservices (AIMs), from finding mo
 4. Deploy the model with **Docker**
 5. Deploy the model on **Kubernetes**
 6. Verify the inference server is working for each deployment
+7. Expose Anthropic API and use with Claude Code
 
 ## Prerequisites
 
@@ -514,3 +515,120 @@ kubectl delete -f . -n $namespace
 deployment.apps "minimal-aim-deployment" deleted
 service "minimal-aim-deployment" deleted
 ```
+
+### Expose Anthropic API and use with Claude Code
+
+AIM images based on vLLM serve an Anthropic-compatible messages API alongside the OpenAI-compatible one you used earlier in this guide, so you can point Claude Code at a local AIM deployment instead of the hosted Anthropic API. The following endpoints are supported:
+
+- `POST /v1/messages` — Anthropic Messages API (streaming and non-streaming)
+- `POST /v1/messages/count_tokens` — token counting without generating a response
+
+#### Run AIM with the Anthropic-relevant engine args
+
+Three engine arguments matter specifically for the Anthropic layer: `enable-prompt-tokens-details`, `tool-call-parser`, and `enable-auto-tool-choice`. All of them are set through `AIM_ENGINE_ARGS` rather than a dedicated AIM variable:
+
+```bash
+docker run \
+  --device=/dev/kfd --device=/dev/dri \
+  -e AIM_ENGINE_ARGS='{"enable-prompt-tokens-details": true, "tool-call-parser": "mistral", "enable-auto-tool-choice": true}' \
+  -e AIM_MODEL_ID="mistralai/Mistral-Small-3.2-24B-Instruct-2506" \
+  -p 8000:8000 \
+  -t amdenterpriseai/aim-base:2026.11.0
+```
+
+- `enable-prompt-tokens-details` — populates `cache_read_input_tokens` / `cache_creation_input_tokens` in the Anthropic response's `usage` block. Without it, those fields stay empty even though caching still happens internally.
+- `tool-call-parser` / `enable-auto-tool-choice` — required for Claude Code's tool use (file edits, bash commands, and so on) to round-trip through the Anthropic `tools` / `tool_choice` fields. The parser must match a format the loaded model was trained on; `mistral` matches Mistral-Small-3.2-24B's tool-call format.
+- `AIM_MODEL_ID` — specifies the model for `aim-base` image.
+
+This example is based on aim-base image which does not serve a specific model out of the box. The `aim-base` is used in the example because it provides the most recent vLLM version. Even though the Anthropic API has been introduced in vLLM v0.11.1, newer versions are preferable because of apparent changes of API schema.
+
+The API can be protected with an API key, but it is outside of the scope of this example.
+
+#### Verify the Anthropic endpoints with curl
+
+Confirm the exact served model id first using the following command:
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+Send a message through the Anthropic Messages API. Note the header: even though the endpoint mimics Anthropic's wire format, authentication is still enforced by the AIM/vLLM server, which expects the key as a bearer token rather than Anthropic's own `x-api-key` header:
+
+```bash
+curl http://localhost:8000/v1/messages \
+  -H "Authorization: Bearer my-secret-key" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+    "max_tokens": 256,
+    "messages": [{"role": "user", "content": "What is AI?"}]
+  }'
+```
+
+Count tokens for the same request without generating a response:
+
+```bash
+curl http://localhost:8000/v1/messages/count_tokens \
+  -H "Authorization: Bearer my-secret-key" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+    "messages": [{"role": "user", "content": "What is AI?"}]
+  }'
+```
+
+A successful `/v1/messages` response looks like:
+
+```json
+{
+  "id": "chatcmpl-...",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Artificial Intelligence (AI) refers to ..."
+    }
+  ],
+  "model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+  "stop_reason": "max_tokens",
+  "usage": {
+    "input_tokens": 7,
+    "output_tokens": 256,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}
+```
+
+#### Point Claude Code at the container
+
+With the container reachable on `localhost:8000`, redirect Claude Code's Anthropic client to it instead of the hosted API. `ANTHROPIC_MODEL` sets the model Claude Code uses directly, while `ANTHROPIC_DEFAULT_OPUS_MODEL`, `_SONNET_MODEL`, and `_HAIKU_MODEL` map its internal Opus/Sonnet/Haiku tier aliases to one. Set all four to the same value, since a single AIM deployment serves only one model and there's no way to know in advance which of these a given code path will read.
+
+**Linux / macOS / WSL (bash):**
+
+```bash
+ANTHROPIC_BASE_URL=http://localhost:8000 \
+ANTHROPIC_API_KEY=my-secret-key \
+ANTHROPIC_MODEL=mistralai/Mistral-Small-3.2-24B-Instruct-2506 \
+ANTHROPIC_DEFAULT_OPUS_MODEL=mistralai/Mistral-Small-3.2-24B-Instruct-2506 \
+ANTHROPIC_DEFAULT_SONNET_MODEL=mistralai/Mistral-Small-3.2-24B-Instruct-2506 \
+ANTHROPIC_DEFAULT_HAIKU_MODEL=mistralai/Mistral-Small-3.2-24B-Instruct-2506 \
+claude
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:ANTHROPIC_BASE_URL = "http://localhost:8000"
+$env:ANTHROPIC_API_KEY = "my-secret-key"
+$env:ANTHROPIC_MODEL = "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+$env:ANTHROPIC_DEFAULT_OPUS_MODEL = "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL = "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+claude
+```
+
+Setting `ANTHROPIC_API_KEY` is only necessary if the API is protected by API key. An alternative to setting these variables is to update them in Claude Code's `settings.json` file with the respective values. To make sure it works, check the model name shown in the CLI — it should read `mistralai/Mistral-Small-3.2-24B-Instruct-2506`.

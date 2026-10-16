@@ -90,6 +90,15 @@ def test_lt_comparison():
     assert v11 < v12
 
 
+def test_pr_scoped_rc_metadata_and_numeric_ordering():
+    pr_suffix = AIMVersionSuffix("pr1590-rc7")
+    assert pr_suffix.rc_number == 7
+    assert pr_suffix.pr_number == 1590
+
+    assert AIMVersion("1.0.0-pr9-rc7") < AIMVersion("1.0.0-pr10-rc1")
+    assert AIMVersion("1.0.0-pr1590-rc9") < AIMVersion("1.0.0-rc1")
+
+
 def test_gt_comparison():
     """Test __gt__ method for greater than comparison"""
     # Test basic version comparison
@@ -390,6 +399,22 @@ class TestAIMVersionSuffix:
         s = AIMVersionSuffix("rc99")
         assert s.rc_number == 99
 
+    def test_pr_scoped_rc_number(self):
+        s = AIMVersionSuffix("pr1590-rc7")
+        assert s.rc_number == 7
+
+    def test_pr_number_for_pr_scoped_rc(self):
+        s = AIMVersionSuffix("pr1590-rc7")
+        assert s.pr_number == 1590
+
+    def test_pr_number_none_for_bare_rc(self):
+        s = AIMVersionSuffix("rc7")
+        assert s.pr_number is None
+
+    def test_pr_number_none_for_preview(self):
+        s = AIMVersionSuffix("preview")
+        assert s.pr_number is None
+
     def test_rc_number_none_for_preview(self):
         s = AIMVersionSuffix("preview")
         assert s.rc_number is None
@@ -514,6 +539,7 @@ class TestValidateVersionTag:
             "1.0.0",
             "0.4.2-rc1",
             "0.4.2-rc99",
+            "0.4.2-pr1590-rc1",
             "0.4.2-preview",
             "10.20.30",
         ],
@@ -536,6 +562,7 @@ class TestValidateVersionTag:
             # Three-part base tags emitted since PR #1188 ("Enable patch version for base images")
             "0.13.0",
             "0.13.0-rc5",
+            "0.13.0-pr1590-rc1",
             "0.13.0-preview",
             "0.4.2-rc1",
         ],

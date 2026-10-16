@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# OCI metadata — same schema as aim-build/assets/instinct/mit/boltz2/metadata.yaml.
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "monai/spleen_deepedit_annotation"
+        tags:
+        - "medical-imaging"
+        - "segmentation"
+        - "3d"
+        - "ct"
+        - "spleen"
+        - "interactive"
+        - "deepedit"
+        source: "https://huggingface.co/MONAI/spleen_deepedit_annotation"
+        variants:
+        - "monai/spleen_deepedit_annotation"
+        publisher: "MONAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "A DeepEdit interactive 3D segmentation model trained on the Medical Segmentation Decathlon Task09 Spleen dataset. Combines automatic segmentation with point-prompt-guided interactive correction: alongside the CT image, the network accepts two extra input channels encoding user-supplied foreground (spleen) and background click maps. Inputs are resized to 128x128x128, processed once by a DynUNet, then inverted back to the original space. Reported mean Dice on the validation split is 0.97 (with simulated clicks; automatic-mode scores lower, ~0.835 zero-click anchor)."
+      title: "Spleen DeepEdit Interactive Segmentation"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Spleen DeepEdit interactive 3D CT segmentation."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

@@ -58,12 +58,10 @@ logger = logging.getLogger(__name__)
 
 # BentoML 1.x exposes two health surfaces:
 #   GET  /healthz  — built-in readiness probe (200 OK, plain HTTP)
-#   POST /health   — user-defined @bentoml.api endpoint with rich JSON
-# All @bentoml.api-decorated routes (/health, /v1/models, /v1/inference) are
-# POST-only — a BentoML invariant. Use /healthz for liveness/readiness polling.
+# All @bentoml.api-decorated routes (/v1/models, /v1/inference) are POST-only
+# — a BentoML invariant. Use /healthz for liveness/readiness polling.
 READYZ_PATH = "/healthz"
 INFERENCE_PATH = "/v1/inference"
-DEFAULT_PORT = 8000
 DEFAULT_TIMEOUT_S = 300
 DEFAULT_NUM_WARMUP = 1
 DEFAULT_NUM_REQUESTS = 10
@@ -94,10 +92,10 @@ def percentile(values: list[float], p: float) -> float:
 
 
 def compute_stats(latencies_ms: list[float]) -> dict[str, float]:
-    """Stats schema identical to aims-tuner/.../run_benchmark.py:compute_stats.
+    """Compute benchmark statistics from a list of per-request latencies (ms).
 
-    Keeping the field names byte-identical lets the Tuner-side adapter be a
-    passthrough rather than a remap layer.
+    Field names match the MONAI Tuner benchmark schema so results are
+    interchangeable without remapping.
     """
     if not latencies_ms:
         return {}
@@ -461,8 +459,19 @@ class MonaiHarness(ModelHarness):
     # ----- validate ----------------------------------------------------- #
 
     def validate(self, config: HarnessConfig) -> HarnessResult:
-        url = self._service_url(config)
+        url = config.resolve_service_url()
         checks: list[CheckResult] = []
+
+        # All checks in this harness require a live service (OFFLINE scope).
+        # Return immediately without polling the network if only RUNTIME
+        # (profile-only, no service) checks were requested.
+        if CheckScope.OFFLINE not in config.check_scopes:
+            return HarnessResult(
+                success=True,
+                summary=f"{self._slug()} validate: skipped (RUNTIME scope only; no service checks)",
+                checks=[],
+                metrics={"service_url": url},
+            )
 
         healthy = self.health_check(url, timeout_seconds=config.timeout_seconds)
         checks.append(
@@ -476,16 +485,6 @@ class MonaiHarness(ModelHarness):
         )
         if not healthy:
             return HarnessResult(success=False, summary="Health check failed", checks=checks)
-
-        # `bentoml_health` is a RUNTIME check (always run above). The predict
-        # smoke test is OFFLINE — a RUNTIME-only deploy stops at health.
-        if CheckScope.OFFLINE not in config.check_scopes:
-            return HarnessResult(
-                success=True,
-                summary=f"{self._slug()} validate: health OK (RUNTIME scope; smoke skipped)",
-                checks=checks,
-                metrics={"service_url": url},
-            )
 
         image_paths = self._image_paths(config)
         if not image_paths:
@@ -519,7 +518,7 @@ class MonaiHarness(ModelHarness):
     # ----- benchmark ---------------------------------------------------- #
 
     def benchmark(self, config: HarnessConfig) -> HarnessResult:
-        url = self._service_url(config)
+        url = config.resolve_service_url()
         if not self.health_check(url, timeout_seconds=config.timeout_seconds):
             return HarnessResult(success=False, summary=f"Service unreachable at {url}")
 
@@ -637,7 +636,7 @@ class MonaiHarness(ModelHarness):
           * ``request_timeout_s`` / ``AIM_HARNESS_REQUEST_TIMEOUT_S``
               Per-request HTTP timeout.
         """
-        url = self._service_url(config)
+        url = config.resolve_service_url()
         if not self.health_check(url, timeout_seconds=config.timeout_seconds):
             return HarnessResult(success=False, summary=f"Service unreachable at {url}")
 
@@ -869,14 +868,6 @@ class MonaiHarness(ModelHarness):
         ``monai/spleen_ct_segmentation`` → ``spleen_ct_segmentation``.
         """
         return self.MODEL_ID.split("/")[-1] or type(self).__name__
-
-    @staticmethod
-    def _service_url(config: HarnessConfig) -> str:
-        explicit = config.profile.get("service_url")
-        if explicit:
-            return str(explicit).rstrip("/")
-        port = int(config.profile.get("port", DEFAULT_PORT))
-        return f"http://localhost:{port}"
 
     @classmethod
     def _image_paths(cls, config: HarnessConfig) -> list[str]:

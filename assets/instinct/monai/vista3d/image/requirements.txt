@@ -1,0 +1,31 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ── Shared MONAI AIM dependencies (identical across most models) ──
+bentoml==1.4.39
+huggingface_hub==0.36.2
+nibabel==5.4.2
+pillow==12.1.0
+pytorch-ignite==0.5.4
+tqdm==4.68.2
+pydicom==3.0.2
+scipy==1.17.0
+numpy==1.26.4
+connected-components-3d==4.0.0
+
+# ── VISTA-3D specific dependencies ──
+# einops is imported by monai.apps.vista3d.inferer (re-used by the bundle's
+# scripts/inferer.py via point_based_window_inferer). The bundle's
+# configs/inference.json doesn't list a requirements.txt; these reflect what
+# the imports actually need at runtime.
+einops==0.8.2
+# scikit-image is listed in the bundle's configs/metadata.json and imported on
+# the point-prompt path; without it that mode raises "skimage.measure required".
+# tifffile is pinned with it: the current release requires numpy 2.
+scikit-image==0.24.0
+tifffile==2024.8.30
+# monai installed --no-deps; requests is used by huggingface_hub at runtime.
+# fire is NOT listed here — it is only needed at build time for the
+# `monai.bundle download` CLI (see Dockerfile) and is installed there.
+requests==2.34.2

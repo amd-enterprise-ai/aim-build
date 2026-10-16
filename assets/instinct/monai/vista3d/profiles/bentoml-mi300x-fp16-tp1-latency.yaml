@@ -1,0 +1,24 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# BentoML profile — validated by ci/validate_profiles.py (Pydantic).
+
+aim_id: monai/vista3d
+model_id: monai/vista3d
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: latency
+  precision: fp16
+  primary: true
+  type: optimized
+engine_args: {}
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VISTA3D_AUTOCAST: 'true'
+  VISTA3D_COMPILE: 'true'
+  VISTA3D_GPU_TRANSFORMS: 'true'

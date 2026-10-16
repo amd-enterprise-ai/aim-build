@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Whisper Large v3 is a multilingual speech recognition and translation model from OpenAI."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "openai/whisper-large-v3"
+        tags:
+        - "automatic-speech-recognition"
+        - "speech"
+        - "translation"
+        - "multilingual"
+        - "audio"
+        source: "https://huggingface.co/openai/whisper-large-v3"
+        variants:
+        - "openai/whisper-large-v3"
+        publisher: "OpenAI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Whisper Large v3 is a multilingual automatic speech recognition and translation model trained on large-scale weakly supervised data, suitable for transcription and speech translation tasks."
+      title: "Whisper Large v3"

@@ -28,6 +28,17 @@ AIMs are available for AMD Instinct™, Radeon™, and EPYC™. Browse the catal
 
 <div id="aim-catalog-tabs-marker"></div>
 
+<style>
+/* Keep normal table layout so columns stay intact and the theme can scroll
+   the table sideways. Only the model name is capped: those strings have no
+   spaces, so they would otherwise force the whole table wider than the page. */
+#aim-catalog-tabs-marker ~ .sd-tab-set table th:nth-child(1),
+#aim-catalog-tabs-marker ~ .sd-tab-set table td:nth-child(1) {
+  max-width: 15em;
+  overflow-wrap: anywhere;
+}
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   var search = document.getElementById("aim-catalog-search");

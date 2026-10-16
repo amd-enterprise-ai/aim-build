@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-# Profile structure is identical for all MONAI models.
+# BentoML profile — validated by ci/validate_profiles.py (Pydantic).
+# Structure is identical for all MONAI models.
 
 aim_id: monai/swinunetr
 model_id: monai/swinunetr
@@ -17,4 +18,7 @@ metadata:
   type: optimized
 engine_args: {}
 env_vars:
+  SWINUNETR_AUTOCAST: 'true'
+  SWINUNETR_COMPILE: 'true'
+  SWINUNETR_GPU_TRANSFORMS: 'true'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'

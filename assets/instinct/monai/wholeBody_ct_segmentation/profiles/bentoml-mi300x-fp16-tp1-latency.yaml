@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# BentoML profile — validated by ci/validate_profiles.py (Pydantic).
+# Structure is identical for all MONAI models.
+
+aim_id: monai/wholeBody_ct_segmentation
+model_id: monai/wholeBody_ct_segmentation
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: latency
+  precision: fp16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  WHOLEBODY_CT_AUTOCAST: 'true'
+  WHOLEBODY_CT_COMPILE: 'true'
+  WHOLEBODY_CT_GPU_TRANSFORMS: 'true'

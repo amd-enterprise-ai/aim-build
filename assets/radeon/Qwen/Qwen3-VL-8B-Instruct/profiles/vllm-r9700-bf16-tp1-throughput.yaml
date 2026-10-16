@@ -12,7 +12,7 @@ metadata:
   metric: throughput
   precision: bf16
   primary: true
-  type: preview
+  type: optimized
 engine_args:
   async-scheduling: null
   disable-uvicorn-access-log: null

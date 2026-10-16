@@ -279,7 +279,7 @@ takes a `POST`, and the section below names it if this AIM has one.
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `image_path` | string | required | Path of the input NIfTI volume, **inside the container**. |
-| `output_dir` | string | the bundle `eval` directory | Directory for the segmentation mask, **inside the container**. |
+| `output_dir` | string | `$AIM_OUTPUT_PATH` (default `/workspace/output`) | Directory for the segmentation mask, **inside the container**. |
 
 `/v1/models` takes an empty body. `/healthz` needs no request body.
 
@@ -290,8 +290,10 @@ section 4.4.
 ### 4.4 Example request
 
 The service reads and writes the paths in the request inside the container, so the volumes must be reachable there.
-Add `-v /path/to/mri-data:/data` to the `docker run` command of section 1.1, or mount the same directory in the
-Kubernetes deployment of section 3. The examples below use `/data` for that mount.
+Add `-v /path/to/mri-data:/workspace/data` to the `docker run` command of section 1.1, or mount the same directory in
+the Kubernetes deployment of section 3. The examples below use `/workspace/data` for input and `/workspace/output` for
+output, which are the defaults. `AIM_INPUT_PATH` and `AIM_OUTPUT_PATH` change them; a path outside those roots is
+rejected.
 
 The file name in the examples stands for a volume of your own. The `mni305` part of it is a reminder: the service
 accepts only a volume that is already registered to the MNI305 atlas, as section 4.6 describes.
@@ -303,8 +305,8 @@ curl http://localhost:8000/v1/inference \
   -H "Content-Type: application/json" \
   -d '{
     "input": {
-      "image_path": "/data/subject_001_t1_mni305.nii.gz",
-      "output_dir": "/data/out"
+      "image_path": "/workspace/data/subject_001_t1_mni305.nii.gz",
+      "output_dir": "/workspace/output"
     }
   }'
 ```
@@ -316,7 +318,7 @@ import requests
 
 response = requests.post(
     "http://localhost:8000/v1/inference",
-    json={"input": {"image_path": "/data/subject_001_t1_mni305.nii.gz", "output_dir": "/data/out"}},
+    json={"input": {"image_path": "/workspace/data/subject_001_t1_mni305.nii.gz", "output_dir": "/workspace/output"}},
     timeout=1800,
 )
 
@@ -329,7 +331,7 @@ print(response.json()["output"]["output_path"])
 {
   "model": "monai/wholeBrainSeg_Large_UNEST_segmentation",
   "output": {
-    "output_path": "/data/out/subject_001_t1_mni305/subject_001_t1_mni305_trans.nii.gz"
+    "output_path": "/workspace/output/subject_001_t1_mni305/subject_001_t1_mni305_trans.nii.gz"
   },
   "metadata": {
     "device": "cuda:0",
@@ -368,8 +370,9 @@ first to finish. The profile uses one accelerator.
 **The request timeout is 1800 seconds.** Set a client timeout that is not shorter, or the client stops before the
 service replies. `BRAINSEG_TIMEOUT_SECONDS` changes it.
 
-**The weights ship in the image.** They are downloaded from Hugging Face at startup only if they are missing from the
-bundle directory.
+**The weights are fetched at startup.** They are not baked into the image. They are downloaded from
+`MONAI/wholeBrainSeg_Large_UNEST_segmentation` on Hugging Face and kept in `$AIM_CACHE_PATH`. Mount a persistent
+volume there, as described in section 2, or they are downloaded again on every start.
 
 **This model does not need a Hugging Face token.**
 

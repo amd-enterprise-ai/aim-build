@@ -148,7 +148,6 @@ fields below. **These differences are the same at every USP scale (usp1 → usp8
 |---|---|---|
 | `metadata.metric` | `throughput` | `latency` |
 | `engine_args.vae-use-tiling` | _omitted_ | `null` |
-| `env_vars.VLLM_ROCM_USE_AITER` | `'1'` (AITER on) | `'0'` (AITER off) |
 
 Everything else is shared across the whole family (only `usp` /
 `vae-patch-parallel-size` change with scale):
@@ -166,6 +165,7 @@ env_vars:
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
   VLLM_DO_NOT_TRACK: '1'
+  VLLM_ROCM_USE_AITER: '1'
 ```
 
 > **Note:** some values are still being tuned per GPU, so maturity varies by
@@ -187,8 +187,8 @@ env_vars:
 - **`distributed_executor_backend: mp`** — use the multiprocessing executor for
   the distributed (multi-GPU) workers.
 - **`no-enable-log-requests: null`** — disable per-request logging in the engine.
-- **`VLLM_ROCM_USE_AITER`** — enable AMD AITER kernels. On (`'1'`) for the
-  throughput profiles, off (`'0'`) for the latency profiles.
+- **`VLLM_ROCM_USE_AITER: '1'`** — enable AMD AITER kernels. On in every
+  profile, latency and throughput alike.
 - **`NCCL_MIN_NCHANNELS: '112'`** — tune NCCL channel count for the multi-GPU
   collective traffic that USP/VAE parallelism generates.
 - **`TORCH_BLAS_PREFER_HIPBLASLT: '1'`** — prefer hipBLASLt for GEMMs on ROCm.
@@ -368,7 +368,7 @@ documenting) so every omni model follows them:
   a dedicated segment, and whether `variant` is the right home for `uspN`.
 - **The knob set.** Every profile shares the same shape and differs only by
   scale (`usp == vae-patch-parallel-size == gpu_count`) and the latency/throughput
-  knobs (`vae-use-tiling`, `VLLM_ROCM_USE_AITER`). Codifying this shape — ideally
+  knob (`vae-use-tiling`). Codifying this shape — ideally
   as a documented template or generator — means future omni profiles are
   consistent by construction rather than hand-copied.
 

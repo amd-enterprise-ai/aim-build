@@ -1,0 +1,26 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# ── Shared MONAI AIM dependencies (identical across most models) ──
+bentoml==1.4.39
+huggingface_hub==1.20.1
+nibabel==5.4.2
+pillow==12.1.0
+pytorch-ignite==0.5.4
+tqdm==4.67.1
+pydicom==3.0.2
+scipy==1.17.0
+numpy==1.26.4
+connected-components-3d==4.0.0
+
+# ── Model-specific dependencies ──
+# DiNTS network construction reads a saved architecture artifact
+# (search_code_18590.pt) whose torch.load output drives
+# monai.networks.nets.TopologyInstance + DiNTS. No extra Python deps beyond
+# the shared stack are required for inference; PyYAML is needed only for the
+# bundle YAML configs which we don't load via monai.bundle at service runtime.
+# monai installed --no-deps; requests is used by huggingface_hub at runtime.
+# fire is NOT listed here — it is only needed at build time for the
+# `monai.bundle download` CLI (see Dockerfile) and is installed there.
+requests==2.34.2

@@ -325,6 +325,12 @@ def test_no_conflict_templates_with_server():
     assert c == []
 
 
+def test_empty_queries_is_rejected():
+    """An empty queries map names the problem, and does not pile on other conflicts."""
+    c = _conflicts({}, use_msa_server=False, use_templates=True, num_model_seeds=None, seeds_explicit=False)
+    assert c == ["queries must contain at least one query."]
+
+
 def _make_output_dir(tmp_path, with_timing=True, with_atom=True):
     """Build a minimal OF3 output tree; return (output_dir, sample_id)."""
     out = tmp_path / "output"

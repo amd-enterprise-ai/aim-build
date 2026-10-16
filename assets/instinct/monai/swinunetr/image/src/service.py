@@ -5,14 +5,10 @@
 """
 BentoML service for a MONAI model AIM.
 
-Canonical AIM API endpoints (all POST — @bentoml.api defaults to POST):
-  POST /health         — service health check (rich JSON)
+Canonical AIM API endpoints:
+  GET  /healthz        — BentoML built-in healthcheck probe
   POST /v1/models      — list available models
   POST /v1/inference   — synchronous inference
-
-Readiness/liveness is BentoML's built-in GET /healthz. Any GET aliases for
-/health and /v1/models are provided by the BentoML engine integration in
-aim-runtime.
 """
 
 import os
@@ -22,7 +18,9 @@ from pathlib import Path
 from typing import Any
 
 import bentoml
+from bentoml.exceptions import InvalidArgument
 from config import (
+    BUNDLE_NAME,
     CHANNEL_DEF,
     ENV_PREFIX,
     LOGGER,
@@ -50,6 +48,40 @@ from pipeline import (
 )
 from schemas import InferenceResponse, PredictResponse
 
+# ---------------------------------------------------------------------------
+# Path containment helper
+# ---------------------------------------------------------------------------
+
+
+def _validate_path_within(path: Path, base: Path, label: str, must_exist: bool = False) -> Path:
+    """Resolve *path*, assert it falls under *base*, and optionally assert it exists.
+
+    Raises ``InvalidArgument`` so the caller gets HTTP 400 and the rule they
+    broke; a plain ``ValueError`` becomes a 500 whose detail only reaches the
+    server log.
+
+    Containment and existence share one message on purpose: distinguishing them
+    lets a caller enumerate the filesystem, which is why containment is checked
+    first.
+
+    Returns the resolved ``Path`` so callers can replace the raw value in one
+    step.
+    """
+    resolved = path.resolve()
+    base_resolved = base.resolve()
+    # ``relative_to`` raises ValueError when resolved is not under base_resolved.
+    # This avoids the startswith prefix-collision edge case (e.g. /workspace/data2
+    # falsely matching /workspace/data).
+    try:
+        resolved.relative_to(base_resolved)
+        contained = True
+    except ValueError:
+        contained = False
+    if not contained or (must_exist and not resolved.is_file()):
+        what = "an existing file" if must_exist else "a path"
+        raise InvalidArgument(f"{label} must be {what} under {base_resolved}")
+    return resolved
+
 
 @bentoml.service(name="swinunetr-inference", traffic={"timeout": SERVICE_TIMEOUT_SECONDS})
 class SwinunetrService:
@@ -58,7 +90,7 @@ class SwinunetrService:
         self.bundle_dir = Path(
             os.environ.get(
                 f"{ENV_PREFIX}_BUNDLE_DIR",
-                "bundles/swin_unetr_btcv_segmentation",
+                f"bundles/{BUNDLE_NAME}",
             )
         ).resolve()
         if not self.bundle_dir.exists():
@@ -69,12 +101,25 @@ class SwinunetrService:
         # bundle-specific scripts to import.
 
         # ── Checkpoint ──
-        ckpt_path = self.bundle_dir / "models" / "model.pt"
-        ensure_checkpoint(self.bundle_dir, ckpt_path)
+        # Weights are cache content, not bundle content: downloaded at first
+        # start, kept under AIM_CACHE_PATH for the operator to mount a volume at.
+        cache_root = Path(os.environ.get("AIM_CACHE_PATH", "/workspace/model-cache")).resolve()
+        self.weights_dir = cache_root / BUNDLE_NAME
+        ckpt_path = self.weights_dir / "models" / "model.pt"
+        ensure_checkpoint(self.weights_dir, ckpt_path)
 
         # ── Output dir and model ID ──
-        self.default_output_dir = str((self.bundle_dir / "eval").resolve())
-        self.model_id = os.environ.get(f"{ENV_PREFIX}_MODEL_ID", "MONAI/swin_unetr_btcv_segmentation")
+
+        # Allowed base directories for caller-supplied paths.
+        # Configurable via env vars so integration tests and non-standard
+        # deployments can override without code changes.
+        self._data_root = Path(os.environ.get("AIM_INPUT_PATH", "/workspace/data")).resolve()
+        self._output_root = Path(os.environ.get("AIM_OUTPUT_PATH", "/workspace/output")).resolve()
+        self._output_root.mkdir(parents=True, exist_ok=True)
+        # AIM_OUTPUT_PATH is both the default and the containment root, so an
+        # omitted output_dir always passes its own containment check.
+        self.default_output_dir = str(self._output_root)
+        self.model_id = os.environ.get(f"{ENV_PREFIX}_MODEL_ID", f"MONAI/{BUNDLE_NAME}")
 
         # ── Device ──
         self.device = build_device()
@@ -143,11 +188,13 @@ class SwinunetrService:
         image_path_obj = Path(image_path)
         LOGGER.info("_run_predict  image=%s", image_path_obj)
 
-        if not image_path_obj.exists():
-            raise FileNotFoundError(f"Input image not found: {image_path_obj}")
+        # Containment check must precede .exists() — checking existence first
+        # makes the endpoint a filesystem oracle (allows enumerating paths by
+        # distinguishing FileNotFoundError from ValueError).
+        image_path_obj = _validate_path_within(image_path_obj, self._data_root, "image_path", must_exist=True)
 
-        output_dir = output_dir or self.default_output_dir
-        output_dir = str(Path(output_dir).resolve())
+        output_dir_path = Path(output_dir) if output_dir else Path(self.default_output_dir)
+        output_dir = str(_validate_path_within(output_dir_path, self._output_root, "output_dir"))
 
         input_dict = {"image": str(image_path_obj)}
         dataset = Dataset(data=[input_dict], transform=self.preprocessing)
@@ -229,16 +276,4 @@ class SwinunetrService:
                 }
             ],
             "object": "list",
-        }
-
-    @bentoml.api(route="/health")
-    def health(self) -> dict[str, Any]:
-        """GET /health — service health check."""
-        return {
-            "status": "ok",
-            "device": str(self.device),
-            "amp": self.use_amp,
-            "bundle_dir": str(self.bundle_dir),
-            "model_loaded": self.network is not None,
-            "optimizations": OPT_SUMMARY,
         }

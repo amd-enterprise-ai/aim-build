@@ -14,10 +14,10 @@ scipy
 numpy==1.26.4
 connected-components-3d
 # `monai` is installed with --no-deps in the Dockerfile (to keep the base
-# image's ROCm torch), so MONAI's own deps must be listed here. The
-# `python -m monai.bundle download` step (build time) needs `fire` (its CLI)
-# and `requests` (the monaihosting HTTP download).
-fire
+# image's ROCm torch), so MONAI's own deps must be listed here.
+# requests is used by huggingface_hub at runtime.
+# fire is NOT listed here — it is only needed at build time for the
+# `monai.bundle download` CLI (see Dockerfile) and is installed there.
 requests
 
 # ── Model-specific dependencies ──

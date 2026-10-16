@@ -43,6 +43,7 @@ docker run \
 {% endif %}
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
@@ -53,6 +54,10 @@ Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for g
 {% endif %}
 {% if aim_deployment.is_base %}
 Where <ANY_SUPPORTED_MODEL> is the model ID of any supported model (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+`--ipc=host` gives the container the host's shared memory. Profiles that run on more than one accelerator exchange data
+between workers over shared memory and fail to start without it. `--shm-size=32g` works as an alternative.
 {% endif %}
 
 ### 1.2 Customizing deployment with environment variables
@@ -70,6 +75,7 @@ docker run \
 {% endif %}
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8080:8080 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
@@ -115,6 +121,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
@@ -298,7 +305,7 @@ readiness probes in section 3.1 use this endpoint.
 mkdir -p custom-profiles
 
 # Add your custom profile YAML
-cat > custom-profiles/vllm-custom-profile.yaml << EOF
+cat > custom-profiles/vllm_omni-custom-profile.yaml << EOF
 {% if not aim_deployment.is_base %}
 aim_id: {{ aim_deployment.model_name }}
 model_id: {{ aim_deployment.model_name }}
@@ -324,14 +331,12 @@ metadata:
 
 engine_args:
   gpu-memory-utilization: 0.95
-  dtype: float16
-  tensor-parallel-size: {{ aim_deployment.accelerator_count }}
-  max-num-batched-tokens: 1024
-  max-model-len: 2048
+  usp: {{ aim_deployment.accelerator_count }}
+  vae-patch-parallel-size: {{ aim_deployment.accelerator_count }}
+  vae-use-tiling: null
 
 env_vars:
   VLLM_DO_NOT_TRACK: "1"
-  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
 EOF
 
 # Run with custom profile
@@ -348,10 +353,16 @@ docker run \
   -e AIM_METRIC=throughput \
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
 ```
+
+`usp` sets how many accelerators share the latent sequence (Unified Sequence Parallelism) and
+`vae-patch-parallel-size` splits the VAE decode across the same accelerators. Keep both equal to `accelerator_count`.
+`vae-use-tiling` decodes the video in tiles, which lowers peak memory. A `null` value is passed as a flag without a
+value.
 
 {% if aim_deployment.profile_name_to_override_automatic_selection %}
 ### 5.2 Using profiles excluded from automatic selection
@@ -367,6 +378,7 @@ docker run \
   -e AIM_PROFILE_ID={{ aim_deployment.profile_name_to_override_automatic_selection }} \
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
@@ -406,6 +418,7 @@ docker run \
 {% endif %}
 {% if aim_deployment.accelerator_type.value == "gpu" %}
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
 {% endif %}
   -p 8000:8000 \
   {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}

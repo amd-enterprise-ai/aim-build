@@ -244,31 +244,5 @@ The `set-primary-flags` command in `profile_utils` automatically sets `primary` 
 criteria described above:
 
 ```bash
-python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
-```
-
-## Primary Profiles
-
-The `primary` flag in a profile's `metadata` section is the authoritative way to mark which profiles represent the
-recommended deployment for a given accelerator model and metric combination. It replaces the removed
-`recommendedDeployments` field in `metadata.yaml`.
-
-### How `primary` is determined
-
-A profile should have `primary: true` when it is the best available profile for its accelerator model and optimization metric.
-The selection follows the same criteria used by the automatic profile selector:
-
-1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
-   `general` tie, since all three are eligible for automatic selection.
-2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
-3. Lower GPU count (smaller tensor-parallel size) is preferred.
-
-Only **one** profile per `(accelerator_model, metric)` combination should have `primary: true`. Accelerator count is a
-tie-breaker within that group, not part of the grouping key.
-
-The `set-primary-flags` command in `profile_utils` automatically sets `primary` flags based on the selection
-criteria described above:
-
-```bash
-python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
+python -m aim_utils.profile_utils set-primary-flags
 ```

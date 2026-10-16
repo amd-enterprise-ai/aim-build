@@ -11,7 +11,7 @@ metadata:
   engine: vllm_omni
   metric: latency
   precision: fp16
-  type: unoptimized
+  type: optimized
   variant: usp4
 engine_args:
   disable-uvicorn-access-log: null

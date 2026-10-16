@@ -10,7 +10,7 @@ SPDX-License-Identifier: MIT
 
 Pass additional engine arguments at runtime using the `AIM_ENGINE_ARGS` environment variable to customize inference behavior without modifying profiles.
 
-**Validation**: Arguments are validated against the engine's argument definitions to ensure correct types and formats. Direct execution via `os.execv()` makes command injection architecturally impossible.
+**Validation**: Arguments are validated against the engine's argument definitions to ensure correct types and formats. The runtime passes the resulting argv list to the engine without shell interpretation, making command injection architecturally impossible.
 
 ## Usage
 
@@ -61,7 +61,7 @@ Validation is engine-specific. For vLLM profiles, arguments are validated using 
 - **Enum validation**: e.g., `dtype` must be "auto", "bfloat16", "float16", etc.
 - **Structure validation**: nested objects must match expected format
 
-**Why no security checks?** Arguments are passed directly to the engine process via `os.execv()` as a list, with no shell interpretation. This makes command injection architecturally impossible.
+**Why no security checks?** Arguments are passed directly to the engine process via `subprocess.Popen` as an argv list, with no shell interpretation. This makes command injection architecturally impossible.
 
 **Example validation errors**:
 ```bash

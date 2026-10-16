@@ -1,0 +1,623 @@
+--- a/openfold3/core/utils/atomize_utils.py
++++ b/openfold3/core/utils/atomize_utils.py
+@@ -24,6 +24,7 @@
+ from openfold3.core.data.resources.token_atom_constants import (
+     atom_name_to_index_by_restype,
+ )
++from openfold3.core.utils import of3_bucketing as _of3_bkt
+ 
+ 
+ def broadcast_token_feat_to_atoms(
+@@ -111,6 +112,15 @@
+     # Unflatten batch and token dimensions
+     atom_feat = atom_feat.reshape((*feat_batch_dims, max_num_atoms, *feat_dims))
+ 
++    # Bucketed inference (AMD): pad the PACKED atom axis up to the forward-scoped
++    # atom bucket so token->atom broadcasts match the (also bucket-padded) atom
++    # feature tensors. Only the packed layout (max_num_atoms_per_token is None)
++    # is padded; the per-token layout is already fixed by token bucketing. No-op
++    # when atom bucketing is off. See openfold3.core.utils.of3_bucketing.
++    if max_num_atoms_per_token is None:
++        if _of3_bkt.get_atom_bucket_target() is not None:
++            atom_feat = _of3_bkt.pad_packed_atoms(atom_feat, len(feat_batch_dims))
++
+     return atom_feat
+ 
+ 
+--- a/openfold3/projects/of3_all_atom/model.py
++++ b/openfold3/projects/of3_all_atom/model.py
+@@ -858,87 +858,118 @@
+         # __init__ so checkpoint loading sees the un-wrapped module).
+         self._apply_pending_compile()
+ 
++        _bkt_padded_n_token = _bkt_real_n_token = None
++        _bkt_padded_n_atom = _bkt_real_n_atom = None
++        _bkt_orig_batch = None
++        _of3_bkt = None
++        try:
++            if not self.training:
++                from openfold3.core.utils import of3_bucketing as _of3_bkt
++
++                _of3_bkt.set_atom_bucket_target(None)
++                # Pre-pad batch keeps atom_array. Cropping the padded copy
++                # wiped non-tensors and compute_disorder crashed.
++                _bkt_orig_batch = batch
++                batch, _bkt_real_n_token, _bkt_real_n_atom = (
++                    _of3_bkt.bucketize_batch(batch)
++                )
++                _bkt_padded_n_token = int(batch["token_mask"].shape[-1])
++                _bkt_padded_n_atom = int(batch["atom_mask"].shape[-1])
++                if _bkt_padded_n_atom != _bkt_real_n_atom:
++                    _of3_bkt.set_atom_bucket_target(_bkt_padded_n_atom)
+-        # Controls whether the model uses in-place operations throughout
++            # Controls whether the model uses in-place operations throughout
+-        # The dual condition accounts for activation checkpoints
++            # The dual condition accounts for activation checkpoints
+-        inplace_safe = not (self.training or torch.is_grad_enabled())
++            inplace_safe = not (self.training or torch.is_grad_enabled())
+-
++
+-        # If training, we sample the number of recycles
++            # If training, we sample the number of recycles
+-        # This is the additional number of iterations through the trunk
++            # This is the additional number of iterations through the trunk
+-        num_recycles = (
++            num_recycles = (
+-            int(
++                int(
+-                self.synced_generator.integers(low=0, high=self.shared.num_recycles + 1)
++                    self.synced_generator.integers(low=0, high=self.shared.num_recycles + 1)
+-            )
++                )
+-            if self.training
++                if self.training
+-            else self.shared.num_recycles
++                else self.shared.num_recycles
+-        )
++            )
+-        num_cycles = num_recycles + 1
++            num_cycles = num_recycles + 1
+-
++
+-        output = {"recycles": num_recycles}
++            output = {"recycles": num_recycles}
+-
++
+-        # Compute representations
++            # Compute representations
+-        si_input, si_trunk, zij_trunk = self.run_trunk(
++            si_input, si_trunk, zij_trunk = self.run_trunk(
+-            batch=batch, num_cycles=num_cycles, inplace_safe=inplace_safe
++                batch=batch, num_cycles=num_cycles, inplace_safe=inplace_safe
+-        )
++            )
+-
++
+-        # Expand sampling dimension for rollout and diffusion
++            # Expand sampling dimension for rollout and diffusion
+-        si_input = si_input.unsqueeze(1)
++            si_input = si_input.unsqueeze(1)
+-        si_trunk = si_trunk.unsqueeze(1)
++            si_trunk = si_trunk.unsqueeze(1)
+-        zij_trunk = zij_trunk.unsqueeze(1)
++            zij_trunk = zij_trunk.unsqueeze(1)
+-
++
+-        # Expand sampling dimension for batch features
++            # Expand sampling dimension for batch features
+-        # Exclude ref_space_uid_to_perm feature since this
++            # Exclude ref_space_uid_to_perm feature since this
+-        # does not have a proper batch dimension
++            # does not have a proper batch dimension
+-        ref_space_uid_to_perm = batch.pop("ref_space_uid_to_perm", None)
++            ref_space_uid_to_perm = batch.pop("ref_space_uid_to_perm", None)
+-        batch = tensor_tree_map(lambda t: t.unsqueeze(1), batch)
++            batch = tensor_tree_map(lambda t: t.unsqueeze(1), batch)
+-        batch["ref_space_uid_to_perm"] = ref_space_uid_to_perm
++            batch["ref_space_uid_to_perm"] = ref_space_uid_to_perm
+-
++
+-        # Mini rollout
++            # Mini rollout
+-        rollout_output = self._rollout(
++            rollout_output = self._rollout(
+-            batch=batch,
++                batch=batch,
+-            si_input=si_input,
++                si_input=si_input,
+-            si_trunk=si_trunk,
++                si_trunk=si_trunk,
+-            zij_trunk=zij_trunk,
++                zij_trunk=zij_trunk,
+-            inplace_safe=inplace_safe,
++                inplace_safe=inplace_safe,
+-        )
++            )
+-
++
+-        output.update(rollout_output)
++            output.update(rollout_output)
+-
++
+-        # Apply permutation alignment for training and validation
++            # Apply permutation alignment for training and validation
+-        if "ground_truth" in batch:
++            if "ground_truth" in batch:
+-            # Update the ground-truth coordinates/mask in-place with the correct
++                # Update the ground-truth coordinates/mask in-place with the correct
+-            # permutation (and optionally disable losses in case of a
++                # permutation (and optionally disable losses in case of a
+-            # critical error)
++                # critical error)
+-            with (
++                with (
+-                torch.no_grad(),
++                    torch.no_grad(),
+-                torch.amp.autocast(
++                    torch.amp.autocast(
+-                    device_type=autocast_device_type(si_trunk), dtype=torch.float32
++                        device_type=autocast_device_type(si_trunk), dtype=torch.float32
+-                ),
++                    ),
+-            ):
++                ):
+-                safe_multi_chain_permutation_alignment(
++                    safe_multi_chain_permutation_alignment(
+-                    batch=batch,
++                        batch=batch,
+-                    atom_positions_predicted=output["atom_positions_predicted"],
++                        atom_positions_predicted=output["atom_positions_predicted"],
+-                )
++                    )
+-
++
+-                self.clear_autocast_cache()
++                    self.clear_autocast_cache()
+-
++
+-            if self.training and not self.settings.train_confidence_only:
++                if self.training and not self.settings.train_confidence_only:
+-                # Run training step (if necessary)
++                    # Run training step (if necessary)
+-                with torch.amp.autocast(
++                    with torch.amp.autocast(
+-                    device_type=autocast_device_type(si_trunk), dtype=torch.float32
++                        device_type=autocast_device_type(si_trunk), dtype=torch.float32
+-                ):
++                    ):
+-                    diffusion_output = self._train_diffusion(
++                        diffusion_output = self._train_diffusion(
+-                        batch=batch,
++                            batch=batch,
+-                        si_input=si_input,
++                            si_input=si_input,
+-                        si_trunk=si_trunk,
++                            si_trunk=si_trunk,
+-                        zij_trunk=zij_trunk,
++                            zij_trunk=zij_trunk,
+-                    )
++                        )
+-
++
+-                    output.update(diffusion_output)
++                        output.update(diffusion_output)
+-
++
+-        # Memory fragmentation can become a big problem at larger crop sizes
++            # Memory fragmentation can become a big problem at larger crop sizes
+-        # due to different sizes of msa/all-atom tensors used between steps
++            # due to different sizes of msa/all-atom tensors used between steps
+-        # Clear the cache between steps if unallocated reserved mem is high
++            # Clear the cache between steps if unallocated reserved mem is high
+-        if self.settings.clear_cache_between_steps:
++            if self.settings.clear_cache_between_steps:
+-            empty_device_cache(zij_trunk.device)
++                empty_device_cache(zij_trunk.device)
+-
++
++            if _bkt_padded_n_token is not None:
++                output = _of3_bkt.crop_output(
++                    output,
++                    _bkt_padded_n_token,
++                    _bkt_real_n_token,
++                    _bkt_padded_n_atom,
++                    _bkt_real_n_atom,
++                )
++                batch = _bkt_orig_batch
++            return batch, output
++        finally:
++            if _of3_bkt is not None:
++                _of3_bkt.set_atom_bucket_target(None)
+-        return batch, output
+--- /dev/null
++++ b/openfold3/core/utils/of3_bucketing.py
+@@ -0,0 +1,389 @@
++# Copyright © Advanced Micro Devices, Inc., or its affiliates.
++# SPDX-License-Identifier: MIT
++"""Bucketed padding for OpenFold-3 inference.
++
++OF3 wraps its heavy submodules with ``torch.compile(dynamic=False)`` (see
++``_apply_pending_compile`` in ``projects/of3_all_atom/model.py``). With
++``dynamic=False`` a *new* kernel is compiled for every distinct token/atom
++shape (~25-30 s each on a cold cache), so a server that sees many lengths
++keeps recompiling.
++
++Bucketing rounds a request's token count (and atom count) UP to the nearest
++value in a fixed list, pads the feature dict with masked filler, and reports
++the real sizes so the caller can crop if needed. The model then only ever
++sees ``len(TOKEN_BUCKETS)`` distinct shapes and reuses kernels forever.
++
++The padding is behavior-preserving because OF3 masks out padded positions:
++- token features / masks: filler rows are zero, token_mask = 0 there.
++- atom features / masks: filler rows are zero, atom_mask = 0 there.
++- atom_to_token_index: OF3 remaps any atom whose atom_mask == 0 to a dump
++  slot (see aggregate_atom_feat_to_tokens), so filler atoms are ignored.
++
++Configuration:
++- OPENFOLD3_BUCKET        : "1"/"true"/"yes"/"on" enables token bucketing.
++  Read on every call. Default off.
++- OPENFOLD3_BUCKET_ATOMS  : "0"/"false"/"no"/"off" disables atom bucketing.
++  Read on every call. Default on.
++- OPENFOLD3_TOKEN_BUCKETS : comma-separated ints, read at import, overrides
++  TOKEN_BUCKETS.
++- OPENFOLD3_ATOM_BUCKETS  : comma-separated ints, read at import, overrides
++  ATOM_BUCKETS.
++"""
++from __future__ import annotations
++
++import os
++
++import torch
++
++
++def _int_list(env: str, default: list[int]) -> list[int]:
++    raw = os.environ.get(env, "").strip()
++    if not raw:
++        return default
++    try:
++        vals = sorted(int(x) for x in raw.replace(" ", "").split(",") if x)
++        return vals or default
++    except ValueError:
++        print(f"[OF3_BUCKET] WARNING: bad {env}={raw!r}; using default", flush=True)
++        return default
++
++
++# Token buckets cap at 2048. Dense rungs so 384 and 640 do not jump a full
++# skipped rung (384->512, 530-624->768). 1792 keeps 8jue (1599) off 2048.
++# Longer than 2048 compiles at exact size (XL rungs 2560-5120 lost to native).
++# Override via OPENFOLD3_TOKEN_BUCKETS.
++TOKEN_BUCKETS = _int_list(
++    "OPENFOLD3_TOKEN_BUCKETS",
++    [256, 384, 512, 640, 768, 1024, 1280, 1536, 1792, 2048],
++)
++
++# Packed-atom axis is independent of tokens (not a fixed atoms-per-token
++# multiple). Defaults are ~8 packed atoms per token rung (256*8 .. 2048*8).
++# Requests above 16384 compile at exact atom size. Override OPENFOLD3_ATOM_BUCKETS.
++ATOM_BUCKETS = _int_list(
++    "OPENFOLD3_ATOM_BUCKETS",
++    [2048, 3072, 4096, 5120, 6144, 8192, 10240, 12288, 14336, 16384],
++)
++
++
++def _enabled() -> bool:
++    return os.environ.get("OPENFOLD3_BUCKET", "0").strip().lower() in (
++        "1", "true", "yes", "on",
++    )
++
++
++def _atoms_enabled() -> bool:
++    # Default on. Set OPENFOLD3_BUCKET_ATOMS=0 to pad tokens only.
++    return os.environ.get("OPENFOLD3_BUCKET_ATOMS", "1").strip().lower() in (
++        "1", "true", "yes", "on",
++    )
++
++
++# Forward-scoped target for the PACKED atom layout produced by
++# broadcast_token_feat_to_atoms. Set by model.forward around the trunk+diffusion
++# region when atom bucketing is active, then reset. None => no atom bucketing
++# (data pipeline, losses, metrics, post-processing all see real atom counts).
++_ATOM_BUCKET_TARGET: int | None = None
++
++
++def set_atom_bucket_target(n: int | None) -> None:
++    global _ATOM_BUCKET_TARGET
++    _ATOM_BUCKET_TARGET = n
++
++
++def get_atom_bucket_target() -> int | None:
++    return _ATOM_BUCKET_TARGET
++
++
++def pad_packed_atoms(atom_feat: "torch.Tensor", atom_axis: int) -> "torch.Tensor":
++    """Zero-pad the PACKED atom axis up to the forward-scoped atom bucket.
++
++    Called from broadcast_token_feat_to_atoms for the packed layout only. Real
++    atoms occupy [0, real); filler atoms [real, bucket) are zeros and are masked
++    out downstream by atom_mask (filler=0). No-op unless a bigger bucket is set.
++    """
++    target = _ATOM_BUCKET_TARGET
++    if target is None:
++        return atom_feat
++    cur = atom_feat.shape[atom_axis]
++    if target <= cur:
++        return atom_feat
++    pad: list[int] = []
++    for dim in reversed(range(atom_feat.dim())):
++        pad.extend([0, target - cur] if dim == atom_axis else [0, 0])
++    return torch.nn.functional.pad(atom_feat, pad, value=0)
++
++
++def _next_bucket(n: int, buckets: list[int]) -> int:
++    for b in buckets:
++        if b >= n:
++            return b
++    # Bigger than every bucket: fall back to the real size (no padding) so we
++    # stay correct; this triggers one extra compile for the oversized request.
++    return n
++
++
++# Token / atom axes counted from the end, so a leading batch dim does not matter.
++# Feature channels that happen to equal a bucket (c_s=384, restype=32,
++# ref_element=119) are not in these tuples and are never resized.
++_TOKEN_AXES: dict[str, tuple[int, ...]] = {
++    "residue_index": (-1,),
++    "token_index": (-1,),
++    "asym_id": (-1,),
++    "entity_id": (-1,),
++    "sym_id": (-1,),
++    "is_protein": (-1,),
++    "is_rna": (-1,),
++    "is_dna": (-1,),
++    "is_ligand": (-1,),
++    "is_atomized": (-1,),
++    "deletion_mean": (-1,),
++    "num_atoms_per_token": (-1,),
++    "start_atom_index": (-1,),
++    "token_mask": (-1,),
++    "mol_entity_id": (-1,),
++    "mol_sym_id": (-1,),
++    "mol_sym_token_index": (-1,),
++    "mol_sym_component_id": (-1,),
++    "cyclic_mask": (-1,),
++    "has_deletion": (-1,),
++    "deletion_value": (-1,),
++    "msa_mask": (-1,),
++    "template_pseudo_beta_mask": (-1,),
++    "template_backbone_frame_mask": (-1,),
++    "restype": (-2,),
++    "profile": (-2,),
++    "msa": (-2,),
++    "template_restype": (-2,),
++    "template_distogram": (-3, -2),
++    "template_unit_vector": (-3, -2),
++    "token_bonds": (-2, -1),
++}
++_ATOM_AXES: dict[str, tuple[int, ...]] = {
++    "ref_mask": (-1,),
++    "ref_charge": (-1,),
++    "ref_space_uid": (-1,),
++    "atom_mask": (-1,),
++    "atom_to_token_index": (-1,),
++    "atom_resolved_mask": (-1,),
++    "intra_filter_atomized": (-1,),
++    "ref_pos": (-2,),
++    "atom_positions": (-2,),
++    "ref_element": (-2,),
++    "ref_atom_name_chars": (-3,),
++    "inter_filter_atomized": (-2, -1),
++}
++# Returned forward() tensors. Same convention.
++_OUT_TOKEN_AXES: dict[str, tuple[int, ...]] = {
++    "si_trunk": (-2,),
++    "zij_trunk": (-3, -2),
++    "pae_logits": (-3, -2),
++    "pde_logits": (-3, -2),
++    "distogram_logits": (-3, -2),
++}
++_OUT_ATOM_AXES: dict[str, tuple[int, ...]] = {
++    "atom_positions_predicted": (-2,),
++    "atom_positions_diffusion": (-2,),
++    "plddt_logits": (-2,),
++    "experimentally_resolved_logits": (-2,),
++}
++
++def _has_len(t: torch.Tensor, n: int) -> bool:
++    return any(int(s) == n for s in t.shape)
++
++
++def _assert_axes(
++    t: torch.Tensor, axes: tuple[int, ...], src: int, key: str, kind: str
++) -> None:
++    """Listed axes must already be ``src``. A wrong table entry must not no-op."""
++    bad = []
++    for axis in axes:
++        dim = t.dim() + axis if axis < 0 else axis
++        if dim < 0 or dim >= t.dim() or int(t.shape[dim]) != src:
++            bad.append(axis)
++    if bad:
++        raise RuntimeError(
++            f"OF3 bucket {kind} {key!r} shape={tuple(t.shape)}: "
++            f"axis {bad} is not length {src}"
++        )
++
++
++def _assert_unmapped(
++    kind: str, key: str, val: torch.Tensor, watch: list[tuple[str, int]]
++) -> None:
++    hit = [label for label, n in watch if _has_len(val, n)]
++    if hit:
++        raise RuntimeError(
++            f"OF3 bucket {kind} {key!r} shape={tuple(val.shape)} is not in the "
++            f"axis tables but has a {'/'.join(hit)} axis"
++        )
++
++
++def _pad_axes(t: torch.Tensor, axes: tuple[int, ...], src: int, dst: int) -> torch.Tensor:
++    """Zero-pad only ``axes`` (negative) from ``src`` to ``dst``."""
++    if dst == src:
++        return t
++    pairs: list[int] = []
++    for dim in reversed(range(t.dim())):
++        if (dim - t.dim()) in axes:
++            pairs.extend([0, dst - src])
++        else:
++            pairs.extend([0, 0])
++    return torch.nn.functional.pad(t, pairs, value=0)
++
++
++def _crop_axes(
++    t: torch.Tensor,
++    axes: tuple[int, ...],
++    src: int,
++    dst: int,
++    key: str,
++    kind: str,
++) -> torch.Tensor:
++    """Slice listed axes from the padded length ``src`` down to ``dst``.
++
++    An axis already at ``dst`` is left alone. The confidence head masked-selects
++    plddt and experimentally-resolved logits down to the real atom count before
++    this crop. Any other length is a wrong table entry and raises.
++    """
++    idx = [slice(None)] * t.dim()
++    changed = False
++    for axis in axes:
++        dim = t.dim() + axis if axis < 0 else axis
++        if dim < 0 or dim >= t.dim():
++            raise RuntimeError(
++                f"OF3 bucket {kind} {key!r} shape={tuple(t.shape)}: "
++                f"axis [{axis}] is out of range"
++            )
++        n = int(t.shape[dim])
++        if n == dst:
++            continue
++        if n != src:
++            raise RuntimeError(
++                f"OF3 bucket {kind} {key!r} shape={tuple(t.shape)}: "
++                f"axis [{axis}] is length {n}, expected {src} or {dst}"
++            )
++        idx[dim] = slice(0, dst)
++        changed = True
++    return t[tuple(idx)] if changed else t
++
++
++def _map_features(obj: dict, fn) -> dict:
++    out = {}
++    for key, val in obj.items():
++        if isinstance(val, dict):
++            out[key] = _map_features(val, fn)
++        elif isinstance(val, (list, tuple)):
++            # Feature tensors live in dicts. A tensor inside a list (not
++            # atom_array) with a resized length is a missed axis, so fail.
++            # Leave the container itself alone.
++            for i, item in enumerate(val):
++                if torch.is_tensor(item):
++                    fn(f"{key}[{i}]", item)
++            out[key] = val
++        elif torch.is_tensor(val):
++            out[key] = fn(key, val)
++        else:
++            out[key] = val
++    return out
++
++
++def _watch_resized(pairs: list[tuple[str, int, int]]) -> list[tuple[str, int]]:
++    return [(label, src) for label, src, dst in pairs if src != dst]
++
++
++def _pad_feature(
++    key: str,
++    val: torch.Tensor,
++    n_token: int,
++    bt: int,
++    n_atom: int,
++    ba: int,
++) -> torch.Tensor:
++    tok = _TOKEN_AXES.get(key)
++    atm = _ATOM_AXES.get(key)
++    if tok is None and atm is None:
++        _assert_unmapped(
++            "batch",
++            key,
++            val,
++            _watch_resized([("token", n_token, bt), ("atom", n_atom, ba)]),
++        )
++        return val
++    if tok is not None:
++        _assert_axes(val, tok, n_token, key, "batch")
++        val = _pad_axes(val, tok, n_token, bt)
++    if atm is not None:
++        _assert_axes(val, atm, n_atom, key, "batch")
++        val = _pad_axes(val, atm, n_atom, ba)
++    return val
++
++
++def bucketize_batch(batch: dict) -> tuple[dict, int, int]:
++    """Pad a feature dict up to bucket sizes.
++
++    Returns ``(new_batch, real_n_token, real_n_atom)``. When disabled, returns
++    the batch untouched with its real sizes. Only axes listed in ``_TOKEN_AXES``
++    / ``_ATOM_AXES`` are padded, including inside nested dicts (``ground_truth``).
++    A listed axis that is not the real length raises. An unmapped tensor that
++    still has a length being resized raises too.
++    """
++    n_token = int(batch["token_mask"].shape[-1])
++    n_atom = int(batch["atom_mask"].shape[-1])
++    if not _enabled():
++        return batch, n_token, n_atom
++
++    bt = _next_bucket(n_token, TOKEN_BUCKETS)
++    ba = _next_bucket(n_atom, ATOM_BUCKETS) if _atoms_enabled() else n_atom
++
++    out = _map_features(
++        batch, lambda key, val: _pad_feature(key, val, n_token, bt, n_atom, ba)
++    )
++    if bt == n_token and ba == n_atom:
++        print(f"[OF3_BUCKET] tokens {n_token} (exact)  atoms {n_atom} (no-pad)", flush=True)
++    else:
++        atom_note = f"{n_atom}->{ba}" if ba != n_atom else f"{n_atom} (no-pad)"
++        print(f"[OF3_BUCKET] tokens {n_token}->{bt}  atoms {atom_note}", flush=True)
++    return out, n_token, n_atom
++
++
++def crop_output(
++    output: dict,
++    padded_n_token: int,
++    real_n_token: int,
++    padded_n_atom: int,
++    real_n_atom: int,
++) -> dict:
++    """Crop known output axes back to the real token and atom counts.
++
++    Token and atom axes are cropped in one pass, so a shared padded size
++    (both ladders contain 2048) cannot slice the wrong axis. An axis already
++    at the real length is left alone. Feature channels are not axes in
++    ``_OUT_*`` and are left intact.
++    """
++
++    def _crop_one(key: str, val: torch.Tensor) -> torch.Tensor:
++        tok = _OUT_TOKEN_AXES.get(key)
++        atm = _OUT_ATOM_AXES.get(key)
++        if tok is None and atm is None:
++            _assert_unmapped(
++                "output",
++                key,
++                val,
++                _watch_resized(
++                    [
++                        ("token", padded_n_token, real_n_token),
++                        ("atom", padded_n_atom, real_n_atom),
++                    ]
++                ),
++            )
++            return val
++        if tok is not None:
++            val = _crop_axes(
++                val, tok, padded_n_token, real_n_token, key, "output"
++            )
++        if atm is not None:
++            val = _crop_axes(val, atm, padded_n_atom, real_n_atom, key, "output")
++        return val
++
++    return _map_features(output, _crop_one)

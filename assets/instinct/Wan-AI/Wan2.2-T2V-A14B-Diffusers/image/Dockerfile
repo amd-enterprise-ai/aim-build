@@ -29,5 +29,6 @@ COPY src/ /workspace/model/src/
 # (e.g. ``from recipes import get_recipe``). This .pth file is read by Python on
 # interpreter start; aim_runtime.harness.discovery.discover_harness() also adds
 # the directory to sys.path defensively at runtime in case this layer is absent.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))" \
     | xargs -I{} sh -c 'echo /workspace/model/src > {}/workspace-model.pth'

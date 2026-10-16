@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
  Qwen/Qwen3.5-4B model in
 various environments. Follow these instructions to quickly get started with running an AI model on AMD accelerators.
-This guide assumes EPYC_ZEN5 accelerator on the target system.
+This guide assumes EPYC_9965 accelerator on the target system.
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ Customize your deployment with optional environment variables:
 ```bash
 docker run \
   -e AIM_PRECISION=fp16 \
-  -e AIM_ACCELERATOR_COUNT=124 \
+  -e AIM_ACCELERATOR_COUNT=188 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
   -p 8080:8080 \
@@ -101,7 +101,7 @@ spec:
             - name: AIM_PRECISION
               value: "auto"
             - name: AIM_ACCELERATOR_COUNT
-              value: "124"
+              value: "188"
             - name: AIM_ACCELERATOR_MODEL
               value: "auto"
             - name: AIM_ENGINE
@@ -120,10 +120,10 @@ spec:
           resources:
             requests:
               memory: "16Gi"
-              cpu: "124"
+              cpu: "188"
             limits:
               memory: "16Gi"
-              cpu: "124"
+              cpu: "188"
           startupProbe:
             httpGet:
               path: /v1/models
@@ -233,11 +233,10 @@ cat > custom-profiles/vllm-custom-profile.yaml << EOF
 aim_id: Qwen/Qwen3.5-4B
 model_id: Qwen/Qwen3.5-4B
 metadata:
-  accelerator_count: 124
+  accelerator_count: 188
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: fp16
   type: unoptimized
@@ -245,7 +244,7 @@ metadata:
 engine_args:
   gpu-memory-utilization: 0.95
   dtype: float16
-  tensor-parallel-size: 124
+  tensor-parallel-size: 188
   max-num-batched-tokens: 1024
   max-model-len: 2048
 
@@ -269,7 +268,7 @@ desired profile identifier. Profile identifier is the filename of the profile wi
 
 ```bash
 docker run \
-  -e AIM_PROFILE_ID=vllm-epyc_9965-bf16-tp1-latency \
+  -e AIM_PROFILE_ID=vllm-epyc_zen5-bf16-tp1-latency \
   -p 8000:8000 \
   amdenterpriseai/aim-epyc-qwen-qwen3-5-4b:0.13.0
 ```
@@ -309,7 +308,7 @@ It is possible to check which profile AIM selects based on the provided environm
 
 ```bash
 docker run \
-  -e AIM_ACCELERATOR_COUNT=124 \
+  -e AIM_ACCELERATOR_COUNT=188 \
   -e AIM_PRECISION=fp16 \
   -e AIM_ACCELERATOR_MODEL=EPYC_9965 \
   amdenterpriseai/aim-epyc-qwen-qwen3-5-4b:0.13.0 \

@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROFILE_BASE_PATH = "/workspace/aim-runtime/profiles"
 DEFAULT_CONFIG_PATH = "/workspace/aim-runtime/config"
 DEFAULT_CACHE_PATH = "/workspace/model-cache"
-
 # LoRA adapter contract (ADR-0004) defaults.
 DEFAULT_ADAPTER_SOURCE = "/workspace/cache/adapters/"
 DEFAULT_ADAPTER_REFRESH_INTERVAL = 30  # seconds
@@ -79,6 +78,7 @@ class AIMConfig:
         True  # Whether to allow fallback to general profiles (from AIM_ALLOW_GENERAL_PROFILE_FALLBACK)
     )
     allow_unoptimized: bool = False  # Whether to allow fallback to unoptimized profiles (from AIM_ALLOW_UNOPTIMIZED)
+    serve_supervisor: bool = True  # Supervise the engine by default; AIM_SERVE_SUPERVISOR=false restores execv.
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -354,6 +354,7 @@ class AIMConfig:
             log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
             allow_general_profile_fallback=cls._read_bool("AIM_ALLOW_GENERAL_PROFILE_FALLBACK", True),
             allow_unoptimized=cls._read_bool("AIM_ALLOW_UNOPTIMIZED", False),
+            serve_supervisor=cls._read_bool("AIM_SERVE_SUPERVISOR", True),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -383,6 +384,7 @@ class AIMConfig:
             "log_level": self.log_level,
             "allow_general_profile_fallback": self.allow_general_profile_fallback,
             "allow_unoptimized": self.allow_unoptimized,
+            "serve_supervisor": self.serve_supervisor,
         }
 
     def log_debug_info(self) -> None:

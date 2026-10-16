@@ -286,7 +286,7 @@ by the selection algorithm described in [Section 3.4](#34-selection-algorithm-ov
 
 #### How `primary` is assigned
 
-The flag is set automatically by the `profile_utils set-all-primary-flags` pre-commit hook using the same ranking
+The flag is set automatically by the `profile_utils set-primary-flags` pre-commit hook using the same ranking
 criteria as the profile selector:
 
 1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
@@ -301,7 +301,7 @@ would override the precision and accelerator-count preferences that are meant to
 To regenerate `primary` flags after adding or removing profiles:
 
 ```bash
-python -m aim_utils.profile_utils set-all-primary-flags --assets_root assets
+python -m aim_utils.profile_utils set-primary-flags
 ```
 
 See [metadata_overview.md — Primary Profiles](./metadata_overview.md#primary-profiles) for the full reference.
@@ -330,13 +330,14 @@ The `AIMRuntime` class orchestrates the complete workflow, coordinating profile 
    - Model specified in profile's `model_id` field (model-specific profiles)
    - Model specified in `AIM_MODEL_ID` environment variable (base containers)
    - Model from `AIM_ID` environment variable (fallback for general profiles)
-6. **Execution** – Execute via `os.execv()` (serve mode) or generate scripts for inspection (dry-run mode)
+6. **Execution** – Run the engine under AIM Runtime supervision (serve mode) or generate scripts for inspection (dry-run mode)
 
 **AITER (GPU):** When the image includes `/workspace/aiter-jit-prebuilt/<gfx_arch>/`, the runtime may copy matching prebuilt `.so` kernels into the AITER package JIT directory before `exec`, reducing first-request JIT compilation latency.
 
 ### 4.2 Execution Modes
 
-- **Direct execution (serve mode)**: Uses `os.execv()` to replace the current process with the inference engine, avoiding shell interpretation and command injection risks
+- **Supervised execution (serve mode)**: Launches the engine as a child in its own process group, forwards termination signals, reaps orphaned workers, and returns the engine's exit code. Dynamic adapter profiles also run their adapter watcher under supervision.
+- **Unsupervised execution (serve mode)**: Set `AIM_SERVE_SUPERVISOR=false` to use the legacy direct execution path for profiles that do not require the adapter watcher
 - **Script generation (dry-run mode)**: Creates temporary executable bash scripts for inspection and debugging purposes
 
 ### 4.3 Model Identifier Distinctions
@@ -409,7 +410,7 @@ For detailed implementation including pre-population strategies, volume mounting
 * **Minimal Environment Variables** – Profile selection uses configuration over environment variable sprawl, reducing attack surface
 * **Least Privilege Volumes** – Mount read-only where feasible (profiles) and writable only where required (cache)
 * **Non-Root Execution** – Container runs as non-root user (`aim` with UID 1000) to limit host resource access; GPU access requires `--group-add video` at runtime
-* **Process Isolation** – Direct execution via `os.execv()` (not shell) prevents command injection vulnerabilities
+* **Process Isolation** – The supervisor launches the engine with an argv list through `subprocess.Popen`, without shell interpretation, preventing command injection vulnerabilities
 
 ## 9. Example End‑to‑End Flow
 
@@ -440,8 +441,8 @@ sequenceDiagram
     CG-->>R: Executable Path & Args
     R->>R: Set Environment Variables
 
-    R->>V: Execute via os.execv()
-    Note over R,V: Process replacement<br/>(no script file)
+    R->>V: Launch engine under supervision
+    Note over R,V: argv list, no shell interpretation<br/>(engine runs in its own process group)
     V->>C: Check Cache Status
     C-->>V: Cache Hit/Miss
 
@@ -507,6 +508,7 @@ Recommended environment variables:
 | AIM_PROFILE_ID | Optional explicit profile selection (skips heuristic). |
 | AIM_ALLOW_GENERAL_PROFILE_FALLBACK | Allow automatic selection of general profiles (true/false, default: true for base containers, false for model-specific containers). When false, general profiles are still loaded and explicitly selectable, but excluded from automatic selection. |
 | AIM_ALLOW_UNOPTIMIZED | When `true`, allow fallback to a compatible `unoptimized` profile only if the automatic pool is empty (default: `false`). |
+| AIM_SERVE_SUPERVISOR | Run the engine under AIM Runtime supervision (`true`, default) or restore unsupervised execution (`false`). Dynamic adapter profiles always use supervision. |
 | AIM_CACHE_PATH | Override default cache root. |
 | AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: WARNING). |
 | AIM_LOG_LEVEL | Log level for AIM runtime packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |

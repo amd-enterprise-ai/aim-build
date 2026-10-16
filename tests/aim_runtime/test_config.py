@@ -438,6 +438,16 @@ class TestAllowUnoptimizedConfig:
         assert "allow_unoptimized" in config_dict
         assert config_dict["allow_unoptimized"] is True
 
+    def test_serve_supervisor_false(self):
+        with patch.dict(
+            os.environ,
+            {"AIM_MODEL_ID": "test/model", "AIM_SERVE_SUPERVISOR": "false"},
+            clear=False,
+        ):
+            config = AIMConfig.from_environment()
+
+        assert config.serve_supervisor is False
+
 
 class TestAcceleratorCountConfig:
     """Tests for AIM_ACCELERATOR_COUNT env-var parsing (and deprecated AIM_GPU_COUNT).

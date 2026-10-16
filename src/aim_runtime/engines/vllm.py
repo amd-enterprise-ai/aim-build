@@ -446,7 +446,7 @@ class VllmEngine(BaseEngine):
 
         return engine_args, env
 
-    def needs_runtime_supervisor(self, profile: "Profile") -> bool:
+    def needs_adapter_watcher(self, profile: "Profile") -> bool:
         """True when the profile needs the in-pod watcher (runtime LoRA updates).
 
         Only full ``adapters`` profiles in dynamic mode need supervision;

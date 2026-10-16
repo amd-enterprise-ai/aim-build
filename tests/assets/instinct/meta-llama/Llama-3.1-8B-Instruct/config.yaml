@@ -7,3 +7,6 @@ base_image:
   base_repository: aim-base
   base_tag: "1.2"
   registry_host: ghcr.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

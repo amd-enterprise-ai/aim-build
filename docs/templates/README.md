@@ -29,8 +29,9 @@ This AIM allows to deploy {{ aim_overview.model_name }} with a tailored set of p
 
 {% endif %}
 
-## Available profiles
+## Available Profiles
 
+{% if profiles %}
 The following profiles are available for this model:
 
 |Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type|
@@ -51,14 +52,17 @@ The columns should be read as follows:
   * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation; these are never selected automatically and must be requested explicitly
   * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
   * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
+{% else %}
+No profiles are currently available for this AIM.
+{% endif %}
 
-## Getting started
+## Getting Started
 
 See the [deployment guide](DEPLOYMENT.md) for Docker and Kubernetes instructions.
 
 {% if terms_of_use.defined %}
 
-# Terms of use
+# Terms of Use
 
   {% if terms_of_use.licenses_defined %}
 

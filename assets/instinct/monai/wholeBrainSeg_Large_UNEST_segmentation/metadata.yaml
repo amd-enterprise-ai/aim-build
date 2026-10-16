@@ -35,6 +35,6 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "Apache-2.0"
-      description: "133-class whole-brain T1w MRI parcellation served via BentoML."
+      description: "133-class whole-brain T1w MRI parcellation."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"

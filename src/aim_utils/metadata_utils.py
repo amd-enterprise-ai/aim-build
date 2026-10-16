@@ -18,8 +18,9 @@ from .asset_utils import (
     AssetManager,
     Initializer,
     assets_path_option,
-    assets_root_option,
-    discover_assets_paths,
+    assets_path_optional_option,
+    confirm_root_wide_mutation,
+    yes_option,
 )
 from .dict_utils import get_value, set_value
 from .yaml_utils import get_yamls, read_yaml, save_yaml
@@ -145,8 +146,8 @@ class MetadataInitializer(Initializer):
 
 class MetadataManager(AssetManager):
 
-    def __init__(self, assets_path: str):
-        super().__init__(assets_path, enforce_double_quotes=True)
+    def __init__(self):
+        super().__init__(enforce_double_quotes=True)
 
     def get_yamls(self, canonical_name: Optional[CanonicalName] = None) -> List[Path]:
         descriptors: List[AssetDescriptor] = self.get_descriptors(canonical_name=canonical_name)
@@ -238,72 +239,93 @@ def init_command(assets_path: str) -> None:
 
 
 @cli.command(name="delete")
-@assets_path_option
-def delete_metadata_command(assets_path: str) -> None:
+@assets_path_optional_option
+@yes_option
+def delete_metadata_command(assets_path: Optional[str] = None, yes: bool = False) -> None:
     """
     Delete all metadata.yaml files from the assets directory.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
     """
-    MetadataManager(assets_path=assets_path).delete_assets()
+    confirm_root_wide_mutation(assets_path, "delete all metadata.yaml files", yes=yes)
+    MetadataManager.for_optional_path(assets_path).delete_assets()
 
 
 @cli.command("delete-key")
 @click.argument("key", type=str)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def delete_key_command(key: str, assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """Remove a specific key from metadata files."""
-    MetadataManager(assets_path=assets_path).delete_key(key, canonical_name)
+@yes_option
+def delete_key_command(
+    key: str, assets_path: Optional[str] = None, canonical_name: Optional[str] = None, yes: bool = False
+) -> None:
+    """Remove a specific key from metadata files.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+    """
+    confirm_root_wide_mutation(assets_path, f"delete key '{key}'", yes=yes)
+    MetadataManager.for_optional_path(assets_path).delete_key(key, canonical_name)
 
 
 @cli.command(name="update-value")
 @click.argument("key", type=str)
 @click.argument("new_value", type=str, default=None)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
 @click.option("--add_if_missing", is_flag=True, default=False, help="Add the key if it doesn't exist")
+@yes_option
 def update_value_command(
     key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     new_value: Optional[Any] = None,
     canonical_name: Optional[str] = None,
     add_if_missing: bool = False,
+    yes: bool = False,
 ) -> None:
     """
     Update a specific field in all metadata.yaml files
 
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+
     Args:
-        assets_path: Root directory containing assets
+        assets_path: Accelerator-specific assets directory. When omitted, all directories under the default root are processed.
         key: Dot notation path to the key (e.g., "org.opencontainers.image.vendor")
         new_value: New value to set for the key
         add_if_missing: If True, add the key if it doesn't exist
         canonical_name: If provided, only update files matching this canonical name
     """
-    MetadataManager(assets_path=assets_path).update_value(key, new_value, canonical_name, add_if_missing)
+    confirm_root_wide_mutation(assets_path, f"update key '{key}'", yes=yes)
+    MetadataManager.for_optional_path(assets_path).update_value(key, new_value, canonical_name, add_if_missing)
 
 
 @cli.command(name="copy-value")
 @click.argument("source_key", type=str)
 @click.argument("target_key", type=str)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
 @click.option("--prefix", type=str, default=None, help="Prefix to add to the copied value")
 @click.option("--postfix", type=str, default=None, help="Postfix to add to the copied value")
 @click.option("--separator", type=str, default="", help="Separator between prefix/postfix and value")
 @click.option("--add_if_missing", is_flag=True, default=False, help="Add the target key if it doesn't exist")
+@yes_option
 def copy_value_command(
     source_key: str,
     target_key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     canonical_name: Optional[str] = None,
     prefix: Optional[str] = None,
     postfix: Optional[str] = None,
     separator: str = "",
     add_if_missing: bool = False,
+    yes: bool = False,
 ) -> None:
     """
     Copy a value from one key to another in metadata files. Optionally add prefix/postfix to string values with a separator.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
     """
-    MetadataManager(assets_path=assets_path).copy_value(
+    confirm_root_wide_mutation(assets_path, f"copy '{source_key}' to '{target_key}'", yes=yes)
+    MetadataManager.for_optional_path(assets_path).copy_value(
         source_key,
         target_key,
         canonical_name,
@@ -317,46 +339,35 @@ def copy_value_command(
 @cli.command(name="rename-key")
 @click.argument("source_key", type=str)
 @click.argument("target_key", type=str)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
+@yes_option
 def rename_key_command(
     source_key: str,
     target_key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     canonical_name: Optional[str] = None,
+    yes: bool = False,
 ) -> None:
-    """Rename a key by copying its value to a new key and deleting the original."""
-    MetadataManager(assets_path=assets_path).rename_key(source_key, target_key, canonical_name)
+    """Rename a key by copying its value to a new key and deleting the original.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+    """
+    confirm_root_wide_mutation(assets_path, f"rename key '{source_key}' to '{target_key}'", yes=yes)
+    MetadataManager.for_optional_path(assets_path).rename_key(source_key, target_key, canonical_name)
 
 
 @cli.command(name="validate")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_metadata_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """
-    Validate all metadata.yaml files against Pydantic models.
+def validate_metadata_command(assets_path: Optional[str] = None, canonical_name: Optional[str] = None) -> None:
+    """Validate all metadata.yaml files against Pydantic models.
 
-    Args:
-        assets_path: Root directory containing assets
-        canonical_name: If provided, only validate files matching this canonical name
+    When --assets_path is omitted, all accelerator directories under the default root are validated.
     """
     results = validate_metadata(assets_path, canonical_name)
     _report_validation_results(results)
     sys.exit(0 if results["invalid_count"] == 0 else 1)
-
-
-@cli.command(name="validate-all")
-@assets_root_option
-@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def validate_all_metadata_command(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
-    """Validate metadata across all accelerator asset directories."""
-    totals = {"total_count": 0, "valid_count": 0, "invalid_count": 0}
-    for assets_path in discover_assets_paths(assets_root):
-        results = validate_metadata(assets_path, canonical_name)
-        for key in totals:
-            totals[key] += results[key]
-    _report_validation_results(totals)
-    sys.exit(0 if totals["invalid_count"] == 0 else 1)
 
 
 @cli.command(name="validate-files")
@@ -382,20 +393,20 @@ def _report_validation_results(results: Dict[str, int]) -> None:
         logger.error(f"❌ {results['invalid_count']} out of {results['total_count']} metadata files failed validation")
 
 
-def validate_metadata(assets_path: str, canonical_name: Optional[str] = None) -> Dict[str, int]:
-    """
-    Validate metadata.yaml files against Pydantic models.
+def validate_metadata(assets_path: Optional[str], canonical_name: Optional[str] = None) -> Dict[str, int]:
+    """Validate metadata.yaml files against Pydantic models.
+
     Uses BaseMetadataModel for base/metadata.yaml and ModelMetadataModel for all others.
 
     Args:
-        assets_path: Path to the root assets directory
+        assets_path: Path to a specific accelerator assets directory, or None for all.
         canonical_name: If provided, only validate files matching this canonical name
 
     Returns:
         Dictionary with validation results: {"total_count": int, "valid_count": int, "invalid_count": int}
     """
-    # Get metadata files to validate
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
+    manager = MetadataManager.for_optional_path(assets_path)
+    metadata_files = manager.get_yamls(CanonicalName.from_string(canonical_name))
 
     if not metadata_files:
         logger.warning("No metadata files found")
@@ -477,9 +488,9 @@ def extract_all_keys(data: Dict[str, Any], prefix: str = "") -> List[str]:
 
 
 @cli.command(name="list-keys")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def list_keys_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
+def list_keys_command(assets_path: Optional[str] = None, canonical_name: Optional[str] = None) -> None:
     """
     List all keys from metadata.yaml files.
 
@@ -488,7 +499,8 @@ def list_keys_command(assets_path: str, canonical_name: Optional[str] = None) ->
         canonical_name: If provided, only process files matching this canonical name
     """
 
-    metadata_files = MetadataManager(assets_path=assets_path).get_yamls(CanonicalName.from_string(canonical_name))
+    manager = MetadataManager.for_optional_path(assets_path)
+    metadata_files = manager.get_yamls(CanonicalName.from_string(canonical_name))
     logger.debug(f"Found {len(metadata_files)} metadata files to process")
 
     all_keys = set()

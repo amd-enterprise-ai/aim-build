@@ -195,7 +195,7 @@ class TestAIMRuntimeServe:
             with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     with patch("aim_runtime.aim_runtime.shutil.which") as mock_which:
-                        with patch("aim_runtime.aim_runtime.os.execv") as mock_execv:
+                        with patch.object(AIMRuntime, "_serve_supervised") as mock_supervised:
                             runtime = AIMRuntime(mock_config)
                             runtime.profile_selector = mock_ps.return_value
                             runtime.command_generator = mock_cg.return_value
@@ -208,9 +208,62 @@ class TestAIMRuntimeServe:
 
                             runtime.serve()
 
-                            mock_execv.assert_called_once_with(
-                                "/usr/bin/python", ["python", "-m", "vllm.entrypoints.openai.api_server"]
+                            mock_supervised.assert_called_once_with(
+                                ["python", "-m", "vllm.entrypoints.openai.api_server"], watcher=None
                             )
+
+    def test_serve_uses_execv_when_supervisor_is_disabled(self, mock_config, mock_profile):
+        mock_config.serve_supervisor = False
+        command_list = ["python", "-m", "vllm.entrypoints.openai.api_server"]
+
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
+            with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
+                with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
+                    with patch("aim_runtime.aim_runtime.shutil.which", return_value="/usr/bin/python"):
+                        with (
+                            patch("aim_runtime.aim_runtime.os.execv") as mock_execv,
+                            patch.object(AIMRuntime, "_serve_supervised") as mock_supervised,
+                        ):
+                            runtime = AIMRuntime(mock_config)
+                            runtime.profile_selector = mock_ps.return_value
+                            runtime.command_generator = mock_cg.return_value
+                            runtime.profile_selector.find_profile.return_value = mock_profile
+                            runtime.command_generator.generate_execution_params.return_value = (command_list, {})
+
+                            runtime.serve()
+
+        mock_execv.assert_called_once_with("/usr/bin/python", command_list)
+        mock_supervised.assert_not_called()
+
+    def test_serve_supervises_dynamic_adapters_when_supervisor_is_disabled(self, mock_config, mock_profile):
+        mock_config.serve_supervisor = False
+        command_list = ["python", "-m", "vllm.entrypoints.openai.api_server"]
+
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
+            with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
+                with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
+                    with patch("aim_runtime.aim_runtime.shutil.which", return_value="/usr/bin/python"):
+                        with (
+                            patch("aim_runtime.engines.adapter_watcher.AdapterWatcher") as mock_watcher,
+                            patch("aim_runtime.aim_runtime.os.execv") as mock_execv,
+                            patch.object(AIMRuntime, "_serve_supervised") as mock_supervised,
+                        ):
+                            runtime = AIMRuntime(mock_config)
+                            runtime.engine = Mock(
+                                requires_aiter_kernels=False,
+                                needs_adapter_watcher=Mock(return_value=True),
+                            )
+                            runtime.profile_selector = mock_ps.return_value
+                            runtime.command_generator = mock_cg.return_value
+                            runtime.profile_selector.find_profile.return_value = mock_profile
+                            runtime.command_generator.generate_execution_params.return_value = (command_list, {})
+
+                            runtime.serve()
+
+        mock_supervised.assert_called_once_with(command_list, watcher=mock_watcher.return_value)
+        mock_execv.assert_not_called()
 
     def test_serve_logs_profile_selection(self, mock_config, mock_profile):
         """Test that serve logs profile selection information."""
@@ -220,7 +273,7 @@ class TestAIMRuntimeServe:
                 with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
                     with patch("aim_runtime.aim_runtime.logger") as mock_logger:
                         with patch("aim_runtime.aim_runtime.shutil.which") as mock_which:
-                            with patch("aim_runtime.aim_runtime.os.execv"):
+                            with patch.object(AIMRuntime, "_serve_supervised"):
                                 runtime = AIMRuntime(mock_config)
                                 runtime.profile_selector = mock_ps.return_value
                                 runtime.command_generator = mock_cg.return_value
@@ -568,81 +621,131 @@ class TestInstallAiterPrebuiltKernels:
         assert (aiter_jit_dir / "kernel2.so").read_text() == "freshly-installed"
 
 
-class TestServeSupervisedExitCode:
-    """The dynamic-mode supervisor must preserve signal exit status."""
-
-    def _run_with_returncode(self, returncode: int):
-        runtime = AIMRuntime.__new__(AIMRuntime)
-        runtime.config = Mock()
-        runtime.config.adapter_source = "/adapters"
-        runtime.config.adapter_max_rank = 32
-        runtime.config.adapter_refresh_interval = 5
-        runtime.config.port = 8000
-
-        proc = Mock()
-        proc.pid = 1234
-        proc.wait.return_value = returncode
-
-        with (
-            patch("subprocess.Popen", return_value=proc),
-            patch("signal.signal"),
-            patch("threading.Thread"),
-        ):
-            with pytest.raises(SystemExit) as exc_info:
-                runtime._serve_supervised(["python", "-m", "vllm"])
-        return exc_info.value.code
-
-    def test_clean_exit_code_passthrough(self):
-        assert self._run_with_returncode(0) == 0
-
-    def test_nonzero_exit_code_passthrough(self):
-        assert self._run_with_returncode(1) == 1
-
-    def test_sigterm_translated_to_143(self):
-        # -15 (SIGTERM) -> 128 + 15, not 241 (the raw -15 % 256).
-        assert self._run_with_returncode(-15) == 143
-
-    def test_sigkill_translated_to_137(self):
-        assert self._run_with_returncode(-9) == 137
-
-
-class TestWaitForEngineExit:
-    """Bounded graceful drain + SIGKILL escalation after a forwarded signal."""
-
+class TestAdapterWatcherReadiness:
     def _runtime(self):
-        return AIMRuntime.__new__(AIMRuntime)
+        runtime = AIMRuntime.__new__(AIMRuntime)
+        runtime.config = Mock(port=8000)
+        return runtime
 
-    def test_normal_exit_returns_code(self):
-        import threading
-
+    def test_ready_uses_vllm_readiness_endpoint(self):
         proc = Mock()
-        proc.wait.return_value = 0
-        rc = self._runtime()._wait_for_engine_exit(proc, threading.Event())
-        assert rc == 0
+        proc.poll.return_value = None
+        response = Mock(status_code=200)
+        with patch("requests.get", return_value=response) as get:
+            self._runtime()._wait_for_engine_ready(proc, 10)
+        get.assert_called_once_with("http://localhost:8000/v1/models", timeout=5)
 
-    def test_terminating_bounded_wait_returns_clean_exit(self):
-        import threading
-
-        terminating = threading.Event()
-        terminating.set()  # already terminating -> bounded drain path
+    def test_engine_exit_before_ready_returns(self):
         proc = Mock()
-        proc.wait.return_value = -15
-        rc = self._runtime()._wait_for_engine_exit(proc, terminating)
-        assert rc == -15
-        proc.wait.assert_called_once()  # single bounded wait, no escalation
-        proc.kill.assert_not_called()
+        proc.poll.return_value = 1
+        with patch("requests.get") as get:
+            self._runtime()._wait_for_engine_ready(proc, 10)
+        get.assert_not_called()
 
-    def test_hung_engine_escalated_to_sigkill(self):
+
+# --- real-process supervision ---------------------------------------------- #
+
+#: Launches the real `_serve_supervised` against a fake engine, in its own
+#: process so signal handlers and process groups are the genuine article.
+_SUPERVISOR_SCRIPT = Path(__file__).parent / "supervisor_probe" / "run_supervisor.py"
+
+
+def _free_port() -> int:
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _port_is_free(port: int) -> bool:
+    import socket
+
+    with socket.socket() as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+class TestServeSupervisedRealProcess:
+    """Supervision driven with real processes, signals, and process groups.
+
+    The mocked tests above patch out ``signal.signal``, ``subprocess.Popen``,
+    ``os.getpgid`` and ``os.killpg``, so `process_group=0` and the signal
+    forwarding closure never actually execute there. Dropping the process group
+    would make ``killpg`` take down the supervisor along with the engine and
+    still pass every one of those tests, so exercise it for real here.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_processes(self):
+        import os
+        import signal
         import subprocess
-        import threading
 
-        terminating = threading.Event()
-        terminating.set()
-        proc = Mock()
-        proc.pid = 4321
-        # First (bounded) wait times out -> escalate; second wait reaps SIGKILL.
-        proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="vllm", timeout=20), -9]
-        rc = self._runtime()._wait_for_engine_exit(proc, terminating)
-        assert rc == -9
-        proc.kill.assert_called_once()
-        assert proc.wait.call_count == 2
+        self._processes = []
+        yield
+        for proc in self._processes:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                # The supervisor may have already cleaned up its own group.
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+
+    def _spawn(self, *, status: int, crash_exit_code: int | None = None):
+        import subprocess
+
+        port = _free_port()
+        command = [sys.executable, str(_SUPERVISOR_SCRIPT), str(status), str(port)]
+        if crash_exit_code is not None:
+            command += ["--crash-exit-code", str(crash_exit_code)]
+        proc = subprocess.Popen(
+            command,
+            # Own group, so a stray killpg from the supervisor can't reach pytest.
+            process_group=0,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self._processes.append(proc)
+        return proc, port
+
+    def _wait_until_serving(self, proc, port, timeout=20.0):
+        import socket
+        import time
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            assert proc.poll() is None, "supervisor exited before the engine came up"
+            with socket.socket() as sock:
+                if sock.connect_ex(("127.0.0.1", port)) == 0:
+                    return
+            time.sleep(0.1)
+        pytest.fail(f"engine never listened on {port}")
+
+    def test_sigterm_is_forwarded_to_the_engine(self):
+        """Real handler registration + real forwarding: SIGTERM to the
+        supervisor must stop the engine and surface as 143."""
+        import signal
+
+        proc, port = self._spawn(status=200)
+        self._wait_until_serving(proc, port)
+
+        proc.send_signal(signal.SIGTERM)
+
+        assert proc.wait(timeout=30) == 143
+        assert _port_is_free(port), "engine outlived the supervisor"
+
+    def test_engine_exit_one_makes_supervisor_exit_one(self):
+        """The real engine failure case must preserve exit code 1."""
+        proc, port = self._spawn(status=200, crash_exit_code=1)
+
+        assert proc.wait(timeout=30) == 1
+        assert _port_is_free(port), "engine should never have bound its port"

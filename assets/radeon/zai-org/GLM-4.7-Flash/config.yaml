@@ -7,3 +7,6 @@ base_image:
   base_repository: aim-radeon-base
   base_tag: "0.12-preview"
   registry_host: docker.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

@@ -9,7 +9,7 @@ that a file's *structure* is right. These checks look at its *content*: leftover
 scaffolding, internal notes that shouldn't be published, and dependency
 specifiers that make a build unreproducible.
 
-Each check reports the section of docs/aim_conventions.md that explains the rule.
+Each check reports the section of ci/docs/aim_conventions.md that explains the rule.
 """
 
 import io
@@ -19,16 +19,16 @@ import sys
 import tokenize
 import tomllib
 from pathlib import Path
-from typing import Iterable, List, Pattern, Sequence, Tuple
+from typing import Iterable, List, Optional, Pattern, Sequence, Tuple
 
 import click
 import yaml
 
-from .asset_utils import assets_root_option
+from .asset_utils import DEFAULT_ASSETS_ROOT, PROFILES_DIRNAME, assets_path_optional_option
 
 logger = logging.getLogger(__name__)
 
-CONVENTIONS_DOC = "docs/aim_conventions.md"
+CONVENTIONS_DOC = "ci/docs/aim_conventions.md"
 
 # Scaffolding markers left behind when a generated AIM is not filled in. These
 # reach runtime as literal strings — an unsubstituted __AIM_ID__ fails profile
@@ -59,11 +59,11 @@ GIT_SHA_RE = re.compile(r"(?:^|\s@\s|git\+\S+@)([0-9a-fA-F]{40})(?:#|\s|$)")
 NON_REQUIREMENT_PREFIXES = ("#", "-r ", "--requirement ", "-c ", "--constraint ", "--")
 
 
-def _iter_files(files: Sequence[Path], assets_root: str, glob: str) -> List[Path]:
+def _iter_files(files: Sequence[Path], assets_root: Optional[str], glob: str) -> List[Path]:
     """Resolve the file set: explicit paths from pre-commit, else a full scan."""
     if files:
         return [f for f in files if f.is_file()]
-    return sorted(p for p in Path(assets_root).glob(glob) if p.is_file())
+    return sorted(p for p in Path(assets_root or DEFAULT_ASSETS_ROOT).glob(glob) if p.is_file())
 
 
 def _yaml_comment_start(line: str) -> int:
@@ -153,10 +153,10 @@ def cli(ctx):
 
 @cli.command(name="check-placeholders")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
-def check_placeholders_command(files: Sequence[Path], assets_root: str = "assets") -> None:
+@assets_path_optional_option
+def check_placeholders_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail on unsubstituted scaffolding markers in assets."""
-    targets = _iter_files(files, assets_root, "**/*")
+    targets = _iter_files(files, assets_path, "**/*")
     hits: List[str] = []
     for path in targets:
         if path.suffix.lower() not in {".yaml", ".yml", ".py", ".toml", ".txt", ".md", ".json"}:
@@ -167,10 +167,10 @@ def check_placeholders_command(files: Sequence[Path], assets_root: str = "assets
 
 @cli.command(name="check-internal-comments")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
-def check_internal_comments_command(files: Sequence[Path], assets_root: str = "assets") -> None:
+@assets_path_optional_option
+def check_internal_comments_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail on internal narration in asset YAML and Python source comments."""
-    targets = [p for p in _iter_files(files, assets_root, "**/*") if p.suffix.lower() in {".yaml", ".yml", ".py"}]
+    targets = [p for p in _iter_files(files, assets_path, "**/*") if p.suffix.lower() in {".yaml", ".yml", ".py"}]
     hits: List[str] = []
     for path in targets:
         if path.suffix.lower() == ".py":
@@ -207,10 +207,10 @@ def find_unpinned_pyproject_dependencies(path: Path) -> List[str]:
     return [f"{path}: project.dependencies: {dep}" for dep in dependencies if not is_requirement_pinned(dep)]
 
 
-def find_canonical_name_mismatch(path: Path, assets_root: str = "assets") -> List[str]:
+def find_canonical_name_mismatch(path: Path, assets_root: Optional[str] = None) -> List[str]:
     """Return a finding when metadata canonicalName differs from its asset path."""
     try:
-        relative = path.parent.relative_to(Path(assets_root))
+        relative = path.parent.relative_to(Path(assets_root or DEFAULT_ASSETS_ROOT))
     except ValueError:
         return []
     if len(relative.parts) != 3 or relative.parts[1] in {"base", "engines"}:
@@ -226,27 +226,29 @@ def find_canonical_name_mismatch(path: Path, assets_root: str = "assets") -> Lis
 
 @cli.command(name="check-canonical-name")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
-def check_canonical_name_command(files: Sequence[Path], assets_root: str = "assets") -> None:
+@assets_path_optional_option
+def check_canonical_name_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail when metadata canonicalName does not match its asset path."""
-    targets = [p for p in _iter_files(files, assets_root, "*/*/*/metadata.yaml") if p.name == "metadata.yaml"]
-    hits = [hit for path in targets for hit in find_canonical_name_mismatch(path, assets_root)]
+    targets = [p for p in _iter_files(files, assets_path, "*/*/*/metadata.yaml") if p.name == "metadata.yaml"]
+    hits = [hit for path in targets for hit in find_canonical_name_mismatch(path, assets_path)]
     sys.exit(1 if _report(hits, "Canonical names", "enforced-automatically") else 0)
 
 
 @cli.command(name="check-requirements-pinned")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
+@assets_path_optional_option
 @click.option(
     "--strict",
     is_flag=True,
     default=False,
     help="Exit non-zero on findings. Off by default while the catalog is being pinned.",
 )
-def check_requirements_pinned_command(files: Sequence[Path], assets_root: str = "assets", strict: bool = False) -> None:
+def check_requirements_pinned_command(
+    files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT, strict: bool = False
+) -> None:
     """Report dependencies in specialized AIM images that are not pinned to an exact version."""
     targets = [
-        p for p in _iter_files(files, assets_root, "**/image/*") if p.name in {"requirements.txt", "pyproject.toml"}
+        p for p in _iter_files(files, assets_path, "**/image/*") if p.name in {"requirements.txt", "pyproject.toml"}
     ]
     hits: List[str] = []
     for path in targets:
@@ -276,11 +278,13 @@ _ROCM_SYSEXIT_RE = re.compile(r"sys\.exit")
 
 @cli.command(name="check-profile-env-vars-no-secrets")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
-def check_profile_env_vars_no_secrets_command(files: Sequence[Path], assets_root: str = "assets") -> None:
+@assets_path_optional_option
+def check_profile_env_vars_no_secrets_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail when a profile env_vars block contains a secret key name."""
     targets = [
-        p for p in _iter_files(files, assets_root, "**/profiles/*.yaml") if p.suffix.lower() in {".yaml", ".yml"}
+        p
+        for p in _iter_files(files, assets_path, f"**/{PROFILES_DIRNAME}/*.yaml")
+        if p.suffix.lower() in {".yaml", ".yml"}
     ]
     hits: List[str] = []
     for path in targets:
@@ -299,10 +303,10 @@ def check_profile_env_vars_no_secrets_command(files: Sequence[Path], assets_root
 
 @cli.command(name="check-rocm-canary")
 @click.argument("files", nargs=-1, type=click.Path(path_type=Path))
-@assets_root_option
-def check_rocm_canary_command(files: Sequence[Path], assets_root: str = "assets") -> None:
+@assets_path_optional_option
+def check_rocm_canary_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail when a Dockerfile ROCm torch canary uses bare print without sys.exit()."""
-    targets = [p for p in _iter_files(files, assets_root, "**/image/Dockerfile") if p.name == "Dockerfile"]
+    targets = [p for p in _iter_files(files, assets_path, "**/image/Dockerfile") if p.name == "Dockerfile"]
     hits: List[str] = []
     for path in targets:
         content = path.read_text(encoding="utf-8", errors="replace")

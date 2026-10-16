@@ -1,0 +1,453 @@
+<!--
+Copyright © Advanced Micro Devices, Inc., or its affiliates.
+
+SPDX-License-Identifier: MIT
+-->
+
+# AMD Inference Microservice deployment guide
+
+This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
+{% if aim_deployment.is_base %} any supported model {% else %} {{ aim_deployment.model_name }} model {% endif %}in
+various environments. Follow these instructions to quickly get started with running an AI model on AMD accelerators.
+This guide assumes {{ aim_deployment.accelerator_model }} accelerator on the target system.
+
+## Prerequisites
+
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+* AMD Instinct™ GPU with ROCm support (e.g., MI300X, MI325X)
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+* AMD Radeon™ Pro GPU with ROCm support (e.g., W7900, R9700)
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+* AMD EPYC™ CPU (e.g., EPYC_ZEN4, EPYC_ZEN5, EPYC_9965)
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+* Docker installed and configured with GPU support
+{% elif aim_deployment.accelerator_type.value == "cpu" %}
+* Docker installed and configured
+{% endif %}
+{% if aim_deployment.hf_token %}
+* Access to model repositories (Hugging Face account with appropriate permissions for gated models)
+{% endif %}
+
+## 1. Docker deployment
+
+### 1.1 Running the container
+
+```bash
+docker run \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8000:8000 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+
+{% if aim_deployment.hf_token %}
+Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for gated models)
+{% endif %}
+{% if aim_deployment.is_base %}
+Where <ANY_SUPPORTED_MODEL> is the model ID of any supported model (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
+{% endif %}
+
+### 1.2 Customizing deployment with environment variables
+
+Customize your deployment with optional environment variables:
+
+```bash
+docker run \
+  -e AIM_PRECISION=fp16 \
+  -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
+  -e AIM_METRIC=throughput \
+  -e AIM_PORT=8080 \
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8080:8080 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+
+## 2. Model caching for production
+
+For production environments, pre-download models to a persistent cache:
+
+### 2.1 Download model to cache
+
+```bash
+# Create persistent cache directory
+mkdir -p /path/to/model-cache
+
+# Download model using the download-to-cache command
+docker run --rm \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+  -v /path/to/model-cache:/workspace/model-cache \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
+{% if aim_deployment.is_base %}
+  download-to-cache --model-id <ANY_SUPPORTED_MODEL>
+{% else %}
+  download-to-cache --model-id {{ aim_deployment.model_name }}
+{% endif %}
+```
+
+### 2.2 Run with pre-cached model
+
+```bash
+docker run \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+  -v /path/to/model-cache:/workspace/model-cache \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8000:8000 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+
+## 3. Kubernetes deployment
+
+### 3.1 Deployment
+
+It is possible to deploy AIM using Kubernetes. In this doc a sample Kubernetes deployment manifest is provided.
+
+{% if aim_deployment.is_base %}
+
+Create secret for Hugging Face token to download models:
+
+```bash
+kubectl create secret generic hf-token \
+    --from-literal="hf-token=<YOUR_HUGGINGFACE_TOKEN>" \
+    -n <YOUR_K8S_NAMESPACE>
+```
+
+{% endif %}
+Create `deployment.yaml` with the following content:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minimal-aim-deployment
+  labels:
+    app: minimal-aim-deployment
+spec:
+  progressDeadlineSeconds: 3600
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minimal-aim-deployment
+  template:
+    metadata:
+      labels:
+        app: minimal-aim-deployment
+    spec:
+      containers:
+        - name: minimal-aim-deployment
+          image: {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+          imagePullPolicy: Always
+          env:
+            - name: AIM_PRECISION
+              value: "auto"
+            - name: AIM_ACCELERATOR_COUNT
+              value: "{{ aim_deployment.accelerator_count }}"
+            - name: AIM_ACCELERATOR_MODEL
+              value: "auto"
+            - name: AIM_ENGINE
+              value: "vllm_omni"
+            - name: AIM_METRIC
+              value: "latency"
+            - name: AIM_LOG_LEVEL_ROOT
+              value: "INFO"
+            - name: AIM_LOG_LEVEL
+              value: "INFO"
+            - name: AIM_PORT
+              value: "8000"
+            {% if aim_deployment.hf_token %}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: hf-token
+          {% endif %}
+          {% if aim_deployment.is_base %}
+            - name: AIM_MODEL_ID
+              value: <ANY_SUPPORTED_MODEL>
+          {% endif %}
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              memory: "16Gi"
+              {% if aim_deployment.accelerator_type.value == "gpu" %}
+              cpu: "4"
+              amd.com/gpu: "{{ aim_deployment.accelerator_count }}"
+              {% elif aim_deployment.accelerator_type.value == "cpu" %}
+              cpu: "{{ aim_deployment.accelerator_count }}"
+              {% endif %}
+            limits:
+              memory: "16Gi"
+              {% if aim_deployment.accelerator_type.value == "gpu" %}
+              cpu: "4"
+              amd.com/gpu: "{{ aim_deployment.accelerator_count }}"
+              {% elif aim_deployment.accelerator_type.value == "cpu" %}
+              cpu: "{{ aim_deployment.accelerator_count }}"
+              {% endif %}
+          startupProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+            periodSeconds: 10
+            failureThreshold: 360
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+          volumeMounts:
+            - name: ephemeral-storage
+              mountPath: /tmp
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: ephemeral-storage
+          emptyDir:
+            sizeLimit: 256Gi
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi
+```
+
+Create a service configuration in `service.yaml` file:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: minimal-aim-deployment
+  labels:
+    app: minimal-aim-deployment
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  selector:
+    app: minimal-aim-deployment
+```
+
+The deployment can be customized further based on your requirements. It can be applied to Kubernetes cluster using `kubectl`:
+
+```bash
+kubectl apply -f . -n <YOUR_K8S_NAMESPACE>
+```
+
+## 4. Testing your deployment
+
+To test the deployment, an API call can be executed. To do that a pod should be found and then port forwarding should be
+set up.
+
+```bash
+kubectl port-forward service/minimal-aim-deployment 8000:80 -n <YOUR_K8S_NAMESPACE>
+```
+
+After executing port forwarding, the API becomes accessible locally at `http://localhost:8000/v1/`.
+
+### 4.1 Health check
+
+This AIM serves the vLLM-Omni diffusion API, not the OpenAI text-completion API. Confirm the service is ready before
+sending requests:
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+The service answers with HTTP 200 and the served model once it is ready to accept requests. The Kubernetes startup and
+readiness probes in section 3.1 use this endpoint.
+
+{# skip_lines drops the file's copyright header, which pre-commit requires in assets/. #}
+{{ read_file('templates/API.md') | skip_lines(6) | trim }}
+
+## 5. Advanced deployment scenarios
+
+### 5.1 Using custom profiles
+
+```bash
+# Create custom profile directory
+mkdir -p custom-profiles
+
+# Add your custom profile YAML
+cat > custom-profiles/vllm-custom-profile.yaml << EOF
+{% if not aim_deployment.is_base %}
+aim_id: {{ aim_deployment.model_name }}
+model_id: {{ aim_deployment.model_name }}
+{% endif %}
+metadata:
+  accelerator_count: {{ aim_deployment.accelerator_count }}
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+  accelerator_model: MI300X
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+  accelerator_model: W7900
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+  accelerator_model: EPYC_9965
+{% endif %}
+  accelerator_type: {{ aim_deployment.accelerator_type.value }}
+  engine: vllm_omni
+  metric: throughput
+  precision: fp16
+  {% if aim_deployment.is_base %}
+  type: general
+  {% else %}
+  type: unoptimized
+  {% endif %}
+
+engine_args:
+  gpu-memory-utilization: 0.95
+  dtype: float16
+  tensor-parallel-size: {{ aim_deployment.accelerator_count }}
+  max-num-batched-tokens: 1024
+  max-model-len: 2048
+
+env_vars:
+  VLLM_DO_NOT_TRACK: "1"
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+EOF
+
+# Run with custom profile
+docker run \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+  -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom/general \
+{% else %}
+  -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
+{% endif %}
+  -e AIM_METRIC=throughput \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8000:8000 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+
+{% if aim_deployment.profile_name_to_override_automatic_selection %}
+### 5.2 Using profiles excluded from automatic selection
+
+To use a profile excluded from automatic selection, an environment variable `AIM_PROFILE_ID` should be set with the
+desired profile identifier. Profile identifier is the filename of the profile without the `.yaml` extension.
+
+```bash
+docker run \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+  -e AIM_PROFILE_ID={{ aim_deployment.profile_name_to_override_automatic_selection }} \
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8000:8000 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+{% endif %}
+
+## 6. Monitoring and troubleshooting
+
+### 6.1 Getting help on the commands
+
+A general help command is available as follows:
+
+```bash
+docker run \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
+  --help
+```
+
+A help command for specific subcommands is also available:
+
+```bash
+docker run \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
+  <subcommand> --help
+```
+
+### 6.2 Enabling detailed logging
+
+```bash
+docker run \
+  -e AIM_LOG_LEVEL=DEBUG \
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+{% if aim_deployment.accelerator_type.value == "gpu" %}
+  --device=/dev/kfd --device=/dev/dri \
+{% endif %}
+  -p 8000:8000 \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }}
+```
+
+### 6.3 Checking profile selection results
+
+It is possible to check which profile AIM selects based on the provided environment variables.
+
+```bash
+docker run \
+  -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
+  -e AIM_PRECISION=fp16 \
+{% if aim_deployment.accelerator_family.value == "instinct" %}
+  -e AIM_ACCELERATOR_MODEL=MI300X \
+{% elif aim_deployment.accelerator_family.value == "radeon" %}
+  -e AIM_ACCELERATOR_MODEL=W7900 \
+{% elif aim_deployment.accelerator_family.value == "epyc" %}
+  -e AIM_ACCELERATOR_MODEL=EPYC_9965 \
+{% endif %}
+{% if aim_deployment.hf_token %}
+  -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
+{% endif %}
+{% if aim_deployment.is_base %}
+  -e AIM_MODEL_ID=<ANY_SUPPORTED_MODEL> \
+{% endif %}
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
+  dry-run
+```
+
+### 6.4 List available profiles
+
+```bash
+docker run \
+  {{ aim_deployment.docker_info.registry_namespace }}/{{ aim_deployment.repository }}:{{ aim_deployment.tag }} \
+  list-profiles
+```
+
+## 7. Security considerations
+
+{% if aim_deployment.hf_token %}
+* Never include HF_TOKEN in Dockerfiles or commit it to version control
+{% endif %}
+* Use Kubernetes secrets or environment variables for sensitive credentials
+* Implement appropriate network policies to restrict access to your deployment

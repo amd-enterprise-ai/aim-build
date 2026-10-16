@@ -879,6 +879,85 @@ class TestEvaluateCommand:
         assert result.exit_code == 0
         assert harness.evaluate.call_args.args[0].get("output_dir") == str(tmp_path / "from-config")
 
+    def test_without_start_service_no_server_is_spawned(self, runner, mocker):
+        """The default scores the service that already serves the image."""
+        harness = mocker.Mock()
+        harness.evaluate.return_value = HarnessResult(success=True, summary="scored")
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+        mock_start = mocker.patch("entrypoint._start_server_in_background")
+        mock_wait = mocker.patch("entrypoint._wait_for_harness_readiness")
+
+        result = runner.invoke(cli, ["evaluate"])
+
+        assert result.exit_code == 0
+        mock_start.assert_not_called()
+        mock_wait.assert_called_once()
+
+    def test_start_service_spawns_and_stops_the_server(self, mock_config, runner, mocker):
+        """--start-service makes the CLI own the server for the run."""
+        harness = mocker.Mock()
+        harness.evaluate.return_value = HarnessResult(success=True, summary="scored")
+        server_process = mocker.Mock()
+        server_process.poll.return_value = None
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+        mocker.patch("entrypoint.AIMConfig.from_environment", return_value=mock_config)
+        mock_start = mocker.patch("entrypoint._start_server_in_background", return_value=server_process)
+        mock_wait = mocker.patch("entrypoint._wait_for_harness_readiness")
+
+        result = runner.invoke(cli, ["evaluate", "--start-service", "--startup-timeout", "60"])
+
+        assert result.exit_code == 0
+        mock_start.assert_called_once_with(mock_config)
+        served_url = f"http://localhost:{mock_config.port}"
+        assert mock_wait.call_args.args[1] == served_url
+        assert mock_wait.call_args.args[2] == 60
+        assert harness.evaluate.call_args.args[0].service_url == served_url
+        server_process.send_signal.assert_called_once()
+
+    def test_start_service_stops_the_server_when_evaluate_raises(self, mock_config, runner, mocker):
+        """A failed evaluation must not leave the server running in the container."""
+        harness = mocker.Mock()
+        harness.evaluate.side_effect = RuntimeError("backend crashed")
+        server_process = mocker.Mock()
+        server_process.poll.return_value = None
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+        mocker.patch("entrypoint.AIMConfig.from_environment", return_value=mock_config)
+        mocker.patch("entrypoint._start_server_in_background", return_value=server_process)
+        mocker.patch("entrypoint._wait_for_harness_readiness")
+
+        result = runner.invoke(cli, ["evaluate", "--start-service"])
+
+        assert result.exit_code == 1
+        server_process.send_signal.assert_called_once()
+
+    def test_a_service_url_wins_over_start_service(self, runner, mocker):
+        """Someone else owns the service at the URL, so the CLI starts no server."""
+        harness = mocker.Mock()
+        harness.evaluate.return_value = HarnessResult(success=True, summary="scored")
+
+        mocker.patch("entrypoint.configure_logging")
+        mocker.patch("entrypoint._resolve_profile_dict", return_value={})
+        mocker.patch("aim_runtime.harness.discovery.discover_harness", return_value=harness)
+        mock_start = mocker.patch("entrypoint._start_server_in_background")
+        mock_wait = mocker.patch("entrypoint._wait_for_harness_readiness")
+
+        result = runner.invoke(cli, ["evaluate", "--start-service", "--service-url", "http://svc:8000"])
+
+        assert result.exit_code == 0
+        mock_start.assert_not_called()
+        assert mock_wait.call_args.args[1] == "http://svc:8000"
+        assert mock_wait.call_args.args[3] is None
+        assert harness.evaluate.call_args.args[0].service_url == "http://svc:8000"
+
 
 class TestListProfilesCommand:
     """Test suite for list-profiles command with JSON/YAML output."""

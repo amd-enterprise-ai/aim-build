@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+failure-threshold: error
+# The hook's `entry` (.pre-commit-config.yaml) pins hadolint to an exact
+# image digest, but that digest is bumped by hand, in a PR that isn't
+# necessarily about the Dockerfiles it then lints. A newer hadolint can add
+# or reclassify a rule; threshold at `error` means such a rule can't turn
+# the merge gate red on a PR unrelated to that bump.
+#
+# DL3008/DL3013 are NOT listed here: those exceptions are scoped to their
+# exact line via an inline `# hadolint ignore=<rule>` comment in the
+# Dockerfile itself (with a reason above it), since they apply to one
+# specific file's pattern rather than a repo-wide convention. Revisit this
+# when the assets/ layout is refactored — the per-file comments may need to
+# move. DL3003 is the exception: it recurs identically (a conditional/
+# fallback `cd` into a directory created earlier in the very same shell
+# block) across several base Dockerfiles and openfold3, so it's ignored
+# globally rather than duplicating the same inline comment everywhere.
+ignored:
+  - DL3003 # `cd` into a directory created or entered earlier in the very
+    # same conditional RUN (LMCache source installs) or shell `||`
+    # fallback (openfold3's clone-or-checkout) — WORKDIR is an
+    # unconditional instruction and can't stand in for these.

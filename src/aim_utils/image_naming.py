@@ -373,6 +373,21 @@ def get_image_ref_label(image_ref: str) -> str:
         return image_ref.rsplit("/", 1)[-1]
 
 
+def predecessor_model_image_name(accelerator: str, canonical_name_sanitized: str, target_id: str) -> Optional[str]:
+    """Return the target-qualified repository name for a model-dedicated base.
+
+    Return ``None`` for an unknown accelerator or a target ID that does not
+    match the model name.
+    """
+    family = AcceleratorFamily.try_parse(accelerator)
+    if family is None or target_id != canonical_name_sanitized:
+        return None
+    return (
+        f"aim-{family.value}-{_TARGET_QUALIFIED_MODEL_PREFIX}{target_id}"
+        f"{_TARGET_QUALIFIED_MODEL_SEPARATOR}{canonical_name_sanitized}"
+    )
+
+
 def parse_image_ref(image_ref: str) -> tuple[str, str, str, str]:
     """Parse a full Docker image reference into its components.
 

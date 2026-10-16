@@ -16,3 +16,6 @@ base_image:
 # omni base.  Layer 1 lays down /workspace/model/src/harness.py so the
 # VllmOmniDiffusionHarness is auto-discovered at runtime.
 specialized: true
+templates:
+  deployment: docs/templates/DEPLOYMENT.vllm-omni.md
+  readme: docs/templates/README.md

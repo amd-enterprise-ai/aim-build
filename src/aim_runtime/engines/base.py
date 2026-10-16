@@ -93,10 +93,11 @@ class BaseEngine(ABC):
         """Serialize engine args to a CLI list using this engine's format."""
         return engine_args_to_cli_list(engine_args, self.ARGS_FORMAT)
 
-    def needs_runtime_supervisor(self, profile: "Profile") -> bool:
-        """Whether serve() must supervise the engine (vs. os.execv replace).
+    def needs_adapter_watcher(self, profile: "Profile") -> bool:
+        """Whether serve() should run the in-pod adapter watcher.
 
-        Base engines run via os.execv. Engines that need an in-pod sidecar
-        process (e.g. the dynamic-mode LoRA watcher) override this.
+        Engines that need an in-pod sidecar process (e.g. the dynamic-mode LoRA
+        watcher) override this. The result controls watcher creation, not the
+        general engine supervision policy.
         """
         return False

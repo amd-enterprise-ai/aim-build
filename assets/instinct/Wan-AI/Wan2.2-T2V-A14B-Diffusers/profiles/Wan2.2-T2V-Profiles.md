@@ -8,13 +8,13 @@ SPDX-License-Identifier: MIT
 
 Documentation for the USP-based profiles used by the
 `Wan-AI/Wan2.2-T2V-A14B-Diffusers` AIM running on the **vLLM-Omni** engine on
-AMD Instinct GPUs (**MI300X, MI325X, MI350X, MI355X**).
+AMD Instinct GPUs (**MI300X, MI325X, MI350X, MI355X**, and **MI350P**).
 
 All profiles for this model follow the **same structure** and only differ in
 **scale** — the number of GPUs (`usp` / `vae-patch-parallel-size` / `gpu_count`),
 which are always kept equal to each other — and the **GPU model** they target.
 
-For each supported GPU we ship the same 8-profile set (4 GPU counts ×
+For most supported GPUs we ship the same 8-profile set (4 GPU counts ×
 latency/throughput). Using MI300X as the example:
 
 | Profile | GPUs | `usp` | `vae-patch-parallel-size` | metric |
@@ -28,14 +28,31 @@ latency/throughput). Using MI300X as the example:
 | `vllm_omni-mi300x-fp16-tp8-latency-usp8.yaml`      | 8 | 8 | 8 | latency |
 | `vllm_omni-mi300x-fp16-tp8-throughput-usp8.yaml`   | 8 | 8 | 8 | throughput |
 
-The same eight files exist for the other GPUs with the `mi300x` slug replaced
-by `mi325x`, `mi350x`, or `mi355x` (and `metadata.accelerator_model` set to
-`MI325X` / `MI350X` / `MI355X` accordingly) — 32 profile files in total. The
-engine args and env vars are currently identical across GPUs (all
-`type: unoptimized`); per-GPU tuning can be applied later.
+The same eight files exist for **MI325X**, **MI350X**, and **MI355X** with the
+`mi300x` slug replaced by `mi325x`, `mi350x`, or `mi355x` (and
+`metadata.accelerator_model` set accordingly). **MI350P** currently ships only
+the `usp1` pair (latency + throughput) — **34 profile files in total**. The
+engine args and env vars are identical across GPUs; only the
+`metadata.accelerator_model` and the maturity (`metadata.type`) differ.
 
 The `tp1` (usp1) profiles are marked `primary: true` — the default selection
 for each GPU model.
+
+### Profile maturity (`metadata.type`)
+
+Maturity is tracked per profile and now varies by GPU as tuning progresses:
+
+| GPU | `usp1` | `usp2` | `usp4` | `usp8` |
+|---|---|---|---|---|
+| MI300X | preview | unoptimized | preview | optimized |
+| MI325X | unoptimized | unoptimized | unoptimized | unoptimized |
+| MI350X | optimized | optimized | optimized | optimized |
+| MI355X | optimized | optimized | optimized | optimized |
+| MI350P | optimized | — | — | — |
+
+`unoptimized` = shipped but not yet tuned/validated, `preview` = validated, and
+`optimized` = benchmarked and production-ready. Per-GPU tuning continues, so
+these states change over time.
 
 > **Model scope:** Wan2.2-T2V-A14B is a **text-to-video (T2V)** model. The same
 > profiling approach (USP-based parallelism, VAE parallelism, the vLLM-Omni
@@ -151,11 +168,10 @@ env_vars:
   VLLM_DO_NOT_TRACK: '1'
 ```
 
-> **Note (work in progress):** several of these values are still being tuned.
-> All profiles are currently `type: unoptimized`, and the throughput profiles
-> carry a `#remove later` comment on `manual_selection_only`; these are temporary
-> and should move to `type: preview` (and drop the comment) before release. Keys
-> set to `null` are rendered as valueless engine flags (e.g. `--no-async-scheduling`).
+> **Note:** some values are still being tuned per GPU, so maturity varies by
+> profile (see [Profile maturity](#profile-maturity-metadatatype) above) rather
+> than being uniform. Keys set to `null` are rendered as valueless engine flags
+> (e.g. `--no-async-scheduling`).
 
 ### Field notes
 
@@ -176,8 +192,8 @@ env_vars:
 - **`NCCL_MIN_NCHANNELS: '112'`** — tune NCCL channel count for the multi-GPU
   collective traffic that USP/VAE parallelism generates.
 - **`TORCH_BLAS_PREFER_HIPBLASLT: '1'`** — prefer hipBLASLt for GEMMs on ROCm.
-- **`metadata.type`** — currently `unoptimized` for all profiles (WIP; should
-  become `preview` before release).
+- **`metadata.type`** — profile maturity; varies per GPU/scale (see
+  [Profile maturity](#profile-maturity-metadatatype)).
 
 ---
 

@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aim_common.object_model import AcceleratorFamily
+from aim_utils.asset_utils import PROFILES_DIRNAME
 from aim_utils.image_naming import (
     LEGACY_VLLM_BASE_TARGET_ID,
     ImageName,
@@ -63,8 +64,6 @@ BASE_DIRNAME = "base"
 CONFIG_SUBDIR = "config"
 #: Filename (under :data:`CONFIG_SUBDIR`) declaring the engines a base ships.
 ENGINES_FILENAME = "engines.yaml"
-#: Sub-directory of a model/base asset dir holding profile YAML files.
-PROFILES_DIRNAME = "profiles"
 
 
 def _sanitize_name(name: str) -> str:

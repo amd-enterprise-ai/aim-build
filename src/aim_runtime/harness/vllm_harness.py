@@ -286,6 +286,10 @@ class VLLMHarness(ModelHarness):
     def _capability_checks(config: HarnessConfig, service_url: str, model_id: str, timeout: float) -> list[CheckResult]:
         """Run the checks whose capability the profile declares, skip the rest."""
 
+        tool_avoidance_check = functools.partial(
+            check_tool_avoidance, reasoning_enabled=config.has_capability("reasoning")
+        )
+
         def gated(capability: str, *runners: tuple[str, ServiceCheck]) -> list[CheckResult]:
             declared = config.has_capability(capability)
             reason = f"Profile does not declare the {capability} capability"
@@ -298,7 +302,7 @@ class VLLMHarness(ModelHarness):
             *gated(
                 "tool_calling",
                 ("tool_invocation", check_tool_invocation),
-                ("tool_avoidance", check_tool_avoidance),
+                ("tool_avoidance", tool_avoidance_check),
             ),
             *gated(
                 "structured_outputs",

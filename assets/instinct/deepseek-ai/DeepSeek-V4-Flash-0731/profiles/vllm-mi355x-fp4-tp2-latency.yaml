@@ -1,0 +1,44 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: deepseek-ai/DeepSeek-V4-Flash-0731
+model_id: deepseek-ai/DeepSeek-V4-Flash-0731
+metadata:
+  accelerator_count: 2
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  capabilities:
+    reasoning: true
+  engine: vllm
+  metric: latency
+  precision: fp4
+  primary: true
+  type: optimized
+engine_args:
+  block-size: 256
+  compilation-config:
+    cudagraph_mode: FULL_DECODE_ONLY
+    mode: 3
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  enable-auto-tool-choice: null
+  enable-expert-parallel: null
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: fp8
+  max-model-len: -1
+  max-num-batched-tokens: 8192
+  max-num-seqs: 512
+  no-enable-log-requests: null
+  reasoning-parser: deepseek_v4
+  speculative-config:
+    draft_sample_method: greedy
+    method: dspark
+    num_speculative_tokens: 7
+  tensor-parallel-size: 2
+  tokenizer-mode: deepseek_v4
+  tool-call-parser: deepseek_v4
+  trust-remote-code: null
+env_vars:
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

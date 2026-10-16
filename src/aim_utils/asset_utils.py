@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+import functools
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import click
 
@@ -17,6 +18,9 @@ from aim_utils.image_naming import parse_image_name
 from aim_utils.yaml_utils import read_yaml, save_yaml
 
 logger = logging.getLogger(__name__)
+
+
+PROFILES_DIRNAME = "profiles"
 
 
 def infer_accelerator_family_from_path(assets_path: Path) -> AcceleratorFamily:
@@ -40,6 +44,52 @@ def infer_accelerator_family_from_repo(repository: str) -> AcceleratorFamily:
     return AcceleratorFamily(parsed.accelerator)
 
 
+@functools.cache
+def infer_engine_from_profiles(asset_directory: Path) -> Engine:
+    """Infer and cache the asset engine from its profiles.
+
+    Use the first primary profile in path order, or the first profile with an
+    engine. Skip unreadable profiles. Default to vLLM if no engine is found or
+    the selected engine is unknown.
+    """
+    return _read_engine_from_profiles(asset_directory)
+
+
+def _read_engine_from_profiles(asset_directory: Path) -> Engine:
+    profiles_directory = asset_directory / PROFILES_DIRNAME
+    if not profiles_directory.is_dir():
+        return Engine.VLLM
+
+    engine_value: Optional[str] = None
+
+    for profile_path in sorted(profiles_directory.rglob("*.yaml")):
+        try:
+            profile = read_yaml(profile_path)
+        except Exception as e:
+            logger.warning(f"Could not read profile '{profile_path}': {e}")
+            continue
+
+        engine = get_value(profile, "metadata.engine")
+        if not engine:
+            continue
+
+        if engine_value is None:
+            engine_value = engine
+
+        if get_value(profile, "metadata.primary"):
+            engine_value = engine
+            break
+
+    if engine_value is None:
+        return Engine.VLLM
+
+    try:
+        return Engine(engine_value)
+    except ValueError:
+        logger.warning(f"Unknown engine '{engine_value}' in profiles of '{asset_directory}'; assuming vLLM")
+        return Engine.VLLM
+
+
 def infer_accelerator_type_from_family(accelerator_family: AcceleratorFamily) -> AcceleratorType:
     mapping = {
         AcceleratorFamily.INSTINCT: AcceleratorType.GPU,
@@ -50,8 +100,21 @@ def infer_accelerator_type_from_family(accelerator_family: AcceleratorFamily) ->
     return mapping.get(accelerator_family, AcceleratorType.GPU)
 
 
+ENGINE_TO_BASE_FOLDER_MAPPING = {
+    Engine.VLLM: ".",
+    Engine.VLLM_OMNI: "vllm-omni",
+    Engine.BENTOML: "bentoml",
+}
+
+
+def _engine_folder_name(engine: Engine) -> str:
+    return ENGINE_TO_BASE_FOLDER_MAPPING.get(engine, engine.value)
+
+
 @dataclass
 class AssetDescriptor:
+    """A base or model-specific asset and its engine, location, and accelerator family."""
+
     is_base: bool
     is_custom: bool
     directory: Path
@@ -62,12 +125,7 @@ class AssetDescriptor:
 
     @property
     def engine_folder_name(self) -> str:
-        ENGINE_TO_BASE_FOLDER_MAPPING = {
-            Engine.VLLM: ".",
-            Engine.VLLM_OMNI: "vllm-omni",
-            Engine.BENTOML: "bentoml",
-        }
-        return ENGINE_TO_BASE_FOLDER_MAPPING.get(self.engine, self.engine.value)
+        return _engine_folder_name(self.engine)
 
     @property
     def accelerator_family_folder_name(self) -> str:
@@ -99,83 +157,130 @@ class Initializer(ABC):
             self.initialize(descriptor)
 
     def get_reference_descriptors(self) -> List[AssetDescriptor]:
-        return DefaultAssetManager(self.assets_path).get_descriptors()
+        return DefaultAssetManager.for_path(self.assets_path).get_descriptors()
 
     @abstractmethod
     def initialize(self, descriptor: AssetDescriptor) -> None:
         pass
 
 
+DEFAULT_ASSETS_ROOT = "assets"
+
+_T = TypeVar("_T", bound="AssetManager")
+
+
 class AssetManager(ABC):
 
-    def __init__(self, assets_path: str, enforce_double_quotes: bool) -> None:
-        self.assets_path = assets_path
-        self.assets_path_object = Path(self.assets_path)
-        if not self.assets_path_object.exists():
-            raise ValueError(f"Assets directory does not exist: {self.assets_path}")
-
-        self.built_in_model_specific = self.__get_model_specific()
-        self.built_in_general = self.__get_general()
-
-        self.custom_general = self.__get_general(is_custom=True)
-        self.custom_model_specific = self.__get_model_specific(is_custom=True)
-
+    def __init__(self, enforce_double_quotes: bool = False) -> None:
         self.enforce_double_quotes = enforce_double_quotes
 
-    def __get_general(self, is_custom: bool = False) -> List[AssetDescriptor]:
+        self.built_in_model_specific: List[AssetDescriptor] = []
+        self.built_in_general: List[AssetDescriptor] = []
+        self.built_in_general_engine: List[AssetDescriptor] = []
+        self.custom_general: List[AssetDescriptor] = []
+        self.custom_general_engine: List[AssetDescriptor] = []
+        self.custom_model_specific: List[AssetDescriptor] = []
 
-        def create_descriptor(assets_path: Path, engine: Engine, is_custom: bool = False) -> Optional[AssetDescriptor]:
-            if is_custom:
-                descriptor_directory = assets_path / "custom"
-            else:
-                descriptor_directory = assets_path / "base"
+    @classmethod
+    def for_path(cls: Type[_T], assets_path: Union[str, Path], **kwargs) -> _T:
+        """Create an instance scoped to a single accelerator directory (e.g. 'assets/instinct')."""
+        path_object = Path(assets_path)
+        if not path_object.exists():
+            raise ValueError(f"Assets path does not exist: {path_object}")
+        instance = cls(**kwargs)
+        instance._extend_descriptors_from_path(path_object)
+        return instance
 
-            descriptor = AssetDescriptor(
-                directory=descriptor_directory,
-                is_base=True,
-                is_custom=False,
-                engine=engine,
-                accelerator_family=infer_accelerator_family_from_path(Path(self.assets_path)),
+    @classmethod
+    def for_root(cls: Type[_T], assets_root: Union[str, Path] = DEFAULT_ASSETS_ROOT, **kwargs) -> _T:
+        """Create an instance that aggregates all accelerator directories under assets_root."""
+        root = Path(assets_root)
+        if not root.exists():
+            raise ValueError(f"Assets root does not exist: {root}")
+        instance = cls(**kwargs)
+        for path in discover_assets_paths(root):
+            instance._extend_descriptors_from_path(path)
+        return instance
+
+    @classmethod
+    def for_optional_path(cls: Type[_T], assets_path: Optional[Union[str, Path]], **kwargs) -> _T:
+        """Create an instance scoped to assets_path, or aggregating assets_root if assets_path is falsy."""
+        if assets_path:
+            return cls.for_path(assets_path, **kwargs)
+        else:
+            return cls.for_root(**kwargs)
+
+    def _extend_descriptors_from_path(self, assets_path: Path) -> None:
+        af = infer_accelerator_family_from_path(assets_path)
+        self.built_in_model_specific.extend(self.__get_model_specific(assets_path, af, is_custom=False))
+        base_directory = assets_path / "base"
+        self.built_in_general.append(
+            AssetDescriptor(directory=base_directory, is_base=True, is_custom=False, accelerator_family=af)
+        )
+        self.built_in_general_engine.extend(self.__get_engine_descriptors(base_directory, af, is_custom=False))
+
+        custom_directory = assets_path / "custom"
+        if custom_directory.exists():
+            self.custom_general.append(
+                AssetDescriptor(directory=custom_directory, is_base=True, is_custom=True, accelerator_family=af)
             )
+        self.custom_general_engine.extend(self.__get_engine_descriptors(custom_directory, af, is_custom=True))
+        self.custom_model_specific.extend(self.__get_model_specific(custom_directory, af, is_custom=True))
 
-            descriptor_directory = descriptor_directory / descriptor.engine_folder_name
-
-            if descriptor_directory.exists():
-                return descriptor
-
-            return None
-
-        result: list[AssetDescriptor] = []
+    @staticmethod
+    def __get_engine_descriptors(
+        base_directory: Path,
+        accelerator_family: AcceleratorFamily,
+        is_custom: bool,
+    ) -> List[AssetDescriptor]:
+        result = []
         for engine in Engine:
-            engine_base = create_descriptor(self.assets_path_object, engine, is_custom=is_custom)
-            if engine_base:
-                result.append(engine_base)
+            if engine == Engine.VLLM:
+                continue
+
+            engine_directory = base_directory / _engine_folder_name(engine)
+            if not engine_directory.exists():
+                logger.debug(f"Optional directory does not exist: {engine_directory}")
+                continue
+
+            result.append(
+                AssetDescriptor(
+                    directory=engine_directory,
+                    is_base=True,
+                    is_custom=is_custom,
+                    engine=engine,
+                    accelerator_family=accelerator_family,
+                )
+            )
 
         return result
 
-    def __get_model_specific(self, is_custom: bool = False) -> List[AssetDescriptor]:
-        if not self.assets_path_object.exists():
-            logger.debug(f"Optional directory does not exist: {self.assets_path_object}")
+    @staticmethod
+    def __get_model_specific(
+        assets_path: Path,
+        accelerator_family: AcceleratorFamily = AcceleratorFamily.INSTINCT,
+        is_custom: bool = False,
+    ) -> List[AssetDescriptor]:
+        if not assets_path.exists():
+            logger.debug(f"Optional directory does not exist: {assets_path}")
             return []
 
         result = []
-        for org_dir in self.assets_path_object.iterdir():
+        for org_dir in assets_path.iterdir():
             if not org_dir.is_dir() or org_dir.name.startswith("."):
                 continue
 
-            if org_dir == self.assets_path_object / "base":
+            if org_dir == assets_path / "base":
                 continue
 
-            if org_dir == self.assets_path_object / "custom":
+            if org_dir == assets_path / "custom":
                 continue
 
-            if org_dir == self.assets_path_object / "custom" / "profiles":
+            if org_dir == assets_path / "custom" / "profiles":
                 continue
 
             for model_dir in org_dir.iterdir():
                 if not model_dir.is_dir() or model_dir.name.startswith("."):
-                    continue
-                if not model_dir.exists():
                     continue
                 result.append(
                     AssetDescriptor(
@@ -184,7 +289,8 @@ class AssetManager(ABC):
                         is_base=False,
                         is_custom=is_custom,
                         directory=model_dir,
-                        accelerator_family=infer_accelerator_family_from_path(Path(self.assets_path)),
+                        engine=infer_engine_from_profiles(model_dir),
+                        accelerator_family=accelerator_family,
                     )
                 )
 
@@ -209,28 +315,31 @@ class AssetManager(ABC):
                 for descriptor in self.built_in_model_specific:
                     if descriptor.org == canonical_name.org and descriptor.model_name == canonical_name.model_name:
                         result.append(descriptor)
-                        break
 
             if not skip_custom:
                 for descriptor in self.custom_model_specific:
                     if descriptor.org == canonical_name.org and descriptor.model_name == canonical_name.model_name:
                         result.append(descriptor)
-                        break
 
             if not skip_base:
                 result.extend(self.built_in_general)
+                result.extend(self.built_in_general_engine)
 
-            if not skip_custom:
-                if not skip_base:
+                if not skip_custom:
                     result.extend(self.custom_general)
+                    result.extend(self.custom_general_engine)
 
-            return result
+            if supported_engines is None:
+                supported_engines = set(Engine)
+
+            return [d for d in result if d.engine in supported_engines]
 
         if not skip_model_specific:
             result.extend(self.built_in_model_specific)
 
         if not skip_base:
             result.extend(self.built_in_general)
+            result.extend(self.built_in_general_engine)
 
         if not skip_custom:
             if not skip_model_specific:
@@ -238,6 +347,7 @@ class AssetManager(ABC):
 
             if not skip_base:
                 result.extend(self.custom_general)
+                result.extend(self.custom_general_engine)
 
         if supported_engines is None:
             supported_engines = set(Engine)
@@ -357,37 +467,55 @@ class AssetManager(ABC):
 
 class DefaultAssetManager(AssetManager):
 
-    def __init__(self, assets_path: str):
-        super().__init__(assets_path, enforce_double_quotes=False)
-
     def get_yamls(self, canonical_name: Optional[CanonicalName] = None) -> List[Path]:
         raise NotImplementedError()
 
 
 def assets_path_option(func: Callable[..., None]) -> Callable[..., None]:
-    """Reusable decorator for assets_path option."""
+    """Reusable decorator for required assets_path option."""
     return click.option(
         "--assets_path",
         type=click.Path(exists=True, dir_okay=True, file_okay=False),
         required=True,
-        help="Path to the root assets directory",
+        help="Path to a specific accelerator assets directory (e.g., 'assets/instinct')",
     )(func)
 
 
-def assets_root_option(func: Callable[..., None]) -> Callable[..., None]:
-    """Reusable decorator for assets_root option."""
+def assets_path_optional_option(func: Callable[..., None]) -> Callable[..., None]:
+    """Reusable decorator for optional assets_path option. When omitted, all accelerator directories under the default root are used."""
     return click.option(
-        "--assets_root",
+        "--assets_path",
         type=click.Path(exists=True, dir_okay=True, file_okay=False),
-        default="assets",
-        help="Root directory containing accelerator-specific asset directories",
+        required=False,
+        default=None,
+        help=f"Path to a specific accelerator assets directory. When omitted, all directories under '{DEFAULT_ASSETS_ROOT}' are processed.",
     )(func)
 
 
-def discover_assets_paths(assets_root: str) -> List[str]:
+def confirm_root_wide_mutation(assets_path: Optional[str], action: str, yes: bool = False) -> None:
+    """Prompt for confirmation before a mutating command runs across every accelerator directory."""
+    if assets_path is None and not yes:
+        click.confirm(
+            f"No --assets_path given; this will {action} across every accelerator directory "
+            f"under '{DEFAULT_ASSETS_ROOT}'. Continue?",
+            abort=True,
+        )
+
+
+def yes_option(func: Callable[..., None]) -> Callable[..., None]:
+    """Reusable decorator for skipping the root-wide mutation confirmation prompt (e.g. in scripts/CI)."""
+    return click.option(
+        "--yes",
+        "-y",
+        is_flag=True,
+        default=False,
+        help="Skip the confirmation prompt when running a mutating command across every accelerator directory.",
+    )(func)
+
+
+def discover_assets_paths(assets_root: Path) -> List[Path]:
     """Discover all accelerator-specific asset directories under assets_root."""
-    root = Path(assets_root)
-    paths = sorted(str(d) for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
+    paths = sorted(d for d in assets_root.iterdir() if d.is_dir() and not d.name.startswith("."))
     if not paths:
         logger.warning(f"No asset directories found under '{assets_root}'")
     return paths

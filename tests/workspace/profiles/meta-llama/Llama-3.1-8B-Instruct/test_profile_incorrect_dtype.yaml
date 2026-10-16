@@ -19,8 +19,6 @@ engine_args:
   no-enable-chunked-prefill: null
 env_vars:
   VLLM_DO_NOT_TRACK: '1'
-  VLLM_USE_V1: '0'
-  VLLM_USE_TRITON_FLASH_ATTN: '0'
   HIP_FORCE_DEV_KERNARG: '1'
   NCCL_MIN_NCHANNELS: '112'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'

@@ -24,6 +24,7 @@ from aim_runtime.evaluation.backends.base import RawRun
 from aim_runtime.evaluation.backends.lm_eval import LmEvalBackend, _kill_after, _log_output, parse_document
 from aim_runtime.evaluation.config import (
     BACKEND_ARG_APPLY_CHAT_TEMPLATE,
+    BACKEND_ARG_GEN_KWARGS,
     BACKEND_ARG_MODEL_TYPE,
     BACKEND_ARG_TOKENIZER,
     BACKEND_ARG_TRUST_REMOTE_CODE,
@@ -268,6 +269,99 @@ class TestArgv:
 
     def test_the_chat_template_flag_is_off_unless_asked_for(self, backend, settings, tmp_path):
         assert "--apply_chat_template" not in backend.build_argv(settings, tmp_path)
+
+    def test_gen_kwargs_are_passed_as_one_json_argument(self, backend, tmp_path):
+        """lm-eval merges them over the task's own, so only the named keys change."""
+        settings = EvaluationSettings(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            backend_args={
+                BACKEND_ARG_APPLY_CHAT_TEMPLATE: True,
+                BACKEND_ARG_GEN_KWARGS: {"until": ["</s>", "<|im_end|>"]},
+            },
+        )
+
+        argv = backend.build_argv(settings, tmp_path)
+
+        assert argv[argv.index("--gen_kwargs") + 1] == json.dumps({"until": ["</s>", "<|im_end|>"]})
+
+    def test_gen_kwargs_are_dropped_without_the_chat_template(self, backend, tmp_path, caplog):
+        """A base model keeps the task's own stops, including "Question:"."""
+        settings = EvaluationSettings(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            backend_args={BACKEND_ARG_GEN_KWARGS: {"until": ["</s>", "<|im_end|>"]}},
+        )
+
+        with caplog.at_level(logging.INFO):
+            argv = backend.build_argv(settings, tmp_path)
+
+        assert "--gen_kwargs" not in argv
+        assert "Ignoring gen_kwargs" in caplog.text
+        assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
+
+    def test_no_gen_kwargs_leaves_the_task_defaults_alone(self, backend, settings, tmp_path):
+        assert "--gen_kwargs" not in backend.build_argv(settings, tmp_path)
+
+    def test_an_empty_gen_kwargs_restores_the_task_stops(self, backend, tmp_path):
+        """A caller's gen_kwargs replaces the shipped one whole, so {} keeps every task's own."""
+        settings = EvaluationSettings.resolve(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            overrides={"backend_args": {BACKEND_ARG_GEN_KWARGS: {}}},
+        )
+
+        argv = backend.build_argv(settings, tmp_path)
+
+        assert "--apply_chat_template" in argv
+        assert "--gen_kwargs" not in argv
+
+    def test_gen_kwargs_that_are_not_a_mapping_are_ignored(self, backend, tmp_path, caplog):
+        """lm-eval would read a string as key=value pairs and send a mangled key."""
+        settings = EvaluationSettings(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            backend_args={BACKEND_ARG_APPLY_CHAT_TEMPLATE: True, BACKEND_ARG_GEN_KWARGS: "until=Question:"},
+        )
+
+        with caplog.at_level(logging.WARNING):
+            argv = backend.build_argv(settings, tmp_path)
+
+        assert "--gen_kwargs" not in argv
+        assert "expected a mapping" in caplog.text
+
+    def test_gen_kwargs_warn_for_a_task_they_were_not_chosen_for(self, backend, tmp_path, caplog):
+        """They reach every generate_until task, so another task may lose its own stops."""
+        settings = EvaluationSettings(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            tasks=("gsm8k", "bbh"),
+            backend_args={
+                BACKEND_ARG_APPLY_CHAT_TEMPLATE: True,
+                BACKEND_ARG_GEN_KWARGS: {"until": ["</s>", "<|im_end|>"]},
+            },
+        )
+
+        with caplog.at_level(logging.WARNING):
+            argv = backend.build_argv(settings, tmp_path)
+
+        assert "--gen_kwargs" in argv
+        assert [record.getMessage() for record in caplog.records if "bbh" in record.getMessage()]
+
+    def test_gen_kwargs_for_gsm8k_alone_do_not_warn(self, backend, tmp_path, caplog):
+        settings = EvaluationSettings(
+            model=MODEL,
+            service_url=SERVICE_URL,
+            backend_args={
+                BACKEND_ARG_APPLY_CHAT_TEMPLATE: True,
+                BACKEND_ARG_GEN_KWARGS: {"until": ["</s>", "<|im_end|>"]},
+            },
+        )
+
+        with caplog.at_level(logging.WARNING):
+            backend.build_argv(settings, tmp_path)
+
+        assert "gen_kwargs" not in caplog.text
 
     def test_a_model_that_may_not_be_instruction_tuned_only_warns(self, backend, tmp_path, caplog):
         """CI warns rather than refusing, and the name is the only signal available."""

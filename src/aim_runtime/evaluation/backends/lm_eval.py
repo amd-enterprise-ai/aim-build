@@ -37,6 +37,7 @@ from aim_runtime.evaluation.backends.base import BackendInfo, EvaluationBackend,
 from aim_runtime.evaluation.config import (
     BACKEND_ARG_APPLY_CHAT_TEMPLATE,
     BACKEND_ARG_BATCH_SIZE,
+    BACKEND_ARG_GEN_KWARGS,
     BACKEND_ARG_MAX_GEN_TOKS,
     BACKEND_ARG_MAX_MODEL_LENGTH,
     BACKEND_ARG_MODEL_TYPE,
@@ -48,6 +49,7 @@ from aim_runtime.evaluation.config import (
     BACKEND_OUTPUT_SUBDIR,
     COMPLETIONS_PATH,
     FAILURE_TAIL_LINES,
+    GEN_KWARGS_TASKS,
     LM_EVAL_BACKEND_ARG_DEFAULTS,
     LM_EVAL_BACKEND_ARGS,
     LM_EVAL_SCORE_METRIC_NAMES,
@@ -158,6 +160,15 @@ class LmEvalBackend(EvaluationBackend):
         if backend_args.get(BACKEND_ARG_APPLY_CHAT_TEMPLATE):
             argv.append("--apply_chat_template")
             _warn_if_not_instruction_tuned(settings.model)
+            # These stops assume the model ends its own turn; untemplated, a base
+            # model needs the task's own "Question:" stop.
+            gen_kwargs = _gen_kwargs(backend_args, settings.tasks)
+            if gen_kwargs:
+                argv += ["--gen_kwargs", json.dumps(gen_kwargs)]
+        elif backend_args.get(BACKEND_ARG_GEN_KWARGS):
+            # Info, not a warning: the shipped config always sets gen_kwargs, so
+            # every untemplated run takes this branch.
+            logger.info("Ignoring gen_kwargs: it is only applied with apply_chat_template")
 
         return argv
 
@@ -488,6 +499,28 @@ def _as_float(value: Any) -> float | None:
 def _tail(output: str | None) -> str:
     lines = [line.strip() for line in (output or "").splitlines() if line.strip()]
     return " ".join(lines[-FAILURE_TAIL_LINES:]) or "no output"
+
+
+def _gen_kwargs(backend_args: Mapping[str, Any], tasks: tuple[str, ...]) -> Mapping[str, Any] | None:
+    """The ``gen_kwargs`` to pass, or ``None`` when there are none or they are malformed.
+
+    lm-eval reads a non-object value as ``key=value`` pairs, so a YAML string
+    would reach the request payload as a mangled key rather than fail.
+    """
+    gen_kwargs = backend_args.get(BACKEND_ARG_GEN_KWARGS)
+    if not gen_kwargs:
+        return None
+    if not isinstance(gen_kwargs, Mapping):
+        logger.warning("Ignoring gen_kwargs: expected a mapping, got %s", type(gen_kwargs).__name__)
+        return None
+    others = sorted(set(tasks) - set(GEN_KWARGS_TASKS))
+    if others:
+        logger.warning(
+            "gen_kwargs apply to every generate_until task, not only %s; check that they suit: %s",
+            ", ".join(GEN_KWARGS_TASKS),
+            ", ".join(others),
+        )
+    return gen_kwargs
 
 
 def _warn_if_not_instruction_tuned(model: str) -> None:

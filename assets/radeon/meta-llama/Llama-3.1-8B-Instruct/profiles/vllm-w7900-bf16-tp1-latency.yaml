@@ -14,19 +14,20 @@ metadata:
   primary: true
   type: preview
 engine_args:
-  disable-uvicorn-access-log: null
-  distributed_executor_backend: mp
+  async-scheduling: null
+  attention-config:
+    backend_per_kind:
+      full_attention: TRITON_ATTN
   dtype: bfloat16
   gpu-memory-utilization: 0.9
   max-model-len: 32768
-  max-num-batched-tokens: 1024
-  max-num-seqs: 512
-  no-enable-log-requests: null
-  no-enable-prefix-caching: null
-  no-trust-remote-code: null
+  max-num-batched-tokens: 4096
+  max-num-seqs: 128
   tensor-parallel-size: 1
+  trust-remote-code: null
 env_vars:
   FLASH_ATTENTION_TRITON_AMD_ENABLE: 'TRUE'
   TORCH_BLAS_PREFER_HIPBLASLT: '1'
   TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL: '1'
   VLLM_DO_NOT_TRACK: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn

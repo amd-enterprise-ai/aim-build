@@ -8,3 +8,6 @@ base_image:
   base_repository: aim-epyc-base
   base_tag: "0.13"
   registry_host: docker.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

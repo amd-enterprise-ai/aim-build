@@ -157,6 +157,17 @@ BACKEND_ARG_MAX_MODEL_LENGTH = "max_length"
 #: Tokenizer to score with; defaults to the served model.
 BACKEND_ARG_TOKENIZER = "tokenizer"
 
+#: lm-eval ``--gen_kwargs``: generation settings lm-eval merges key by key over
+#: each task's own, so naming ``until`` replaces only the stop strings. Passed
+#: only with the chat template. A caller's ``gen_kwargs`` replaces the shipped
+#: one whole; ``{}`` restores every task's own.
+BACKEND_ARG_GEN_KWARGS = "gen_kwargs"
+
+#: The tasks the shipped ``gen_kwargs`` were chosen for. Evaluating any other
+#: task with ``gen_kwargs`` set logs a warning, because lm-eval applies them to
+#: every ``generate_until`` task.
+GEN_KWARGS_TASKS = ("gsm8k",)
+
 #: Every ``backend_args`` key the lm-eval adapter understands. Anything else is
 #: reported and ignored, because passing an unrecognised key through to a
 #: subprocess argument list is how a typo becomes a wrong measurement.
@@ -169,14 +180,16 @@ LM_EVAL_BACKEND_ARGS = frozenset(
         BACKEND_ARG_MAX_GEN_TOKS,
         BACKEND_ARG_MAX_MODEL_LENGTH,
         BACKEND_ARG_TOKENIZER,
+        BACKEND_ARG_GEN_KWARGS,
     }
 )
 
-#: What each overridable ``backend_args`` key falls back to. The three keys of
+#: What each overridable ``backend_args`` key falls back to. The four keys of
 #: :data:`LM_EVAL_BACKEND_ARGS` missing here have no static default: the two
-#: booleans are simply off when unset, and ``tokenizer`` follows the served
-#: model, which is known only per run. Annotated as a ``Mapping`` so a caller
-#: that tries to mutate the table fails type checking.
+#: booleans are simply off when unset, ``tokenizer`` follows the served model,
+#: which is known only per run, and unset ``gen_kwargs`` leaves each task's own.
+#: Annotated as a ``Mapping`` so a caller that tries to mutate the table fails
+#: type checking.
 LM_EVAL_BACKEND_ARG_DEFAULTS: Mapping[str, str | int] = {
     BACKEND_ARG_MODEL_TYPE: LM_EVAL_MODEL_TYPE,
     BACKEND_ARG_BATCH_SIZE: BATCH_SIZE,

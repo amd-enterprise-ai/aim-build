@@ -252,7 +252,6 @@ metadata:
   accelerator_model: W7900
   accelerator_type: gpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: fp16
   type: unoptimized

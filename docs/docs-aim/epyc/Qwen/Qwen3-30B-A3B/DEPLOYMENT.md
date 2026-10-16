@@ -237,7 +237,6 @@ metadata:
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: fp16
   type: unoptimized

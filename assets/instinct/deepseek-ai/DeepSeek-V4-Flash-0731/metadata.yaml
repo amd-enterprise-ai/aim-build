@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      description:
+        full: "DeepSeek-V4-Flash-0731 is the official release of the DeepSeek-V4-Flash family from DeepSeek AI, a 284 billion total parameter mixture-of-experts (MoE) language model with 13 billion active parameters. It supports a 1 million token context window and thinking and non-thinking modes with configurable reasoning effort (low, high, max). Post-trained for agentic and coding workloads, it supports tool calling. Architecture uses hybrid Compressed Sparse Attention and Heavily Compressed Attention with Manifold-Constrained Hyper-Connections. The checkpoint is mixed precision, with MoE expert weights in FP4 and attention, norm, and router weights in FP8, and it ships a fused DSpark draft module for speculative decoding. Licensed under MIT."
+      hfToken:
+        required: false
+      model:
+        canonicalName: "deepseek-ai/DeepSeek-V4-Flash-0731"
+        publisher: "DeepSeek"
+        source: "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731"
+        tags:
+        - "text-generation"
+        - "chat"
+        - "reasoning"
+        - "tool-use"
+        - "coding"
+        variants:
+        - "deepseek-ai/DeepSeek-V4-Flash-0731"
+      release:
+        notes: ""
+      title: "DeepSeek V4 Flash 0731"
+org:
+  opencontainers:
+    image:
+      authors: ""
+      description: "284B MoE (13B active) with 1M context, reasoning and tool use, and a fused DSpark draft for speculative decoding."
+      documentation: ""
+      licenses: "MIT"
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+      vendor: "AMD"

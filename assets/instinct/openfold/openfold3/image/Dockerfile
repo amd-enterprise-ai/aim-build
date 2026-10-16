@@ -27,6 +27,9 @@ ARG OPENFOLD3_SHA=c4771653c5d0a3ebb0b3af71b05efd64bc44ee86
 ARG OPENFOLD3_VERSION=0.5.0
 
 # System packages
+# Versions aren't pinned: this package set already moves with the upstream
+# FROM tag (rocm/pytorch), so pinning here would drift independently of it.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     git \
@@ -39,6 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install OF3 Python deps into the base image's Python (which has ROCm torch).
 # Must happen BEFORE miniforge; otherwise conda's pip shadows system pip.
 # Excludes NVIDIA-specific packages from OF3's pyproject.toml (nvidia-cutlass, cuda-python).
+# Versions intentionally track whatever this ROCm base image ships rather than
+# a fixed set validated against one specific base tag.
+# hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install \
     pytorch-lightning \
@@ -105,6 +111,11 @@ RUN git init -q /opt/openfold3 \
 
 # Apply source patches against OF3 0.5.0:
 #  - of3_torch_compile_champion: ROCm torch.compile (Inductor) recipe.
+#  - of3_apb_kernels: restore APB / diffusion kernel dispatch that v0.5.0
+#    hardcoded off (fp32 attention). Runner YAML
+#    memory.eval.use_triton_triangle_kernels (and cueq / deepspeed / lma)
+#    again selects the kernel; fp32 attention is used only when none is on.
+#    Drop once upstream restores this.
 #  - of3_msa_server_deadline: gives the MSA client a wall clock. Upstream's
 #    submit/status/download loops are `while True` and the RATELIMIT path
 #    resubmits forever, so a throttled query outlives any serving timeout while
@@ -120,24 +131,32 @@ RUN git init -q /opt/openfold3 \
 #    unconditionally — TemplatePreprocessor is the served one, the other two
 #    are patched for consistency. Drop once upstream stops forking for a
 #    single worker.
+#  - of3_bucketing: optional token/atom padding to a fixed shape ladder
+#    (OPENFOLD3_BUCKET=1). Off unless the serving profile turns it on.
+#    Token rungs 256..2048; larger requests compile at exact size.
+#    Override with OPENFOLD3_TOKEN_BUCKETS / OPENFOLD3_ATOM_BUCKETS.
 # --check runs first so a stale patch fails the build with the conflicting
 # hunks named instead of half-patching the tree.
+# Rebuild the OpenFold3 base image.
 COPY --link patches /workspace/patches
-RUN cd /opt/openfold3 \
- && git apply --check /workspace/patches/of3_torch_compile_champion.patch \
+WORKDIR /opt/openfold3
+RUN git apply --check /workspace/patches/of3_torch_compile_champion.patch \
  && git apply         /workspace/patches/of3_torch_compile_champion.patch \
+ && git apply --check /workspace/patches/of3_apb_kernels.patch \
+ && git apply         /workspace/patches/of3_apb_kernels.patch \
  && git apply --check /workspace/patches/of3_msa_server_deadline.patch \
  && git apply         /workspace/patches/of3_msa_server_deadline.patch \
  && git apply --check /workspace/patches/of3_template_no_fork.patch \
- && git apply         /workspace/patches/of3_template_no_fork.patch
+ && git apply         /workspace/patches/of3_template_no_fork.patch \
+ && git apply --check /workspace/patches/of3_bucketing.patch \
+ && git apply         /workspace/patches/of3_bucketing.patch
 
-WORKDIR /opt/openfold3
 # openfold3 takes its version from setuptools-scm, i.e. from `git describe`. A
 # commit-pinned checkout carries no tag, so the install would otherwise be
 # named from the project's fallback_version plus the git suffix — plausible
 # but wrong. OF3 gates checkpoints on this version
 # (entry_points/validator.py), so it reports the release rather than a guess.
-RUN SETUPTOOLS_SCM_PRETEND_VERSION_FOR_OPENFOLD3=${OPENFOLD3_VERSION} pip install --no-deps -e .
+RUN SETUPTOOLS_SCM_PRETEND_VERSION_FOR_OPENFOLD3=${OPENFOLD3_VERSION} pip install --no-deps --no-cache-dir -e .
 
 # BentoML service wrapper. Copy only the package files so unrelated context
 # (README.md) does not invalidate the layer cache or leak into the image.
@@ -155,6 +174,9 @@ COPY --link bentofile.yaml /workspace/model/bentofile.yaml
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -e .
 
+# Version intentionally tracks whatever ROCm stack the base image ships,
+# same reasoning as the OF3 deps above.
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir amdsmi
 
 # Conda at the END of PATH so system python3/pip3 (which have ROCm torch) win.

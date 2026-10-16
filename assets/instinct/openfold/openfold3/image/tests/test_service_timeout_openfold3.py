@@ -70,7 +70,7 @@ def _traffic_config(tree: ast.Module) -> ast.Dict:
 
 
 def _traffic_keys(tree: ast.Module) -> set[str]:
-    return {k.value for k in _traffic_config(tree).keys if isinstance(k, ast.Constant)}
+    return {k.value for k in _traffic_config(tree).keys if isinstance(k, ast.Constant) and isinstance(k.value, str)}
 
 
 def _method(tree: ast.Module, name: str) -> ast.FunctionDef:
@@ -148,7 +148,10 @@ def test_work_that_cannot_finish_is_refused_before_it_starts(service_tree):
 
 
 def test_the_service_sheds_load_instead_of_queueing_indefinitely(service_tree):
-    assert "max_concurrency" in _traffic_keys(service_tree)
+    traffic_keys = _traffic_keys(service_tree)
+
+    assert len(traffic_keys) == len(_traffic_config(service_tree).keys)
+    assert "max_concurrency" in traffic_keys
 
 
 def test_shedding_scales_with_the_accelerator_count(service_tree, service_source):

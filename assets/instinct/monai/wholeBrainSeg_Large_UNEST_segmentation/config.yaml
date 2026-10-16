@@ -11,3 +11,6 @@ base_image:
   base_repository: aim-instinct-monai-wholebrainseg-large-unest-segmentation-base
   base_tag: "0.13.0"
 specialized: true
+templates:
+  deployment: docs/templates/DEPLOYMENT.bentoml.md
+  readme: docs/templates/README.md

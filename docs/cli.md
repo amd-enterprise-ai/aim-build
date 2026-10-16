@@ -383,16 +383,17 @@ settings:
 
 ## Evaluate (`evaluate`)
 
-Runs accuracy evaluation against an already-running AIM service using [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness), and reports the score as a `HarnessResult`. Unlike `benchmark`, it never starts the server itself — it waits for the service serving the image. Exit code is `0` on success, `1` on failure.
+Runs accuracy evaluation against a running AIM service using [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness), and reports the score as a `HarnessResult`. By default it starts no server: it waits for the service that already serves the image. Pass `--start-service` to make the CLI start the server for the profile and stop it after the run, the way `validate` does. Exit code is `0` on success, `1` on failure.
 
 **Options:**
 - `--profile <name>`: Profile name. Defaults to the auto-detected profile.
 - `--service-url <url>`: URL of the running service. Defaults to `http://localhost:{profile.port}`.
-- `--config <path>`: Evaluation config YAML with per-run overrides (tasks, `num_fewshot`, `limit`, `data_dir`). Defaults to the config shipped in the image.
+- `--config <path>`: Evaluation config YAML with per-run overrides (tasks, `num_fewshot`, `limit`, `data_dir`). Defaults to the config shipped in the image. Under the chat template, the shipped config replaces the stop strings of lm-eval's tasks with `</s>` and `<|im_end|>`, so a model that restates the question is not cut off at `Question:`. `backend_args: {gen_kwargs: {}}` restores the stops of each task.
 - `--timeout <seconds>` (default: `1800`): Timeout for the evaluation run.
 - `--output-dir <path>`: Directory for result files. Omit to report to stdout only.
 - `--startup-timeout <seconds>` (default: `120`): How long to wait for service readiness before evaluating.
 - `--output-format <json|table|ci>` (default: `json`).
+- `--start-service`: Start the model server for the profile, score it, then stop it. Use this where nothing else serves the profile, such as a batch container that runs one command. An explicit `--service-url` still wins, and no server is started. The flag also changes the wait: with `--start-service`, the CLI waits up to `--startup-timeout` for the service at that URL to answer, and without it, the CLI evaluates at once.
 
 **Output files** (written to `--output-dir`):
 
@@ -417,6 +418,9 @@ kubectl exec <pod> -- \
 # From an environment that pip-installed this package (dev box, CI runner),
 # where the console script does exist
 aim-runtime evaluate --service-url http://localhost:8000 --output-dir ./results
+
+# In a batch container that runs one command, where nothing serves the profile yet
+python3 /workspace/entrypoint.py evaluate --start-service --output-dir /artifacts
 ```
 
 ### The evaluation backend in AIM images

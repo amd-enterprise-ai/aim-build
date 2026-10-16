@@ -7,3 +7,6 @@ base_image:
   base_repository: aim-base
   base_tag: "0.11"
   registry_host: docker.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

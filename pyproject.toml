@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "2026.9"
+version = "2026.14"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -53,6 +53,7 @@ test = [
     "pytest-cov>=7.1.0",
     "pytest==9.1.1",
     "pytest-mock>=3.14.0",
+    "pytest-xdist>=3.6.1",
     "coverage",
     "pytest-html",
     "pytest-json-report"
@@ -74,21 +75,22 @@ db = [
 # Dependencies for development (CI, pre-commit hooks, linting, running utils, etc.)
 dev = [
     "black>=26.5.1",
-    "flake8>=7.3.0",
-    "isort>=8.0.1",
     "jinja2>=3.1.6",
-    "mypy>=2.1.0",
+    "mypy>=2.3.1",
     "pre-commit>=4.6.0",
     "pytest-cov>=7.1.0",
     "pytest==9.1.1",
     "pytest-mock>=3.14.0",
+    "pytest-xdist>=3.6.1",
     # Added for development scripts and tests that require HTTP requests.
     "requests>=2.34.2",
+    # Kept at an exact version so a dev venv lints identically to the pinned
+    # ruff-pre-commit hook in .pre-commit-config.yaml.
+    "ruff==0.16.8",
     "semver>=3,<4",
     "tomli>=2.4.1",
     "pandas==2.3.3",
     "openpyxl==3.1.5",
-    "pydantic==2.13.4",
     # PostgreSQL adapter for validation database and pgcli
     "psycopg[binary]>=3.3.4",
     "sqlmodel>=0.0.38",
@@ -132,11 +134,21 @@ aim_runtime = ["benchmark-config.yaml"]
 target-version = ['py312']
 line-length = 120
 
-[tool.isort]
-profile = "black"
-py_version = 312
-line_length = 120
-known_first_party = ["aim_runtime"]
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [".git", "__pycache__", "venv", ".venv", ".github", "build", "dist", "docker"]
+
+[tool.ruff.lint]
+# Deliberately narrow: pycodestyle (E, W), pyflakes (F) and import sorting (I).
+# Ruff's much wider default rule set is not enabled.
+select = ["E", "F", "W", "I"]
+# E203 conflicts with black's slice formatting; black already enforces the line
+# length, so E501 would only duplicate it.
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aim_runtime"]
 
 [tool.mypy]
 python_version = "3.12"

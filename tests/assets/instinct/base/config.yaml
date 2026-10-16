@@ -6,3 +6,6 @@ base_image:
   base_registry_namespace: rocm
   base_repository: vllm
   base_tag: rocm7.0.0_vllm_0.11.2_20251210
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

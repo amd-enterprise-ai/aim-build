@@ -8,6 +8,8 @@ metadata:
   accelerator_count: 1
   accelerator_model: W7900
   accelerator_type: gpu
+  capabilities:
+    reasoning: true
   engine: vllm
   metric: latency
   precision: bf16

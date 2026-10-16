@@ -12,3 +12,6 @@ base_image:
   base_repository: aim-instinct-openfold-openfold3-base
   base_tag: "0.13.5"
 specialized: true
+templates:
+  deployment: docs/templates/DEPLOYMENT.bentoml.md
+  readme: docs/templates/README.md

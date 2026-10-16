@@ -17,6 +17,7 @@ from aim_utils.image_naming import (
     get_model_image_name,
     parse_image_name,
     parse_image_ref,
+    predecessor_model_image_name,
 )
 
 
@@ -592,3 +593,30 @@ class TestParserNamespaceDisjointness:
         assert parsed.is_base is False
         assert parsed.base_target_id == "openfold-openfold3"
         assert parsed.canonical_name_sanitized == "openfold-openfold3"
+
+
+class TestPredecessorModelImageName:
+    """Target-qualified repository names for model-dedicated bases."""
+
+    def test_model_dedicated_base_keeps_the_duplicated_segment(self):
+        assert (
+            predecessor_model_image_name("instinct", "openfold-openfold3", "openfold-openfold3")
+            == "aim-instinct-target-openfold-openfold3-model-openfold-openfold3"
+        )
+
+    def test_legacy_vllm_base_has_no_predecessor(self):
+        assert predecessor_model_image_name("instinct", "google-gemma-3-1b-it", LEGACY_VLLM_BASE_TARGET_ID) is None
+
+    def test_named_engine_base_has_no_predecessor(self):
+        assert predecessor_model_image_name("instinct", "mit-boltz2", "bentoml") is None
+
+    def test_unknown_accelerator_has_no_predecessor(self):
+        assert predecessor_model_image_name("nonsense", "openfold-openfold3", "openfold-openfold3") is None
+
+    def test_the_predecessor_differs_from_the_current_name(self):
+        current = get_model_image_name("instinct", "openfold-openfold3", "openfold-openfold3").public
+        predecessor = predecessor_model_image_name("instinct", "openfold-openfold3", "openfold-openfold3")
+
+        assert current == "aim-instinct-model-openfold-openfold3"
+        assert predecessor != current
+        assert parse_image_name(predecessor).canonical_name_sanitized == "openfold-openfold3"

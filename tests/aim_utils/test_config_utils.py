@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,15 +51,16 @@ def sample_config_file(temp_assets_dir):
     model_dir = temp_assets_dir / "org" / "model"
     model_dir.mkdir(parents=True)
     config_file = model_dir / "config.yaml"
-    config_file.write_text(
-        """
+    config_file.write_text("""
 base_image:
   registry_host: ghcr.io
   base_registry_namespace: test-namespace
   base_repository: test-repo
   base_tag: 1.0.0
-"""
-    )
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md
+""")
     return config_file
 
 
@@ -75,6 +77,8 @@ ACCELERATOR_CASES = [
             "expected_public_repository": "aim-base",  # Public backward-compatible name
             "expected_dockerfile": "docker/Dockerfile.aim-instinct-base",
             "expected_run_validation": True,
+            "expected_model_service_validation_supported": True,
+            "expected_integration_validation_supported": True,
             "expected_upstream_image_ref": "docker.io/vllm/vllm-openai-rocm:v0.16.0",
         },
     ),
@@ -89,7 +93,9 @@ ACCELERATOR_CASES = [
             "expected_canonical_repository": "aim-epyc-base",
             "expected_public_repository": "aim-epyc-base",  # Same as canonical
             "expected_dockerfile": "docker/Dockerfile.aim-epyc-base",
-            "expected_run_validation": False,
+            "expected_run_validation": True,
+            "expected_model_service_validation_supported": True,
+            "expected_integration_validation_supported": True,
             "expected_upstream_image_ref": "docker.io/amdih/zendnn_zentorch:vllm_v0.15.1_zentorch_v5.2.0_ubuntu22.04_r5.2_rc3",
         },
     ),
@@ -104,7 +110,9 @@ ACCELERATOR_CASES = [
             "expected_canonical_repository": "aim-radeon-base",
             "expected_public_repository": "aim-radeon-base",  # Same as canonical
             "expected_dockerfile": "docker/Dockerfile.aim-radeon-base",
-            "expected_run_validation": False,
+            "expected_run_validation": True,
+            "expected_model_service_validation_supported": True,
+            "expected_integration_validation_supported": True,
             "expected_upstream_image_ref": "docker.io/hyoon11/vllm-dev:20260317_81_py3.12_torch2.9_triton3.5_navi_upstream_89a77b1_ubuntu24.04",
         },
     ),
@@ -120,6 +128,8 @@ ACCELERATOR_CASES = [
             "expected_public_repository": "aim-cpu-base",  # Same as canonical
             "expected_dockerfile": "docker/Dockerfile.aim-cpu-base",
             "expected_run_validation": False,
+            "expected_model_service_validation_supported": False,
+            "expected_integration_validation_supported": False,
             "expected_upstream_image_ref": "docker.io/vllm/vllm-openai-cpu:v0.16.0",
         },
     ),
@@ -131,15 +141,16 @@ def write_base_config(tmp_path, accelerator, case, install_evaluation_deps=None)
     config_dir.mkdir(parents=True)
     config_file = config_dir / "config.yaml"
     evaluation_deps = "" if install_evaluation_deps is None else f"install_evaluation_deps: {install_evaluation_deps}\n"
-    config_file.write_text(
-        f"""
+    config_file.write_text(f"""
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md
 base_image:
   registry_host: {case["registry_host"]}
   base_registry_namespace: {case["base_registry_namespace"]}
   base_repository: {case["base_repository"]}
   base_tag: {case["base_tag"]}
-{evaluation_deps}"""
-    )
+{evaluation_deps}""")
     return config_file
 
 
@@ -157,15 +168,16 @@ def write_named_base_target_config(
     config_dir.mkdir(parents=True)
     config_file = config_dir / "config.yaml"
 
-    config_file.write_text(
-        f"""
+    config_file.write_text(f"""
 base_image:
   registry_host: {registry_host}
   base_registry_namespace: {base_registry_namespace}
   base_repository: {base_repository}
   base_tag: {base_tag}
-"""
-    )
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md
+""")
     return config_file
 
 
@@ -295,12 +307,10 @@ class TestCliGetBaseImageRef:
         model_dir = temp_assets_dir / "org3" / "model3"
         model_dir.mkdir(parents=True)
         config_file = model_dir / "config.yaml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 base_image:
   base_registry_namespace: namespace
-"""
-        )
+""")
 
         result = runner.invoke(
             cli, ["get-base-image-ref", "--canonical_name", "org3/model3", "--assets_path", str(temp_assets_dir)]
@@ -487,7 +497,7 @@ class TestCiBaseImageConfig:
             base_target_id=legacy_target.target_id,
             image_name=legacy_target.image_name,
             dockerfile=legacy_target.dockerfile,
-            run_validation=legacy_target.run_validation,
+            run_validation=legacy_target.model_service_validation_supported,
             upstream_image_ref=legacy_target.upstream_image_ref,
         )
 
@@ -499,6 +509,8 @@ class TestCiBaseImageConfig:
         )
         assert ci_config.dockerfile == case["expected_dockerfile"]
         assert ci_config.run_validation is case["expected_run_validation"]
+        assert legacy_target.model_service_validation_supported is case["expected_model_service_validation_supported"]
+        assert legacy_target.integration_validation_supported is case["expected_integration_validation_supported"]
         assert ci_config.upstream_image_ref == case["expected_upstream_image_ref"]
 
     def test_named_target_wins_over_colliding_specialized_target(self, tmp_path, monkeypatch, caplog):
@@ -542,7 +554,7 @@ class TestCiBaseImageConfig:
         ci_targets = resolve_ci_base_image_targets("instinct")
         specialized = next(t for t in ci_targets if t.target_id == "monai")
         # instinct enables validation by default.
-        assert specialized.run_validation is True
+        assert specialized.model_service_validation_supported is True
 
     def test_model_dump_json(self):
         """Test JSON serialization of CiBaseImageConfig."""
@@ -684,7 +696,11 @@ class TestBaseImageTargetNormalization:
                     "base_registry_namespace": "vllm",
                     "base_repository": "vllm-openai-rocm",
                     "base_tag": "v0.16.0",
-                }
+                },
+                "templates": {
+                    "readme": "docs/templates/README.md",
+                    "deployment": "docs/templates/DEPLOYMENT.md",
+                },
             }
         )
 
@@ -759,6 +775,10 @@ class TestBaseImageTargetNormalization:
                     "base_repository": "vllm-openai-rocm",
                     "base_tag": "v0.16.0",
                 },
+                "templates": {
+                    "readme": "docs/templates/README.md",
+                    "deployment": "docs/templates/DEPLOYMENT.md",
+                },
             }
         )
 
@@ -772,7 +792,6 @@ class TestCiBaseImageTarget:
             target_id=LEGACY_VLLM_BASE_TARGET_ID,
             image_name=ImageName(canonical="aim-instinct-base", public="aim-base"),
             dockerfile="docker/Dockerfile.aim-instinct-base",
-            run_validation=True,
             upstream_image_ref="docker.io/rocm/vllm:test",
         )
 
@@ -1226,6 +1245,10 @@ class TestBaseImageConfigTagValidator:
 class TestValidateConfigCommand:
     """Tests for the 'validate' CLI command."""
 
+    _TEMPLATES_BLOCK = (
+        "templates:\n" "  deployment: docs/templates/DEPLOYMENT.md\n" "  readme: docs/templates/README.md\n"
+    )
+
     def test_valid_config_file(self, runner, tmp_path):
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
@@ -1233,7 +1256,7 @@ class TestValidateConfigCommand:
             "  registry_host: ghcr.io\n"
             "  base_registry_namespace: silogen\n"
             "  base_repository: aim-base\n"
-            '  base_tag: "0.11"\n'
+            '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK
         )
         result = runner.invoke(cli, ["validate", str(config_file)])
         assert result.exit_code == 0
@@ -1245,7 +1268,7 @@ class TestValidateConfigCommand:
             "  registry_host: evil.io\n"
             "  base_registry_namespace: ns\n"
             "  base_repository: aim-base\n"
-            '  base_tag: "0.11"\n'
+            '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK
         )
         result = runner.invoke(cli, ["validate", str(config_file)])
         assert result.exit_code != 0
@@ -1269,7 +1292,249 @@ class TestValidateConfigCommand:
             "  registry_host: ghcr.io\n"
             "  base_registry_namespace: silogen\n"
             "  base_repository: aim-base\n"
-            "  base_tag: BROKEN\n"
+            "  base_tag: BROKEN\n" + self._TEMPLATES_BLOCK
+        )
+        result = runner.invoke(cli, ["validate", str(config_file)])
+        assert result.exit_code != 0
+
+    def test_missing_templates_reports_error(self, runner, tmp_path):
+        """A leaf without a templates: block fails validation (no fallback)."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+        )
+        result = runner.invoke(cli, ["validate", str(config_file)])
+        assert result.exit_code != 0
+        assert "templates" in result.output
+
+    def test_unreferenced_local_template_reports_error(self, runner, tmp_path, monkeypatch):
+        """A leaf shipping a local template it does not point at fails validation.
+
+        The templates: block correctly references its two local documents, so the
+        failure is driven purely by the unreferenced third file rather than by any
+        path-base mismatch — this keeps the test discriminating against the rule
+        under test, not against a broken path comparison.
+        """
+        # tmp_path stands in for the repo root the declared paths are relative to.
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: templates/DEPLOYMENT.md\n"
+            "  readme: templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "README.md").write_text("# local readme\n")
+        (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
+        (local_templates / "EXTRA.md").write_text("# stray unreferenced template\n")
+
+        result = runner.invoke(cli, ["validate", "config.yaml"])
+        assert result.exit_code != 0
+        assert "not referenced" in result.output
+        assert "EXTRA.md" in result.output
+
+    def test_referenced_local_template_passes(self, runner, tmp_path, monkeypatch):
+        """A leaf that points at its own local template validates cleanly."""
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: templates/DEPLOYMENT.md\n"
+            "  readme: templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "README.md").write_text("# local readme\n")
+        (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
+
+        result = runner.invoke(cli, ["validate", "config.yaml"])
+        assert result.exit_code == 0
+
+    def test_referenced_local_template_absolute_config_path_passes(self, runner, tmp_path, monkeypatch):
+        """Absolute config path + correctly-referenced local templates validates cleanly.
+
+        Guards two path-base bugs at once: the declared (repo-root-relative) paths and
+        the on-disk files must resolve to the same absolute path (1) whether the config
+        path handed to the CLI is relative or absolute, and (2) regardless of the process
+        working directory. The validator is invoked from an unrelated directory here — the
+        old ``Path.cwd()``-anchored comparison raised spurious "not referenced" errors in
+        exactly this case.
+        """
+        # tmp_path is the "repo root"; run from an unrelated cwd to prove independence.
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: templates/DEPLOYMENT.md\n"
+            "  readme: templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "README.md").write_text("# local readme\n")
+        (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
+
+        result = runner.invoke(cli, ["validate", str(config_file)])
+        assert result.exit_code == 0
+
+    def test_local_template_partials_and_assets_allowed(self, runner, tmp_path, monkeypatch):
+        """Underscore-prefixed Jinja partials (by filename OR parent directory) and
+        non-document assets (images) in a leaf templates/ dir are exempt from the
+        must-be-referenced rule.
+        """
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: templates/DEPLOYMENT.md\n"
+            "  readme: templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "README.md").write_text("# local readme\n")
+        (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
+        (local_templates / "_macros.md.j2").write_text("{% macro x() %}{% endmacro %}\n")
+        (local_templates / "_shared.md").write_text("shared include\n")
+        (local_templates / "diagram.png").write_bytes(b"\x89PNG\r\n")
+        # A document nested under a ``_``-prefixed directory is a grouped include
+        # and must be exempt even though its own filename is not ``_``-prefixed.
+        partials_dir = local_templates / "_partials"
+        partials_dir.mkdir()
+        (partials_dir / "intro.md").write_text("# grouped include\n")
+
+        result = runner.invoke(cli, ["validate", "config.yaml"])
+        assert result.exit_code == 0
+
+    def test_unreferenced_document_still_reported(self, runner, tmp_path, monkeypatch):
+        """A stray, non-partial document (e.g. NOTES.md) is still rejected."""
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: templates/DEPLOYMENT.md\n"
+            "  readme: templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "README.md").write_text("# local readme\n")
+        (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
+        (local_templates / "NOTES.md").write_text("# stray doc, not referenced\n")
+
+        result = runner.invoke(cli, ["validate", "config.yaml"])
+        assert result.exit_code != 0
+        assert "not referenced" in result.output
+        assert "NOTES.md" in result.output
+
+    @pytest.mark.parametrize("extra_template", [None, "NOTES.md", "api.md", "API.markdown", "nested/API.md"])
+    def test_named_api_include(self, runner, tmp_path, monkeypatch, extra_template):
+        """Only templates/API.md is a named include, not a declared output page."""
+        monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n'
+            "templates:\n"
+            "  deployment: docs/templates/DEPLOYMENT.bentoml.md\n"
+            "  readme: docs/templates/README.md\n"
+        )
+        local_templates = tmp_path / "templates"
+        local_templates.mkdir()
+        (local_templates / "API.md").write_text("### 4.2 Model API\n")
+        if extra_template:
+            extra_path = local_templates / extra_template
+            extra_path.parent.mkdir(parents=True, exist_ok=True)
+            extra_path.write_text("# Undeclared page\n")
+
+        result = runner.invoke(cli, ["validate", str(config_file)])
+
+        if extra_template:
+            assert result.exit_code != 0
+            assert "not referenced" in result.output
+            assert str(extra_path) in result.output
+        else:
+            assert result.exit_code == 0, result.output
+        assert f"local template '{local_templates / 'API.md'}'" not in result.output
+
+    @pytest.mark.parametrize(
+        "asset_path",
+        [
+            "assets/instinct/openfold/openfold3",
+            "assets/instinct/monai/swinunetr",
+            "assets/instinct/monai/wholeBrainSeg_Large_UNEST_segmentation",
+            "assets/instinct/Wan-AI/Wan2.2-T2V-A14B-Diffusers",
+        ],
+    )
+    def test_shipped_model_api_include_passes(self, runner, asset_path):
+        config_file = Path(__file__).resolve().parents[2] / asset_path / "config.yaml"
+
+        result = runner.invoke(cli, ["validate", str(config_file)])
+
+        assert result.exit_code == 0, result.output
+
+    def test_docs_standalone_false_passes(self, runner, tmp_path):
+        """A leaf may declare docs.standalone: false (non-runnable base)."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK + "docs:\n  standalone: false\n"
+        )
+        result = runner.invoke(cli, ["validate", str(config_file)])
+        assert result.exit_code == 0
+
+    def test_docs_unknown_key_reports_error(self, runner, tmp_path):
+        """An unknown key under docs: fails validation (extra=forbid)."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "base_image:\n"
+            "  registry_host: ghcr.io\n"
+            "  base_registry_namespace: silogen\n"
+            "  base_repository: aim-base\n"
+            '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK + "docs:\n  standalon: false\n"
         )
         result = runner.invoke(cli, ["validate", str(config_file)])
         assert result.exit_code != 0

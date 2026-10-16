@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT
 This guide provides step-by-step instructions for deploying AMD Inference Microservice (AIM) container for
  meta-llama/Llama-3.2-1B-Instruct model in
 various environments. Follow these instructions to quickly get started with running an AI model on AMD accelerators.
-This guide assumes MI300X accelerator on the target system.
+This guide assumes MI350X accelerator on the target system.
 
 ## Prerequisites
 
@@ -252,7 +252,6 @@ metadata:
   accelerator_model: MI300X
   accelerator_type: gpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: fp16
   type: unoptimized

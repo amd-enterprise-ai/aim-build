@@ -218,6 +218,12 @@ _SKIP_VLLM = pytest.mark.skipif(
 )
 
 
+def _flags_defined_by_installed_vllm() -> set[str]:
+    """Option strings the vLLM build in the running image defines."""
+    parser = VllmEngineArgsModel._vllm_parser()
+    return {option for action in parser._actions for option in action.option_strings}
+
+
 @_SKIP_VLLM
 class TestVllmParserIntegration:
     """Integration tests verifying vLLM's CLI parser API surface.
@@ -290,23 +296,26 @@ class TestVllmParserIntegration:
 
     def test_typical_profile_validates(self):
         """A representative set of args from an actual AIM profile must validate."""
-        VllmEngineArgsModel.model_validate(
-            {
-                "attention-backend": "ROCM_AITER_FA",
-                "disable-uvicorn-access-log": None,
-                "dtype": "auto",
-                "gpu-memory-utilization": 0.9,
-                "max-model-len": 32768,
-                "max-num-batched-tokens": 2048,
-                "max-num-seqs": 512,
-                "no-async-scheduling": None,
-                "no-enable-log-requests": None,
-                "no-enable-prefix-caching": None,
-                "no-trust-remote-code": None,
-                "swap-space": 64,
-                "tensor-parallel-size": 1,
-            }
-        )
+        profile_args = {
+            "attention-backend": "ROCM_AITER_FA",
+            "disable-uvicorn-access-log": None,
+            "dtype": "auto",
+            "gpu-memory-utilization": 0.9,
+            "max-model-len": 32768,
+            "max-num-batched-tokens": 2048,
+            "max-num-seqs": 512,
+            "no-async-scheduling": None,
+            "no-enable-log-requests": None,
+            "no-enable-prefix-caching": None,
+            "no-trust-remote-code": None,
+            "tensor-parallel-size": 1,
+        }
+        # Which flags exist depends on the image's vLLM build (ROCm, CPU, zentorch) and version.
+        defined = _flags_defined_by_installed_vllm()
+        supported = {key: value for key, value in profile_args.items() if f"--{key}" in defined}
+        assert {"dtype", "max-model-len", "tensor-parallel-size"} <= supported.keys()
+
+        VllmEngineArgsModel.model_validate(supported)
 
     def test_engine_args_with_overrides(self):
         """Profile args merged with AIM_ENGINE_ARGS overrides must validate."""

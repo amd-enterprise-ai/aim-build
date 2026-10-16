@@ -8,6 +8,8 @@ SPDX-License-Identifier: MIT
 
 The AIM catalog includes ready-to-deploy inference microservices for popular open-weight models, from lightweight instruction-tuned models to large mixture-of-experts systems. The catalog is constantly expanded to add new models and hardware-optimized profiles. To deploy models currently not available in the catalog but available through Hugging Face and supported by vLLM, utilize the AIM base container together with a custom profile ([see here](../custom_profiles.md)).
 
+The catalog also holds models for other tasks, such as biomolecular structure prediction, medical image segmentation and text-to-video generation. Each of these gives an API of its own and does not answer the OpenAI chat and completion APIs. The deployment guide of the AIM names its endpoints and payloads.
+
 AIMs are available for AMD Instinct™, Radeon™, and EPYC™. Browse the catalog below to find a container for your model and hardware. 
 
 <div style="display: flex; flex-wrap: wrap; gap: 1em; align-items: end; margin-bottom: 1em;">

@@ -7,3 +7,6 @@ base_image:
   base_repository: vllm-openai-cpu
   base_tag: v0.19.0
   registry_host: docker.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

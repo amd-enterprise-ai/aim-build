@@ -199,6 +199,11 @@ def _text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _reasoning_value(message: dict[str, Any]) -> Any:
+    """Return the thinking text from ``reasoning`` or ``reasoning_content``."""
+    return message.get("reasoning") or message.get("reasoning_content")
+
+
 # --------------------------------------------------------------------------- #
 # Readiness and warmup
 # --------------------------------------------------------------------------- #
@@ -376,10 +381,10 @@ def check_chat_completions_endpoint(
     """Verify ``/v1/chat/completions`` returns an OpenAI-shaped response.
 
     A reasoning-enabled model can legitimately return ``content: null`` when the
-    completion is cut short mid-"thinking" (the low ``max_tokens`` used here makes
-    that common); ``reasoning_content`` standing in for ``content`` is only
-    accepted when the profile declares the reasoning capability, so a broken
-    chat template on a non-reasoning model still fails this check.
+    completion is cut short mid-thinking (the low ``max_tokens`` used here makes
+    that common). Text in ``reasoning`` or ``reasoning_content`` then stands in
+    for ``content``, and only when the profile declares the reasoning capability,
+    so a broken chat template on a non-reasoning model still fails this check.
     """
     try:
         body = _chat(
@@ -404,7 +409,7 @@ def check_chat_completions_endpoint(
     if isinstance(content, str):
         return passed("chat_completions_endpoint", f"OpenAI-compatible, generated {_text(content)[:80]!r}")
 
-    reasoning_content = message.get("reasoning") or message.get("reasoning_content")
+    reasoning_content = _reasoning_value(message)
     if reasoning_enabled and content is None and isinstance(reasoning_content, str):
         return passed(
             "chat_completions_endpoint",
@@ -486,7 +491,11 @@ def check_tool_invocation(
 
 
 def check_tool_avoidance(
-    service_url: str, model_id: str, timeout: float = SERVICE_CHECK_TIMEOUT_DEFAULT
+    service_url: str,
+    model_id: str,
+    timeout: float = SERVICE_CHECK_TIMEOUT_DEFAULT,
+    *,
+    reasoning_enabled: bool = False,
 ) -> CheckResult:
     """Verify regular chat turns come back as prose, not tool calls.
 
@@ -494,6 +503,14 @@ def check_tool_avoidance(
     but shouldn't be needed. Spurious tool calls and leaked chat-template tokens
     are warnings; empty or malformed content is a failure, since that means the
     template is broken.
+
+    A reasoning-enabled model can answer entirely inside its thinking block and
+    leave ``content`` empty. ``reasoning`` or ``reasoning_content`` then stands
+    in for it — and is scanned for leaked tokens the same way — but only when
+    the profile declares the reasoning capability, so a broken template
+    elsewhere still fails. Answering only in that field is a warning: the
+    caller still sees an empty answer, and a parser that never closes the
+    thinking block looks the same.
     """
     scenarios: tuple[tuple[list[dict[str, Any]], dict[str, Any]], ...] = (
         ([{"role": "user", "content": _WEATHER_QUESTION}], {}),
@@ -519,6 +536,10 @@ def check_tool_avoidance(
             continue
 
         content = _text(message.get("content"))
+        if not content and reasoning_enabled:
+            content = _text(_reasoning_value(message))
+            if content:
+                warnings.append(f"Request #{index} answered only in the reasoning field")
         if not content:
             failures.append(f"Request #{index} returned empty or non-string content")
             continue
@@ -725,14 +746,17 @@ def check_reasoning(
     cases: tuple[ReasoningCase, ...] = REASONING_CASES,
     timeout: float = SERVICE_CHECK_TIMEOUT_DEFAULT,
 ) -> CheckResult:
-    """Verify reasoning prompts produce content or a parsed ``reasoning_content``.
+    """Verify reasoning prompts produce content or parsed thinking text.
 
-    A model with a reasoning parser configured splits its chain of thought into
-    ``reasoning_content``; either field being non-empty means the parser did not
-    swallow the whole response.
+    Thinking text may be in ``reasoning`` or ``reasoning_content``. Either
+    field being non-empty means the parser did not swallow the whole response.
+    A response with neither, and no ``content``, is a failure — including one
+    that spent its token budget. A finished turn whose answer never leaves the
+    reasoning field is a warning.
     """
     failures: list[str] = []
     reasoning_fields = 0
+    reasoning_only: list[str] = []
 
     for case in cases:
         try:
@@ -754,22 +778,28 @@ def check_reasoning(
             continue
 
         message = _message(body)
-        if _text(message.get("reasoning_content")):
+        reasoning = _text(_reasoning_value(message))
+        content = _text(message.get("content"))
+        if reasoning:
             reasoning_fields += 1
-        elif not _text(message.get("content")):
+            if not content and choices[0].get("finish_reason") == "stop":
+                reasoning_only.append(case.domain)
+        elif not content:
             usage = body.get("usage") or {}
+            finish_reason = choices[0].get("finish_reason", "unknown")
             failures.append(
                 f"{case.domain}: empty response "
-                f"(finish_reason={choices[0].get('finish_reason', 'unknown')}, "
-                f"completion_tokens={usage.get('completion_tokens', '?')})"
+                f"(finish_reason={finish_reason}, completion_tokens={usage.get('completion_tokens', '?')})"
             )
 
     if failures:
         return failed("reasoning", f"{len(failures)}/{len(cases)} case(s) failed: {'; '.join(failures)}")
 
     warnings = []
+    if reasoning_only:
+        warnings.append(f"Answered only in the reasoning field: {', '.join(reasoning_only)}")
     if not reasoning_fields:
-        warnings.append("No response carried reasoning_content — a reasoning parser may not be configured")
+        warnings.append("No response carried reasoning text — a reasoning parser may not be configured")
     return passed(
-        "reasoning", f"{len(cases)} case(s) produced output ({reasoning_fields} with reasoning_content)", warnings
+        "reasoning", f"{len(cases)} case(s) produced output ({reasoning_fields} with reasoning text)", warnings
     )

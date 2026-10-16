@@ -17,7 +17,7 @@ repos:
     always_run: false
 
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v5.0.0
+  rev: v6.0.0
   hooks:
   - id: check-json
   - id: check-yaml
@@ -36,44 +36,62 @@ repos:
     types: [ yaml ]
 
 - repo: https://github.com/adrienverge/yamllint.git
-  rev: v1.35.1
+  rev: v1.38.0
   hooks:
   - id: yamllint
     files: ^\.github/.*\.ya?ml$
     args: [ --strict, -c=.yamllint ]
 
+- repo: https://github.com/rhysd/actionlint
+  rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+  hooks:
+  - id: actionlint
+    # A composite action under .github/actions/ is never passed as a filename,
+    # yet changing its inputs breaks the workflows that call it. Lint the whole
+    # tree whenever any .github YAML changes; it takes well under a second.
+    files: ^\.github/.*\.ya?ml$
+    pass_filenames: false
+    # actionlint shells out to shellcheck whenever it is on PATH. It ships on
+    # GitHub-hosted runners but not on most development machines, so leaving it
+    # enabled would report different findings in CI than locally.
+    args: [ -shellcheck= ]
+
+- repo: https://github.com/hadolint/hadolint
+  rev: v2.15.1
+  hooks:
+  - id: hadolint-docker
+    # Upstream's entry pulls ghcr.io/hadolint/hadolint unpinned by tag, which
+    # resolves mutable `latest` regardless of this hook's `rev`. Pin to the
+    # same immutable digest the removed CI job used instead. `rev:` and this
+    # digest are independent pins: bumping `rev` (autoupdate or Dependabot)
+    # does not touch this line, so update the digest to match whenever `rev`
+    # changes.
+    entry: ghcr.io/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d hadolint
+    # Deliberately unanchored so it matches every archived tree sharing this
+    # prefix (manual-build/, -0.8.x/, -0.9.x/, -0.10.x/), not just one of
+    # them, so a future archived tree doesn't need a config change to stay
+    # excluded. Don't narrow this to an exact directory: manual-build-0.8.x
+    # has a real hadolint error (SC1075) that would then fail every PR.
+    exclude: ^ci/manual-build
+
 - repo: https://github.com/psf/black
-  rev: 25.1.0
+  rev: 26.5.1
   hooks:
   - id: black
     language_version: python3.12
     args: [ "--config=pyproject.toml" ]
 
-- repo: https://github.com/pycqa/flake8
-  rev: 7.1.2
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: a56c0b927e6465d37cae3e97d35d4d18ab2b96cd  # frozen: v0.16.9
   hooks:
-  - id: flake8
-    args: [ "--config=.flake8" ]
-
-- repo: https://github.com/pycqa/isort
-  rev: 6.0.0
-  hooks:
-  - id: isort
-    name: isort (python)
-    args: [ "--settings-path=pyproject.toml" ]
-
-- repo: https://github.com/PyCQA/autoflake
-  rev: v2.3.1
-  hooks:
-  - id: autoflake
-    args:
-    - --in-place
-    - --remove-all-unused-imports
-    - --remove-unused-variables
-    - --ignore-init-module-imports
+  - id: ruff-check
+    # --fix rewrites the autofixable findings in place — import order (I001) and
+    # unused imports and variables (F401, F841). Without it those are only
+    # reported, leaving imports to be sorted by hand on every commit.
+    args: [ "--fix", "--config=pyproject.toml" ]
 
 - repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.15.0
+  rev: v2.3.1
   hooks:
   - id: mypy
     args: [ "--config-file=pyproject.toml" ]
@@ -91,11 +109,27 @@ repos:
     # assets/<acc>/<org>/<model>/image/tests/, so they are discovered rather
     # than listed. Keep in sync with the "Run unit tests" step in
     # .github/workflows/fast-feedback.yaml, which discovers the same directories.
-    entry: bash -c 'python3 -m pytest tests/ $(find assets -type d -path "*/image/tests") -v'
+    # Coverage reporting is skipped and tests are run in parallel here (CI still
+    # collects coverage) since this hook only needs a pass/fail signal and
+    # coverage instrumentation roughly doubles the runtime.
+    # --dist loadscope keeps all tests in a module on one worker, so module-scoped
+    # fixtures that claim exclusive resources (e.g. test_harness.py's echo_server,
+    # which binds a fixed port) never race across workers.
+    entry: bash -c 'python3 -m pytest tests/ $(find assets -type d -path "*/image/tests") --no-cov -n auto --dist loadscope'
     language: system
-    types: [ python ]
+    # Skip only paths that can never affect test outcomes (docs, generated
+    # reports, editor/tooling config); anything else still triggers a run so
+    # new code paths aren't silently skipped like an include-list would risk.
+    # .github/ is deliberately NOT excluded: tests/ci/test_static_image_validation.py,
+    # test_validation_artifact_contents.py, test_validate_model_service.py, and
+    # test_aggregate_results.py all read workflow/action files directly, so changes
+    # under .github/ (workflows or actions) must still run pytest.
+    # requirements/ IS excluded despite tests/aim_runtime/evaluation/test_image_packaging.py
+    # asserting on lock file paths: CI's fast-feedback.yaml isn't scoped by this hook and
+    # always covers those tests, so a requirements/-only commit isn't silently untested.
+    exclude: ^(\.claude/|\.vscode/|docs/|requirements/|AGENTS\.md$|coverage.*\.xml$|README\.md$)
     pass_filenames: false
-    always_run: true
+    always_run: false
 
 - repo: local
   hooks:
@@ -114,7 +148,7 @@ repos:
   - id: check-profile-names
     name: "Profiles: check names"
     description: Check if profile metadata matches profile's file name
-    entry: python3 -m aim_utils.profile_utils check-all-metadata
+    entry: python3 -m aim_utils.profile_utils check-metadata
     language: system
     types: [ yaml ]
     pass_filenames: false
@@ -147,15 +181,31 @@ repos:
 
 - repo: local
   hooks:
-  - id: set-all-primary-flags
+  - id: set-primary-flags
     name: "Profiles: set primary flags"
     description: Set profiles recommended for deployment as primary
-    entry: python3 -m aim_utils.profile_utils set-all-primary-flags
+    entry: python3 -m aim_utils.profile_utils set-primary-flags --yes
     language: system
     types: [ yaml ]
     pass_filenames: false
     always_run: false
     files: ^assets/[^/]+/.*/profiles/.*\.yaml$
+
+- repo: local
+  hooks:
+  - id: generate-readme-docs
+    name: "Docs: regenerate README"
+    description: >-
+      Regenerate README docs for leaves affected by changed asset inputs or
+      shared templates (ADR-0007 Appendix B, Part A). Registry-free, fix-in-place.
+    entry: ci/scripts/docs/generate-readme-hook.sh
+    language: script
+    pass_filenames: true
+    always_run: false
+    # The trigger MUST include the two shared inputs (docs/templates/README.md
+    # and docs/overview.md); without them a shared-template change would
+    # silently regenerate nothing.
+    files: ^(assets/[^/]+/.*/config\.yaml|assets/[^/]+/.*/metadata\.yaml|assets/[^/]+/.*/profiles/.*\.yaml|assets/[^/]+/.*/templates/README\.md|docs/templates/README\.md|docs/overview\.md)$
 
 - repo: local
   hooks:
@@ -208,7 +258,7 @@ repos:
   hooks:
   - id: check-requirements-pinned
     # Warning-only until the catalog is fully pinned; add --strict to the entry
-    # to make it blocking. See docs/aim_conventions.md#dependency-pinning.
+    # to make it blocking. See ci/docs/aim_conventions.md#dependency-pinning.
     name: "Assets: check specialized image requirements are pinned"
     description: Report dependencies not pinned to an exact version
     entry: python3 -m aim_utils.asset_lint check-requirements-pinned

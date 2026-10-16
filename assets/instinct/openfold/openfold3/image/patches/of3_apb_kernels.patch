@@ -1,0 +1,62 @@
+diff --git a/openfold3/core/model/latent/pairformer.py b/openfold3/core/model/latent/pairformer.py
+index 84bccb2f..b97ee0de 100644
+--- a/openfold3/core/model/latent/pairformer.py
++++ b/openfold3/core/model/latent/pairformer.py
+@@ -189,14 +189,24 @@ class PairFormerBlock(nn.Module):
+             _attn_chunk_size=_attn_chunk_size,
+         )
+ 
+-        # TODO: Add back triton and cueq APB kernel
++        # Kernels and use_high_precision_attention are mutually exclusive in MHA.
++        any_attn_kernel = (
++            use_deepspeed_evo_attention
++            or use_cueq_triangle_kernels
++            or use_triton_triangle_kernels
++            or use_lma
++        )
+         s = add(
+             s,
+             self.attn_pair_bias(
+                 a=s,
+                 z=z,
+                 mask=single_mask,
+-                use_high_precision_attention=True,
++                use_deepspeed_evo_attention=use_deepspeed_evo_attention,
++                use_cueq_triangle_kernels=use_cueq_triangle_kernels,
++                use_triton_triangle_kernels=use_triton_triangle_kernels,
++                use_lma=use_lma,
++                use_high_precision_attention=not any_attn_kernel,
+             ),
+             inplace=inplace_safe,
+         )
+diff --git a/openfold3/projects/of3_all_atom/model.py b/openfold3/projects/of3_all_atom/model.py
+index 951e1593..43ec66e5 100644
+--- a/openfold3/projects/of3_all_atom/model.py
++++ b/openfold3/projects/of3_all_atom/model.py
+@@ -394,7 +394,12 @@ class OpenFold3(nn.Module):
+                 device=si_input.device,
+             )
+ 
+-            # TODO: Add back triton and cueq APB kernel
++            any_attn_kernel = (
++                mode_mem_settings.use_deepspeed_evo_attention
++                or mode_mem_settings.use_cueq_triangle_kernels
++                or mode_mem_settings.use_triton_triangle_kernels
++                or mode_mem_settings.use_lma
++            )
+             atom_positions_predicted = self.sample_diffusion(
+                 batch=batch,
+                 si_input=si_input,
+@@ -404,7 +409,11 @@ class OpenFold3(nn.Module):
+                 no_rollout_samples=no_rollout_samples,
+                 use_conditioning=True,
+                 chunk_size=mode_mem_settings.chunk_size,
+-                use_high_precision_attention=True,
++                use_deepspeed_evo_attention=mode_mem_settings.use_deepspeed_evo_attention,
++                use_cueq_triangle_kernels=mode_mem_settings.use_cueq_triangle_kernels,
++                use_triton_triangle_kernels=mode_mem_settings.use_triton_triangle_kernels,
++                use_lma=mode_mem_settings.use_lma,
++                use_high_precision_attention=not any_attn_kernel,
+                 _mask_trans=True,
+             )
+ 

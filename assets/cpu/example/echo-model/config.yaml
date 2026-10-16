@@ -11,3 +11,6 @@ base_image:
   base_repository: python
   base_tag: "3.12-slim"
 specialized: true
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

@@ -18,6 +18,16 @@ backend_args:
   # every model AIM evaluates today is instruction-tuned. A base model needs
   # this off: the template would wrap prompts the model never saw in training.
   apply_chat_template: true
+  # Applied only with apply_chat_template, to every generate_until task, which
+  # today means gsm8k only. gsm8k's own list adds "Question:", which stops a base
+  # model before it writes the next few-shot question. Under a chat template the
+  # model ends on its end-of-turn token, and "Question:" only cuts off a model
+  # that restates the question. A model that does not end its turn now runs to
+  # max_gen_toks. Scope this per task before adding a task whose own stops matter;
+  # until then, a run with any other task logs a warning. The list is lm-eval's
+  # gsm8k stops (lm_eval/tasks/gsm8k/gsm8k.yaml) without "Question:".
+  gen_kwargs:
+    until: ["</s>", "<|im_end|>"]
 
 # tasks: gsm8k                    # comma-separated string or a YAML list
 # num_fewshot: 5                  # null leaves each task's own default alone

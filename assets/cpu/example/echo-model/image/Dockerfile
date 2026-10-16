@@ -27,5 +27,6 @@ COPY src/ /workspace/model/src/
 
 # Add /workspace/model/src to sys.path so both BentoML (resolving the
 # "service:EchoService" import string) and the harness can import sibling modules.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))" \
     | xargs -I{} sh -c 'echo /workspace/model/src > {}/workspace-model.pth'

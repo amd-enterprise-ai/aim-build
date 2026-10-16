@@ -169,13 +169,13 @@ class TestCommandGeneratorEngineArgsOverride:
 
     def test_complex_nested_override(self, mock_config, mock_profile, vllm_engine):
         """Test override with complex nested structures."""
-        mock_config.engine_args_override = {"rope-scaling": {"type": "linear", "factor": 2.0}}
+        mock_config.engine_args_override = {"compilation-config": {"cudagraph_mode": "FULL"}}
         generator = CommandGenerator(mock_config, vllm_engine)
 
         merged_args = generator._merge_and_validate_engine_args(mock_profile)
 
-        assert "rope-scaling" in merged_args
-        assert merged_args["rope-scaling"]["type"] == "linear"
+        assert "compilation-config" in merged_args
+        assert merged_args["compilation-config"]["cudagraph_mode"] == "FULL"
 
     def test_logging_override_info(self, mock_config, mock_profile, vllm_engine, caplog):
         """Test that overrides are logged appropriately."""

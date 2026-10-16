@@ -25,7 +25,7 @@ This guide assumes EPYC_9965 accelerator on the target system.
 docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -p 8000:8000 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 Where <YOUR_HUGGINGFACE_TOKEN> is your Hugging Face access token (required for gated models)
@@ -41,7 +41,7 @@ docker run \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
   -p 8080:8080 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 ## 2. Model caching for production
@@ -58,7 +58,7 @@ mkdir -p /path/to/model-cache
 docker run --rm \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview \
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0 \
   download-to-cache --model-id meta-llama/Llama-3.2-3B-Instruct
 ```
 
@@ -69,7 +69,7 @@ docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -v /path/to/model-cache:/workspace/model-cache \
   -p 8000:8000 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 ## 3. Kubernetes deployment
@@ -100,7 +100,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+          image: amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -247,7 +247,6 @@ metadata:
   accelerator_model: EPYC_9965
   accelerator_type: cpu
   engine: vllm
-  manual_selection_only: false
   metric: throughput
   precision: fp16
   type: unoptimized
@@ -270,7 +269,7 @@ docker run \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   -e AIM_METRIC=throughput \
   -p 8000:8000 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 ### 5.2 Using profiles excluded from automatic selection
@@ -281,9 +280,9 @@ desired profile identifier. Profile identifier is the filename of the profile wi
 ```bash
 docker run \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
-  -e AIM_PROFILE_ID=vllm-epyc_zen4-bf16-tp1-latency \
+  -e AIM_PROFILE_ID=vllm-epyc_9965-bf16-tp1-latency \
   -p 8000:8000 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -294,7 +293,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview \
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0 \
   --help
 ```
 
@@ -302,7 +301,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview \
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0 \
   <subcommand> --help
 ```
 
@@ -313,7 +312,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   -p 8000:8000 \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -326,7 +325,7 @@ docker run \
   -e AIM_PRECISION=fp16 \
   -e AIM_ACCELERATOR_MODEL=EPYC_9965 \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview \
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0 \
   dry-run
 ```
 
@@ -334,7 +333,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.11.0-preview \
+  amdenterpriseai/aim-epyc-meta-llama-llama-3-2-3b-instruct:0.13.0 \
   list-profiles
 ```
 

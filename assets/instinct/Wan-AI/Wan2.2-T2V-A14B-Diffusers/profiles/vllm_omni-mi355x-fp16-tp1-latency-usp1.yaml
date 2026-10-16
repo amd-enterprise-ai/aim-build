@@ -12,7 +12,7 @@ metadata:
   metric: latency
   precision: fp16
   primary: true
-  type: unoptimized
+  type: optimized
   variant: usp1
 engine_args:
   disable-uvicorn-access-log: null

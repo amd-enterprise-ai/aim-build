@@ -8,3 +8,6 @@ base_image:
   base_repository: zentorch_vllm_upstream
   base_tag: v0.22.1_ubuntu22.04
   registry_host: docker.io
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

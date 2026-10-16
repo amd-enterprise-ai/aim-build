@@ -4,11 +4,17 @@
 
 """Integration tests for GPUDetector with real hardware (sysfs + amdsmi)."""
 
+import os
 from pathlib import Path
 
 import pytest
 
 from aim_runtime.gpu_detector import DRM_BASE, GPUDetector
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("AIM_ACCELERATOR_TYPE") == "cpu",
+    reason="GPU detector integration checks do not apply to CPU images",
+)
 
 
 @pytest.mark.integration

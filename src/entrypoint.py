@@ -676,8 +676,21 @@ def validate(profile, service_url, scope, config_file, startup_timeout, timeout,
     type=click.Choice(["json", "table", "ci"]),
     help="Output format.",
 )
-def evaluate(profile, service_url, config_file, timeout, output_dir, startup_timeout, output_format):
-    """Run accuracy/quality evaluation against the model service."""
+@click.option(
+    "--start-service",
+    is_flag=True,
+    default=False,
+    help="Start the model server for the profile instead of scoring a service someone else runs.",
+)
+def evaluate(profile, service_url, config_file, timeout, output_dir, startup_timeout, output_format, start_service):
+    """Run accuracy/quality evaluation against the model service.
+
+    By default the CLI scores the service that already serves the image, which
+    is what an exec into a running container or a deployment gets. With
+    ``--start-service`` the CLI starts the server for the profile, scores it and
+    shuts it down again, the way ``validate`` does. A batch runner that owns one
+    container needs that, because nothing else serves the profile there.
+    """
     try:
         _configure_harness_logging()
 
@@ -695,17 +708,20 @@ def evaluate(profile, service_url, config_file, timeout, output_dir, startup_tim
             extra=extra,
         )
 
-        # evaluate never starts the service itself; it only waits for the one
-        # already serving the image.
-        if not service_url:
-            resolved_url = config.resolve_service_url()
-            logger.info("Waiting for service readiness at %s ...", resolved_url)
-            _wait_for_harness_readiness(harness, resolved_url, startup_timeout)
+        with ExitStack() as stack:
+            if start_service:
+                config.service_url, server_process = stack.enter_context(_managed_service(service_url))
+                logger.info("Waiting for service readiness at %s ...", config.service_url)
+                _wait_for_harness_readiness(harness, config.service_url, startup_timeout, server_process)
+            elif not service_url:
+                resolved_url = config.resolve_service_url()
+                logger.info("Waiting for service readiness at %s ...", resolved_url)
+                _wait_for_harness_readiness(harness, resolved_url, startup_timeout)
 
-        result = harness.evaluate(config)
-        if output_dir:
-            _write_results_json(result, output_dir, "evaluate_results.json")
-        _report_and_exit(result, output_format)
+            result = harness.evaluate(config)
+            if output_dir:
+                _write_results_json(result, output_dir, "evaluate_results.json")
+            _report_and_exit(result, output_format)
     except click.ClickException:
         raise  # Let Click render usage errors (e.g. a bad --config path) itself.
     except Exception:

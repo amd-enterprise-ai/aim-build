@@ -6,7 +6,6 @@
 Tests for model storage backend functionality.
 """
 
-
 import pytest
 
 from aim_runtime.model_storage import (

@@ -25,11 +25,12 @@ from aim_common.object_model import (
 from aim_runtime.object_model import ProfileHandling
 from aim_runtime.profile_selector import AUTO_SELECTABLE_PRIORITY, PRECISION_PRIORITY, UNKNOWN_PRIORITY
 from aim_utils.asset_utils import (
+    PROFILES_DIRNAME,
     AssetDescriptor,
     AssetManager,
-    assets_path_option,
-    assets_root_option,
-    discover_assets_paths,
+    assets_path_optional_option,
+    confirm_root_wide_mutation,
+    yes_option,
 )
 from aim_utils.dict_utils import get_value, set_value
 from aim_utils.image_naming import get_image_name
@@ -195,12 +196,11 @@ class ProfileManager(AssetManager):
 
     def __init__(
         self,
-        assets_path: str,
         skip_custom: bool = True,
         skip_base: bool = False,
         skip_model_specific: bool = False,
     ) -> None:
-        super().__init__(assets_path, enforce_double_quotes=False)
+        super().__init__(enforce_double_quotes=False)
         self.skip_custom = skip_custom
         self.skip_base = skip_base
         self.skip_model_specific = skip_model_specific
@@ -225,7 +225,7 @@ class ProfileManager(AssetManager):
         profile_paths = []
 
         for descriptor in descriptors:
-            resolved_path = descriptor.directory / "profiles"
+            resolved_path = descriptor.directory / PROFILES_DIRNAME
             if resolved_path.exists():
                 profile_paths.extend(get_yamls(resolved_path))
 
@@ -273,7 +273,7 @@ def get_model_profile_types(assets_path: str, canonical_name: CanonicalName) -> 
         canonical_name: The model whose profiles should be inspected.
     """
     profile_types: set[ProfileType] = set()
-    for profile_path in ProfileManager(assets_path).get_yamls(canonical_name):
+    for profile_path in ProfileManager.for_path(assets_path).get_yamls(canonical_name):
         metadata = read_yaml(profile_path).get("metadata")
         if metadata:
             profile_types.add(ProfileMetadata.from_dict(metadata).type)
@@ -296,21 +296,25 @@ def cli(ctx):
 
 
 @cli.command("sync-profiles-with-file")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--file_path", type=str, required=True)
 @click.option("--sheet_name", type=str, required=False, default=None)
 @click.option("--canonical_name", type=str, required=False, default=None)
+@yes_option
 def sync_profiles_with_file(
-    assets_path: str,
     file_path: str,
+    assets_path: Optional[str] = None,
     sheet_name: Optional[str] = None,
     canonical_name: Optional[str] = None,
+    yes: bool = False,
 ) -> None:
     """Synchronize profile metadata with type values from an Excel file."""
+    confirm_root_wide_mutation(assets_path, "sync profile metadata from file", yes=yes)
     value_resolver = ProfileFileValueResolver(Path(file_path), sheet_name=sheet_name)
 
     canonical_name_value = CanonicalName.from_string(canonical_name)
-    profiles = ProfileManager(assets_path=assets_path, skip_base=True).get_yamls(canonical_name=canonical_name_value)  # type: ignore[arg-type]
+    manager = ProfileManager.for_optional_path(assets_path)
+    profiles = manager.get_yamls(canonical_name=canonical_name_value)  # type: ignore[arg-type]
     for profile in profiles:
         evaluator = ProfileTypeEvaluator(profile, value_resolver)
         evaluation_result = evaluator.evaluate()
@@ -364,25 +368,15 @@ class FileNameFormatMismatch(Mismatch):
 
 
 @cli.command("check-metadata")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def check_profile_metadata(assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """Check that profile metadata matches profile filenames."""
+def check_profile_metadata(assets_path: Optional[str] = None, canonical_name: Optional[str] = None) -> None:
+    """Check that profile metadata matches profile filenames.
+
+    When --assets_path is omitted, all accelerator directories under the default root are checked.
+    """
     error_count = _check_profile_metadata(assets_path, canonical_name)
     sys.exit(1 if error_count > 0 else 0)
-
-
-@cli.command("check-all-metadata")
-@assets_root_option
-@click.option("--canonical_name", type=str, help="Filter by model canonical name (format: 'org/model')")
-def check_all_profile_metadata(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
-    """Check profile metadata across all accelerator asset directories."""
-    total_errors = 0
-    for assets_path in discover_assets_paths(assets_root):
-        print()
-        logger.info(f"Checking profiles in {assets_path}...")
-        total_errors += _check_profile_metadata(assets_path, canonical_name)
-    sys.exit(1 if total_errors > 0 else 0)
 
 
 def _get_metadata_profile_id_mismatches(
@@ -424,9 +418,10 @@ def _get_metadata_profile_id_mismatches(
         return result
 
 
-def _check_profile_metadata(assets_path: str, canonical_name: Optional[str] = None) -> int:
+def _check_profile_metadata(assets_path: Optional[str], canonical_name: Optional[str] = None) -> int:
     """Core logic: returns the number of mismatches found."""
-    profiles = ProfileManager(assets_path=assets_path).get_yamls(canonical_name=canonical_name)  # type: ignore[arg-type]
+    manager = ProfileManager.for_optional_path(assets_path)
+    profiles = manager.get_yamls(canonical_name=CanonicalName.from_string(canonical_name))
 
     mismatches: List[MetadataMismatch | FileNameFormatMismatch] = []
     for profile_path in profiles:
@@ -459,16 +454,18 @@ def _check_profile_metadata(assets_path: str, canonical_name: Optional[str] = No
 
 
 @cli.command("clone-profiles-gpu-name")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--old-gpu-name", type=str, required=True, help="The old GPU name to replace (e.g., MI300X).")
 @click.option(
     "--new-gpu-name", type=str, required=True, help="The new GPU name to use for the cloned profile (e.g., MI325X)."
 )
-def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
+@yes_option
+def clone_profiles(old_gpu_name: str, new_gpu_name: str, assets_path: Optional[str] = None, yes: bool = False):
     """
     Recursively scans a directory for YAML files with old_gpu_name in their name,
     updates the GPU profile from old_gpu_name to new_gpu_name, and saves a new file.
     """
+    confirm_root_wide_mutation(assets_path, f"clone profiles from '{old_gpu_name}' to '{new_gpu_name}'", yes=yes)
 
     try:
         GPUModel.from_string(old_gpu_name)
@@ -477,7 +474,7 @@ def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
         logging.error(f"Invalid GPU name: {e}")
         return
 
-    yamls = ProfileManager(assets_path=assets_path).get_yamls()
+    yamls = ProfileManager.for_optional_path(assets_path).get_yamls()
 
     for filepath in yamls:
         # Process only YAML files containing old_gpu_name
@@ -511,13 +508,16 @@ def clone_profiles(assets_path: str, old_gpu_name: str, new_gpu_name: str):
 
 @cli.command("sort-profile-keys")
 @click.argument("files", nargs=-1, type=str)
-@assets_root_option
-def sort_all_profile_keys(files: List[str], assets_root: str = "assets"):
+@assets_path_optional_option
+@yes_option
+def sort_profile_keys(files: List[str], assets_path: Optional[str] = None, yes: bool = False):
+    """Sort non-top-level keys in profile YAML files alphabetically.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+    """
     if not files:
-        all_profiles = []
-        for assets_path in discover_assets_paths(assets_root):
-            all_profiles.extend(ProfileManager(assets_path=assets_path).get_yamls())
-        _sort_profile_keys(all_profiles)
+        confirm_root_wide_mutation(assets_path, "sort profile keys", yes=yes)
+        _sort_profile_keys(ProfileManager.for_optional_path(assets_path).get_yamls())
     else:
         _sort_profile_keys([Path(f) for f in files])
 
@@ -550,35 +550,26 @@ def _sort_profile_keys(yaml_paths: List[Path]):
 
 
 @cli.command(name="set-primary-flags")
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def set_primary_flags_command(assets_path: str, canonical_name: Optional[str] = None) -> None:
-    """
-    Add recommended deployment configurations based on available profiles.
-    Automatically detects latency and throughput profiles for each GPU model.
+@yes_option
+def set_primary_flags_command(
+    assets_path: Optional[str] = None, canonical_name: Optional[str] = None, yes: bool = False
+) -> None:
+    """Set profiles recommended for deployment as primary.
 
-    Args:
-        canonical_name: If provided, only update files matching this canonical name
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
     """
+    confirm_root_wide_mutation(assets_path, "set primary profile flags", yes=yes)
     modified_count = _set_primary_flags(assets_path, canonical_name)
     sys.exit(1 if modified_count > 0 else 0)
 
 
-@cli.command(name="set-all-primary-flags")
-@assets_root_option
-@click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
-def set_all_primary_flags_command(assets_root: str = "assets", canonical_name: Optional[str] = None) -> None:
-    """Add recommended deployments across all accelerator asset directories."""
-    total_modified = 0
-    for assets_path in discover_assets_paths(assets_root):
-        total_modified += _set_primary_flags(assets_path, canonical_name)
-    sys.exit(1 if total_modified > 0 else 0)
-
-
-def _set_primary_flags(assets_path: str, canonical_name: Optional[str] = None) -> int:
+def _set_primary_flags(assets_path: Optional[str], canonical_name: Optional[str] = None) -> int:
     """Core logic: returns the number of modified files."""
     canonical_name_value = CanonicalName.from_string(canonical_name)
-    profile_yamls = ProfileManager(assets_path=assets_path, skip_base=True).get_yamls(canonical_name_value)
+    manager = ProfileManager.for_optional_path(assets_path, skip_base=True)
+    profile_yamls = manager.get_yamls(canonical_name_value)
 
     groups = {}
     if canonical_name_value is not None:
@@ -638,11 +629,6 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
             logger.debug(f"Skipping {profile_file.name} - missing required metadata")
             continue
 
-        # Initialize nested structure
-        if accelerator_model not in profiles_by_gpu:
-            profiles_by_gpu[accelerator_model] = {"latency": [], "throughput": []}
-
-        # Store the profile info with precision priority matching ProfileSelector
         profile_info = {
             "accelerator_model": accelerator_model,
             "accelerator_count": accelerator_count,
@@ -654,7 +640,7 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
             "profile_file": profile_file,
         }
 
-        profiles_by_gpu[accelerator_model][metric].append(profile_info)
+        profiles_by_gpu.setdefault(accelerator_model, {}).setdefault(metric, []).append(profile_info)
 
     # Select best profiles for each GPU model and metric
     # Strategy: For each GPU model and metric, select minimal precision and minimal TP
@@ -662,7 +648,7 @@ def _set_primary_flags_for_model(canonical_name: str, profile_files: List[Path])
 
     for accelerator_model in sorted(profiles_by_gpu.keys()):
         for metric in ["latency", "throughput"]:
-            profiles = profiles_by_gpu[accelerator_model][metric]
+            profiles = profiles_by_gpu[accelerator_model].get(metric, [])
             if profiles:
                 # Sort by: 1) auto-selectability (unoptimized ranks last; all other
                 # types tie), 2) precision priority (lower is better), 3) GPU count
@@ -762,10 +748,7 @@ def read_primary_profiles_for_model_in_order(profile_files: List[Path]) -> List[
 
         model_to_family.setdefault(accelerator_model, family)
 
-        if accelerator_model not in profiles_by_gpu:
-            profiles_by_gpu[accelerator_model] = {"latency": [], "throughput": []}
-
-        profiles_by_gpu[accelerator_model][metric].append(
+        profiles_by_gpu.setdefault(accelerator_model, {}).setdefault(metric, []).append(
             {
                 "accelerator_count": accelerator_count,
                 "precision_priority": PRECISION_PRIORITY.get(precision.lower(), UNKNOWN_PRIORITY),
@@ -785,7 +768,7 @@ def read_primary_profiles_for_model_in_order(profile_files: List[Path]) -> List[
     result: List[Path] = []
     for accelerator_model in sorted(profiles_by_gpu.keys(), key=_performance_rank):
         for metric in ["latency", "throughput"]:
-            profiles = profiles_by_gpu[accelerator_model][metric]
+            profiles = profiles_by_gpu[accelerator_model].get(metric, [])
             if profiles:
                 best = min(
                     profiles,
@@ -803,67 +786,86 @@ def read_primary_profiles_for_model_in_order(profile_files: List[Path]) -> List[
 @cli.command(name="rename-key")
 @click.argument("source_key", type=str)
 @click.argument("target_key", type=str)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
+@yes_option
 def rename_key_command(
     source_key: str,
     target_key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     canonical_name: Optional[str] = None,
+    yes: bool = False,
 ) -> None:
-    """Rename a key by copying its value to a new key and deleting the original."""
-    ProfileManager(assets_path=assets_path).rename_key(source_key, target_key, canonical_name)
+    """Rename a key by copying its value to a new key and deleting the original.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+    """
+    confirm_root_wide_mutation(assets_path, f"rename key '{source_key}' to '{target_key}'", yes=yes)
+    manager = ProfileManager.for_optional_path(assets_path)
+    manager.rename_key(source_key, target_key, canonical_name)
 
 
 @cli.command(name="update-value")
 @click.argument("key", type=str)
 @click.argument("new_value", type=str, default=None)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
 @click.option("--add_if_missing", is_flag=True, default=False, help="Add the key if it doesn't exist")
+@yes_option
 def update_value_command(
     key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     new_value: Optional[Any] = None,
     canonical_name: Optional[str] = None,
     add_if_missing: bool = False,
+    yes: bool = False,
 ) -> None:
     """
     Update a specific field in YAML file(s)
 
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
+
     Args:
-        assets_path: Root directory containing assets
+        assets_path: Accelerator-specific assets directory. When omitted, all directories under the default root are processed.
         key: Dot notation path to the key (e.g., "org.opencontainers.image.vendor")
         new_value: New value to set for the key
         add_if_missing: If True, add the key if it doesn't exist
         canonical_name: If provided, only update files matching this canonical name
     """
-    ProfileManager(assets_path=assets_path).update_value(key, new_value, canonical_name, add_if_missing)
+    confirm_root_wide_mutation(assets_path, f"update key '{key}'", yes=yes)
+    manager = ProfileManager.for_optional_path(assets_path)
+    manager.update_value(key, new_value, canonical_name, add_if_missing)
 
 
 @cli.command(name="copy-value")
 @click.argument("source_key", type=str)
 @click.argument("target_key", type=str)
-@assets_path_option
+@assets_path_optional_option
 @click.option("--canonical_name", type=str, default=None, help="Filter by model canonical name (format: 'org/model')")
 @click.option("--prefix", type=str, default=None, help="Prefix to add to the copied value")
 @click.option("--postfix", type=str, default=None, help="Postfix to add to the copied value")
 @click.option("--separator", type=str, default="", help="Separator between prefix/postfix and value")
 @click.option("--add_if_missing", is_flag=True, default=True, help="Add the target key if it doesn't exist")
+@yes_option
 def copy_value_command(
     source_key: str,
     target_key: str,
-    assets_path: str,
+    assets_path: Optional[str] = None,
     canonical_name: Optional[str] = None,
     prefix: Optional[str] = None,
     postfix: Optional[str] = None,
     separator: str = "",
     add_if_missing: bool = True,
+    yes: bool = False,
 ) -> None:
     """
     Copy a value from one key to another in metadata files. Optionally add prefix/postfix to string values with a separator.
+
+    When --assets_path is omitted, all accelerator directories under the default root are processed.
     """
-    ProfileManager(assets_path=assets_path).copy_value(
+    confirm_root_wide_mutation(assets_path, f"copy '{source_key}' to '{target_key}'", yes=yes)
+    manager = ProfileManager.for_optional_path(assets_path)
+    manager.copy_value(
         source_key,
         target_key,
         canonical_name,

@@ -248,6 +248,31 @@ window. Raising `OPENFOLD3_REQUEST_TIMEOUT_SECONDS` past that needs a
 matching `predict_timeout_seconds` in the harness config, or the client
 gives up first.
 
+### Token and atom bucketing
+
+`torch.compile(dynamic=False)` compiles a new graph for every distinct
+`(token, atom)` shape. With `OPENFOLD3_BUCKET=1` (on in all shipped MI300X
+latency profiles) the model zero-pads each request up to the next step on a
+fixed ladder and masks the filler. Each step is one fixed size. Two requests
+that land on the same step share one Inductor graph. Profile
+`env_vars` overwrite `docker -e`; a second profile is required to turn
+bucketing off.
+
+Default **token** steps: `256,384,512,640,768,1024,1280,1536,1792,2048`.
+Requests longer than 2048 compile at exact size. Override with
+`OPENFOLD3_TOKEN_BUCKETS`.
+
+Default **atom** steps: `2048,3072,4096,5120,6144,8192,10240,12288,14336,16384`
+(~8 packed atoms per token step). These pad the *packed-atom* axis.
+Token and atom steps are chosen independently: a 640-token
+query with 9000 packed atoms pads tokens to 640 and atoms to 10240, not
+to `640×8`. Requests above 16384 packed atoms compile at exact atom
+size. Override with `OPENFOLD3_ATOM_BUCKETS`. Set
+`OPENFOLD3_BUCKET_ATOMS=0` to pad tokens only (slower warm: atom GEMMs
+stay ragged).
+
+The server log prints `[OF3_BUCKET] tokens A->B  atoms C->D` per request.
+
 **TunableOp** (`PYTORCH_TUNABLEOP_*`, runtime rocBLAS/hipBLASLt GEMM
 tuning) is a further ~−6 % long-sequence lever but requires a per-shape
 tuned CSV on a writable, persistent mount; it is deferred until the

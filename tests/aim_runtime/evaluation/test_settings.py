@@ -236,7 +236,11 @@ class TestLoadEvaluationConfig:
         values = load_evaluation_config()
 
         assert values["backend"] == BACKEND_LM_EVAL
-        assert values["backend_args"] == {"apply_chat_template": True}
+        assert values["backend_args"] == {
+            "apply_chat_template": True,
+            # No "Question:": it cuts off a reasoning model that restates the question.
+            "gen_kwargs": {"until": ["</s>", "<|im_end|>"]},
+        }
 
     def test_the_shipped_file_sits_beside_the_module(self):
         """It has to be package data, or an installed image would not have it."""

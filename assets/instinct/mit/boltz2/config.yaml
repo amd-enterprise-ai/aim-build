@@ -10,3 +10,6 @@ base_image:
   base_repository: aim-instinct-mit-boltz2-base
   base_tag: "0.12-rc1"
 specialized: true
+templates:
+  deployment: docs/templates/DEPLOYMENT.md
+  readme: docs/templates/README.md

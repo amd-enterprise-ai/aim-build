@@ -58,9 +58,8 @@ COPY ${AIM_BASE_PROFILES_DIR} /workspace/aim-runtime/profiles/general
 COPY ${AIM_BASE_CONFIG_DIR} /workspace/aim-runtime/config
 
 # Install runtime dependencies
-RUN cd /workspace/aim-runtime && \
-    pip3 install -r requirements.txt && \
-    pip3 install -r ${AIM_ACCELERATOR_FAMILY}-requirements.txt
+RUN pip3 install --no-cache-dir -r /workspace/aim-runtime/requirements.txt && \
+    pip3 install --no-cache-dir -r /workspace/aim-runtime/${AIM_ACCELERATOR_FAMILY}-requirements.txt
 
 # TODO: Explore feasibility of enabling LMCache on Radeon (currently Instinct-only)
 # Install LMCache for KV-caching support (conditional based on INSTALL_LMCACHE)
@@ -72,11 +71,11 @@ RUN if [ "$INSTALL_LMCACHE" = "true" ]; then \
         git clone https://github.com/LMCache/LMCache.git && \
         cd LMCache && \
         git checkout "${INSTALL_LMCACHE_COMMIT}" && \
-        pip3 install -r requirements/build.txt && \
+        pip3 install --no-cache-dir -r requirements/build.txt && \
         BUILD_WITH_HIP=1 \
         CXX=hipcc \
         TORCH_DONT_CHECK_COMPILER_ABI=1 \
-        python3 -m pip install --no-build-isolation . && \
+        pip3 install --no-cache-dir --no-build-isolation . && \
         cd /workspace && \
         rm -rf LMCache; \
     else \

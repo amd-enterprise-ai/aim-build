@@ -28,13 +28,9 @@ from .gpu_detector import get_gfx_arch
 from .model_storage import StorageBackendRegistry
 from .object_model import AcceleratorType
 from .profile_selector import ProfileSelector
+from .supervisor import EngineSupervisor
 
 logger = logging.getLogger(__name__)
-
-# Grace period for a supervised engine to drain after a forwarded termination
-# signal before the runtime escalates to SIGKILL. Kept below a typical k8s
-# terminationGracePeriodSeconds (30s) so escalation happens in-pod first.
-_SHUTDOWN_GRACE_SECONDS = 20
 
 
 def _extract_models_from_profile(profile_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -314,61 +310,41 @@ class AIMRuntime:
             raise FileNotFoundError(f"Could not find executable: {command_list[0]}")
 
         # Step 7: Run the engine.
-        # Dynamic adapter mode needs an in-pod watcher alongside the engine, so
-        # the runtime must outlive launch and supervise a child process. All
-        # other cases keep the zero-overhead os.execv replace.
-        if self.engine.needs_runtime_supervisor(profile):
-            self._serve_supervised(command_list)
+        # The supervisor is the default so engine failures become container exit
+        # codes. The environment switch keeps the previous execv behavior available.
+        watcher = None
+        needs_adapter_watcher = self.engine.needs_adapter_watcher(profile)
+        if needs_adapter_watcher:
+            from .engines.adapter_watcher import AdapterWatcher
+
+            watcher = AdapterWatcher(
+                source=self.config.adapter_source,
+                max_rank=self.config.adapter_max_rank,
+                base_url=f"http://localhost:{self.config.port}",
+                refresh_interval=self.config.adapter_refresh_interval,
+            )
+
+        if needs_adapter_watcher and not self.config.serve_supervisor:
+            logger.warning("AIM_SERVE_SUPERVISOR=false is ignored because dynamic adapters require supervision")
+
+        if needs_adapter_watcher or self.config.serve_supervisor:
+            self._serve_supervised(command_list, watcher=watcher)
         else:
             os.execv(executable_path, command_list)
 
-    def _serve_supervised(self, command_list: List[str]) -> None:
+    def _serve_supervised(self, command_list: List[str], *, watcher=None) -> None:
         """Run the engine as a child and drive the dynamic-mode adapter watcher.
 
         The runtime stays PID 1: it forwards SIGTERM/SIGINT to the engine,
         polls the adapter source via the watcher, and exits with the engine's
         return code so Kubernetes restart semantics are preserved.
         """
-        import signal
-        import subprocess
-        import threading
-
-        from .engines.adapter_watcher import AdapterWatcher
-
-        logger.info("Starting engine under runtime supervision (dynamic adapter mode)...")
-        proc = subprocess.Popen(command_list, env=os.environ.copy())
-
-        # Set when we forward a termination signal, so the main thread switches
-        # from an unbounded wait to a bounded graceful-drain + SIGKILL escalation.
-        terminating = threading.Event()
-
-        def _forward(signum, _frame):
-            logger.info(f"Forwarding signal {signum} to engine (pid {proc.pid})")
-            terminating.set()
-            try:
-                proc.send_signal(signum)
-            except ProcessLookupError:
-                # Engine already exited between poll and signal; nothing to forward.
-                pass
-
-        signal.signal(signal.SIGTERM, _forward)
-        signal.signal(signal.SIGINT, _forward)
-
-        watcher = AdapterWatcher(
-            source=self.config.adapter_source,
-            max_rank=self.config.adapter_max_rank,
-            base_url=f"http://localhost:{self.config.port}",
-            refresh_interval=self.config.adapter_refresh_interval,
+        supervisor = EngineSupervisor(
+            command_list,
+            watcher=watcher,
+            on_ready=self._wait_for_engine_ready,
         )
-
-        # Gate the watcher on engine readiness, then poll until the engine exits.
-        def _watch() -> None:
-            self._wait_for_engine_ready(proc)
-            watcher.run_forever(lambda: proc.poll() is not None)
-
-        threading.Thread(target=_watch, daemon=True).start()
-
-        returncode = self._wait_for_engine_exit(proc, terminating)
+        returncode = supervisor.run()
         logger.info(f"Engine exited with code {returncode}; runtime shutting down.")
         # subprocess reports signal death as a negative code (e.g. -15 for
         # SIGTERM). Translate to the conventional 128 + signal so exit status
@@ -376,37 +352,8 @@ class AIMRuntime:
         # (a raw sys.exit(-15) would exit 241, not 143).
         sys.exit(128 - returncode if returncode < 0 else returncode)
 
-    def _wait_for_engine_exit(self, proc, terminating) -> int:
-        """Wait for the engine to exit, bounding the wait once we're terminating.
-
-        Normal run: block on ``proc.wait()`` until the engine exits on its own.
-        After we forward a termination signal, bound the drain to
-        ``_SHUTDOWN_GRACE_SECONDS`` and escalate to ``SIGKILL`` if the engine
-        ignores it (e.g. vLLM hangs on shutdown) — otherwise the runtime would
-        block indefinitely and rely entirely on the k8s pod-level SIGKILL.
-        """
-        import subprocess
-
-        if not terminating.is_set():
-            # Wake periodically so a signal that arrives mid-wait flips us onto
-            # the bounded-drain path instead of blocking forever.
-            while not terminating.is_set():
-                try:
-                    return proc.wait(timeout=1)
-                except subprocess.TimeoutExpired:
-                    continue
-        try:
-            return proc.wait(timeout=_SHUTDOWN_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                f"Engine did not exit within {_SHUTDOWN_GRACE_SECONDS}s of termination signal; "
-                f"escalating to SIGKILL (pid {proc.pid})."
-            )
-            proc.kill()
-            return proc.wait()
-
     def _wait_for_engine_ready(self, proc, timeout_seconds: int = 600) -> None:
-        """Block until the engine answers /v1/models, the timeout elapses, or it dies."""
+        """Block until the dynamic adapter engine is ready or the probe expires."""
         import time
 
         import requests
@@ -415,16 +362,15 @@ class AIMRuntime:
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
             if proc.poll() is not None:
-                return  # engine died; supervisor loop will handle exit
+                return
             try:
                 if requests.get(url, timeout=5).status_code == 200:
                     logger.info("Engine ready; adapter watcher starting.")
                     return
             except requests.RequestException:
-                # Engine not accepting connections yet; retry until the deadline.
                 pass
             time.sleep(2.0)
-        logger.warning(f"Engine not ready after {timeout_seconds}s; starting watcher anyway.")
+        logger.warning("Engine not ready after %ss; starting watcher anyway.", timeout_seconds)
 
     def dry_run(self) -> List[Dict[str, Any]]:
         """

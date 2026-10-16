@@ -271,9 +271,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessConfig, HarnessResult, CheckInfo, CheckResultType, CheckScope
 
             class TestHarness(ModelHarness):
@@ -285,9 +283,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="test-evaluate")
                 def list_checks(self):
                     return [CheckInfo("dummy", CheckResultType.PASS_FAIL, CheckScope.RUNTIME, "dummy check")]
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -304,9 +300,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessConfig, HarnessResult, CheckInfo
 
             class AlphaHarness(ModelHarness):
@@ -330,9 +324,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="beta-evaluate")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -355,9 +347,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
 
             class AlphaHarness(ModelHarness):
@@ -381,9 +371,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="beta")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -402,16 +390,12 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness.vllm_harness import VLLMHarness
 
             class ZebraHarness(VLLMHarness):
                 pass
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -430,9 +414,7 @@ class TestDiscovery:
         helper.write_text("MAGIC = 42\n")
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessConfig, HarnessResult, CheckInfo
             from helper import MAGIC
 
@@ -445,9 +427,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="ok")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         original_model_dir = disc_mod.MODEL_DIR
@@ -473,9 +453,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         base = tmp_path / "base_harness.py"
-        base.write_text(
-            textwrap.dedent(
-                """\
+        base.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
 
             class AbcSharedHarness(ModelHarness):
@@ -487,23 +465,17 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="base")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from base_harness import AbcSharedHarness
             from aim_runtime.harness import HarnessResult
 
             class ZLeafHarness(AbcSharedHarness):
                 def validate(self, config):
                     return HarnessResult(success=True, summary="leaf")
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         original_model_dir = disc_mod.MODEL_DIR
@@ -528,9 +500,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
 
             class VllmModelHarness(ModelHarness):
@@ -548,9 +518,7 @@ class TestDiscovery:
                 ENGINE = "bentoml"
                 def validate(self, config):
                     return HarnessResult(success=True, summary="bentoml")
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -573,9 +541,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
             from aim_runtime.harness.vllm_harness import VLLMHarness
 
@@ -593,9 +559,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="bentoml")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -619,9 +583,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from typing import ClassVar
 
             from aim_runtime.harness import ModelHarness, HarnessResult
@@ -641,9 +603,7 @@ class TestDiscovery:
                 ENGINE = "bentoml"
                 def validate(self, config):
                     return HarnessResult(success=True, summary="bentoml")
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -663,9 +623,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
 
             class AbcBaseHarness(ModelHarness):
@@ -682,9 +640,7 @@ class TestDiscovery:
             class ZChildHarness(AbcBaseHarness):
                 def validate(self, config):
                     return HarnessResult(success=True, summary="child")
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -700,9 +656,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         sibling = tmp_path / "impl.py"
-        sibling.write_text(
-            textwrap.dedent(
-                """\
+        sibling.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
 
             class SiblingDefinedHarness(ModelHarness):
@@ -714,9 +668,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="ok")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         harness_file = tmp_path / "harness.py"
         harness_file.write_text("from impl import SiblingDefinedHarness\n")
@@ -740,9 +692,7 @@ class TestDiscovery:
         from aim_runtime.harness import discovery as disc_mod
 
         harness_file = tmp_path / "harness.py"
-        harness_file.write_text(
-            textwrap.dedent(
-                """\
+        harness_file.write_text(textwrap.dedent("""\
             from aim_runtime.harness import ModelHarness, HarnessResult
             from aim_runtime.harness.vllm_harness import VLLMHarness
 
@@ -755,9 +705,7 @@ class TestDiscovery:
                     return HarnessResult(success=True, summary="own")
                 def list_checks(self):
                     return []
-        """
-            )
-        )
+        """))
 
         original_path = disc_mod.HARNESS_PATH
         try:
@@ -1068,6 +1016,21 @@ class TestVLLMHarnessServiceValidation:
             "http://stub:8000", "stub-model", timeout=300.0, reasoning_enabled=False
         )
 
+    def test_tool_avoidance_check_receives_declared_reasoning_capability(self, stub_checks):
+        """A thinking-only regular chat reply is only forgiven when reasoning is declared."""
+        VLLMHarness().validate(self._config({"tool_calling": True, "reasoning": True}))
+
+        stub_checks["check_tool_avoidance"].assert_called_once_with(
+            "http://stub:8000", "stub-model", timeout=300.0, reasoning_enabled=True
+        )
+
+    def test_tool_avoidance_check_defaults_reasoning_to_false_when_undeclared(self, stub_checks):
+        VLLMHarness().validate(self._config({"tool_calling": True}))
+
+        stub_checks["check_tool_avoidance"].assert_called_once_with(
+            "http://stub:8000", "stub-model", timeout=300.0, reasoning_enabled=False
+        )
+
     def test_timeout_bounds_every_service_request(self, stub_checks):
         """--timeout governs the behavioural checks, not just readiness."""
         config = self._config({"tool_calling": True, "structured_outputs": True, "reasoning": True})
@@ -1077,7 +1040,7 @@ class TestVLLMHarnessServiceValidation:
 
         stub_checks["probe_api_health"].assert_called_once_with("http://stub:8000", timeout_seconds=45)
         for name, stub in stub_checks.items():
-            if name == "check_chat_completions_endpoint":
+            if name in ("check_chat_completions_endpoint", "check_tool_avoidance"):
                 stub.assert_called_once_with("http://stub:8000", "stub-model", timeout=45.0, reasoning_enabled=True)
             elif name.startswith("check_"):
                 stub.assert_called_once_with("http://stub:8000", "stub-model", timeout=45.0)

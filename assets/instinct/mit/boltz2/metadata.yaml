@@ -26,6 +26,6 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "MIT"
-      description: "Biomolecular structure prediction model served via BentoML."
+      description: "Biomolecular structure prediction model."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"

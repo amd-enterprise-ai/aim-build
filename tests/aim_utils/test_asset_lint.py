@@ -31,7 +31,7 @@ def asset_tree(tmp_path: Path) -> Path:
 
 
 def invoke(runner: CliRunner, command: str, assets_root: Path, *extra: str):
-    return runner.invoke(cli, [command, "--assets_root", str(assets_root), *extra])
+    return runner.invoke(cli, [command, "--assets_path", str(assets_root), *extra])
 
 
 def test_clean_tree_passes_all_checks(runner, asset_tree):
@@ -70,7 +70,7 @@ def test_canonical_name_must_match_asset_path(runner, asset_tree):
 def test_canonical_name_check_accepts_explicit_precommit_path(runner, asset_tree):
     metadata = asset_tree / "instinct" / "acme" / "widget" / "metadata.yaml"
     metadata.write_text("com:\n  amd:\n    aim:\n      model:\n        canonicalName: acme/widget\n")
-    assert runner.invoke(cli, ["check-canonical-name", "--assets_root", str(asset_tree), str(metadata)]).exit_code == 0
+    assert runner.invoke(cli, ["check-canonical-name", "--assets_path", str(asset_tree), str(metadata)]).exit_code == 0
 
 
 def test_placeholder_check_skips_unlisted_extensions(runner, asset_tree):
@@ -227,5 +227,5 @@ def test_findings_cite_the_conventions_doc(runner, asset_tree, caplog):
     (asset_tree / "instinct" / "acme" / "widget" / "profiles" / "bad.yaml").write_text("model_id: __MODEL_ID__\n")
     with caplog.at_level(logging.ERROR, logger="aim_utils.asset_lint"):
         invoke(runner, "check-placeholders", asset_tree)
-    assert "docs/aim_conventions.md" in caplog.text
+    assert "ci/docs/aim_conventions.md" in caplog.text
     assert "bad.yaml:1" in caplog.text

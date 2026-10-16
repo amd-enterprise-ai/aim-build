@@ -27,8 +27,7 @@ ENV AIM_BASE_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_T
 ENV AIM_ID=${ORG}/${MODEL}
 ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
 
-RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
-RUN echo "AIM ID: ${AIM_ID}"
+RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}" && echo "AIM ID: ${AIM_ID}"
 
 # Copy model-specific profiles
 COPY assets/${ACCELERATOR_FAMILY}/${ORG}/${MODEL}/profiles /workspace/aim-runtime/profiles/${ORG}/${MODEL}/

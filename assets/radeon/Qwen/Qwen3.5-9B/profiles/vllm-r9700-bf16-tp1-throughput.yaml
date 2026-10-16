@@ -8,6 +8,8 @@ metadata:
   accelerator_count: 1
   accelerator_model: R9700
   accelerator_type: gpu
+  capabilities:
+    reasoning: true
   engine: vllm
   metric: throughput
   precision: bf16
@@ -20,8 +22,8 @@ engine_args:
   enable-auto-tool-choice: null
   gpu-memory-utilization: 0.9
   max-model-len: 32768
-  max-num-batched-tokens: 4096
-  max-num-seqs: 512
+  max-num-batched-tokens: 1024
+  max-num-seqs: 256
   no-enable-log-requests: null
   no-enable-prefix-caching: null
   reasoning-parser: qwen3

@@ -9,47 +9,80 @@ SPDX-License-Identifier: MIT
 AIM stands for AMD Inference Microservice. AIMs provide standardized, portable inference microservices for serving AI
 models on AMD Instinct™ GPUs, AMD Radeon™ Pro GPUs, and EPYC™ CPUs. AIMs use ROCm under the hood.
 
-AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. Serving AI models
-in general and LLMs in particular is not a trivial task. AIMs abstract away the complexities involved in configuring
-and serving AI models by providing a mechanism to automatically choose optimal runtime parameters based on the user's
-input, hardware, and model specifications.
+AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. AIMs abstract
+away the complexities involved in configuring and serving AI models by providing a mechanism to automatically choose
+optimal runtime parameters based on the user's input, hardware, and model specifications.
 
-AIM exposes an [OpenAI-compatible API](https://platform.openai.com/docs/api-reference/introduction) for LLMs, making it
-easy to integrate with existing applications and services.
+AIM exposes an HTTP API for every model. LLMs use an
+[OpenAI-compatible API](https://platform.openai.com/docs/api-reference/introduction), which makes them easy to
+integrate with existing applications and services. Models for other use cases, such as biomolecular structure
+prediction, medical image segmentation and text-to-video generation, expose task-specific APIs. The deployment guide
+of each AIM documents its endpoints and its request and response formats.
 
-## Features
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} AIMs Catalog
+:link: /aims/catalog/models
+:link-type: doc
+Browse the available AIM containers for AMD Instinct™, Radeon™, and EPYC™ hardware.
+:::
+
+:::{grid-item-card} Quick Start
+:link: /aims/guides/deployment-guide
+:link-type: doc
+AIM Quick Start Guide: From discovery to first deployment
+:::
+
+:::{grid-item-card} Source Code
+:link: https://github.com/amd-enterprise-ai/aim-build
+:link-type: url
+Explore the AIM build system, profiles, and runtime on GitHub.
+:::
+
+::::
+
+## Key Features
 
 * **Broad model support**
   * Including community models, custom fine-tuned models, and popular foundation models.
+  * Beyond language models, the catalog covers tasks in life sciences and health care, generative media, and weather
+    and earth sciences.
 * **Intelligent Configuration based on profiles**.
   * Profiles are predefined configurations optimized for specific models and hardware.
   * Profile selection is an automated process of choosing the best profile based on the user's input, hardware, and model.
     * It is possible to bypass automatic selection and specify a particular profile directly using an environment variable.
     * Custom profiles can be created by users to suit their specific needs.
   * All published profiles are validated, tested on the target hardware, and optimized for throughput or latency.
+* **Automatic engine selection**
+  * AIM runs language models on vLLM. Models that need a runner of their own use BentoML or vLLM-Omni.
+  * The profile gives the engine, and AIM starts it. AIM abstracts the engine away, so the deployment steps are the
+    same for all engines.
 * **Models downloading and caching**
-  * Models can be downloaded from Hugging Face.
+  * Models can be downloaded from Hugging Face, or from another source that the model publisher provides.
   * Downloaded models can be cached in different ways to speed-up subsequent runs.
   * Downloading gated models from Hugging Face is supported.
 * **Integration**
   * Logging is available on the container level and can be used by orchestrating frameworks.
   * AIM Runtime CLI simplifies the integration with orchestrating frameworks, such as Kubernetes.
-  * AIM exposes OpenAI-compatible API for LLMs.
+  * AIM exposes an OpenAI-compatible API for LLMs, and a task-specific HTTP API for every other model family.
 
-## Terminology reference
+## Terminology Reference
 
-| Word    | Explanation                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-| AIM     | AMD Inference Microservice                                                                          |
-| CPU     | Central processing unit. AIMs support running on AMD EPYC™ CPUs without a GPU                       |
-| Docker  | A platform for developing, shipping, and running applications in containers                         |
-| GPU     | A graphics processing unit. Essential hardware for running AI models                                |
-| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
-| IPC     | Inter-Process Communication. In Docker, `--ipc=host` shares the host's IPC namespace (including shared memory) with the container |
-| LLM     | Large Language Model                                                                                |
-| Profile | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
-| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
-| YAML    | A human-readable data serialization format often used for configuration files                       |
+| Word     | Explanation                                                                                        |
+|----------|----------------------------------------------------------------------------------------------------|
+| AIM      | AMD Inference Microservice                                                                          |
+| CPU      | Central processing unit. AIMs support running on AMD EPYC™ CPUs without a GPU                       |
+| Docker   | A platform for developing, shipping, and running applications in containers                         |
+| Engine   | The inference engine that runs the model in the AIM container                                       |
+| GPU      | A graphics processing unit. Essential hardware for running AI models                                |
+| HF       | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
+| IPC      | Inter-Process Communication. In Docker, `--ipc=host` shares the host's IPC namespace (including shared memory) with the container |
+| LLM      | Large Language Model                                                                                |
+| MONAI    | Medical Open Network for AI — a framework/bundle format for medical-imaging models                  |
+| Profile  | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
+| ROCm     | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
+| YAML     | A human-readable data serialization format often used for configuration files                       |
 
 
 # Model-specific AIM
@@ -64,60 +97,60 @@ This AIM allows to deploy Qwen/Qwen3-235B-A22B with a tailored set of profiles.
   * conversational
 
 
-## Available profiles
+## Available Profiles
 
 The following profiles are available for this model:
 
-|Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type| Manual only |
-|-------|-------------------|---------|------|---------|------|----|-------------|
-|vllm-mi300x-fp16-tp4-latency|MI300X|fp16|vllm|4|latency|optimized|False|
-|vllm-mi300x-fp16-tp4-throughput|MI300X|fp16|vllm|4|throughput|optimized|False|
-|vllm-mi300x-fp16-tp8-latency|MI300X|fp16|vllm|8|latency|optimized|False|
-|vllm-mi300x-fp16-tp8-throughput|MI300X|fp16|vllm|8|throughput|optimized|False|
-|vllm-mi300x-fp8-tp2-latency|MI300X|fp8|vllm|2|latency|optimized|False|
-|vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|optimized|False|
-|vllm-mi300x-fp8-tp4-latency|MI300X|fp8|vllm|4|latency|optimized|False|
-|vllm-mi300x-fp8-tp4-throughput|MI300X|fp8|vllm|4|throughput|optimized|False|
-|vllm-mi300x-fp8-tp8-latency|MI300X|fp8|vllm|8|latency|optimized|False|
-|vllm-mi300x-fp8-tp8-throughput|MI300X|fp8|vllm|8|throughput|optimized|False|
-|vllm-mi325x-fp16-tp4-latency|MI325X|fp16|vllm|4|latency|unoptimized|True|
-|vllm-mi325x-fp16-tp4-throughput|MI325X|fp16|vllm|4|throughput|unoptimized|True|
-|vllm-mi325x-fp16-tp8-latency|MI325X|fp16|vllm|8|latency|unoptimized|True|
-|vllm-mi325x-fp16-tp8-throughput|MI325X|fp16|vllm|8|throughput|unoptimized|True|
-|vllm-mi325x-fp8-tp2-latency|MI325X|fp8|vllm|2|latency|unoptimized|True|
-|vllm-mi325x-fp8-tp2-throughput|MI325X|fp8|vllm|2|throughput|unoptimized|True|
-|vllm-mi325x-fp8-tp4-latency|MI325X|fp8|vllm|4|latency|unoptimized|True|
-|vllm-mi325x-fp8-tp4-throughput|MI325X|fp8|vllm|4|throughput|unoptimized|True|
-|vllm-mi325x-fp8-tp8-latency|MI325X|fp8|vllm|8|latency|unoptimized|True|
-|vllm-mi325x-fp8-tp8-throughput|MI325X|fp8|vllm|8|throughput|unoptimized|True|
-|vllm-mi350x-fp16-tp2-latency|MI350X|fp16|vllm|2|latency|optimized|False|
-|vllm-mi350x-fp16-tp2-throughput|MI350X|fp16|vllm|2|throughput|optimized|False|
-|vllm-mi350x-fp16-tp4-latency|MI350X|fp16|vllm|4|latency|optimized|False|
-|vllm-mi350x-fp16-tp4-throughput|MI350X|fp16|vllm|4|throughput|preview|False|
-|vllm-mi350x-fp16-tp8-latency|MI350X|fp16|vllm|8|latency|optimized|False|
-|vllm-mi350x-fp16-tp8-throughput|MI350X|fp16|vllm|8|throughput|preview|False|
-|vllm-mi350x-fp8-tp1-latency|MI350X|fp8|vllm|1|latency|optimized|False|
-|vllm-mi350x-fp8-tp1-throughput|MI350X|fp8|vllm|1|throughput|optimized|False|
-|vllm-mi350x-fp8-tp2-latency|MI350X|fp8|vllm|2|latency|optimized|False|
-|vllm-mi350x-fp8-tp2-throughput|MI350X|fp8|vllm|2|throughput|preview|False|
-|vllm-mi350x-fp8-tp4-latency|MI350X|fp8|vllm|4|latency|unoptimized|True|
-|vllm-mi350x-fp8-tp4-throughput|MI350X|fp8|vllm|4|throughput|unoptimized|True|
-|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|optimized|False|
-|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|optimized|False|
-|vllm-mi355x-fp16-tp2-latency|MI355X|fp16|vllm|2|latency|optimized|False|
-|vllm-mi355x-fp16-tp2-throughput|MI355X|fp16|vllm|2|throughput|optimized|False|
-|vllm-mi355x-fp16-tp4-latency|MI355X|fp16|vllm|4|latency|preview|False|
-|vllm-mi355x-fp16-tp4-throughput|MI355X|fp16|vllm|4|throughput|preview|False|
-|vllm-mi355x-fp16-tp8-latency|MI355X|fp16|vllm|8|latency|optimized|False|
-|vllm-mi355x-fp16-tp8-throughput|MI355X|fp16|vllm|8|throughput|preview|False|
-|vllm-mi355x-fp8-tp1-latency|MI355X|fp8|vllm|1|latency|optimized|False|
-|vllm-mi355x-fp8-tp1-throughput|MI355X|fp8|vllm|1|throughput|optimized|False|
-|vllm-mi355x-fp8-tp2-latency|MI355X|fp8|vllm|2|latency|optimized|False|
-|vllm-mi355x-fp8-tp2-throughput|MI355X|fp8|vllm|2|throughput|preview|False|
-|vllm-mi355x-fp8-tp4-latency|MI355X|fp8|vllm|4|latency|unoptimized|True|
-|vllm-mi355x-fp8-tp4-throughput|MI355X|fp8|vllm|4|throughput|unoptimized|True|
-|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|optimized|False|
-|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|optimized|False|
+|Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type|
+|-------|-------------------|---------|------|---------|------|----|
+|vllm-mi300x-fp16-tp4-latency|MI300X|fp16|vllm|4|latency|optimized|
+|vllm-mi300x-fp16-tp4-throughput|MI300X|fp16|vllm|4|throughput|optimized|
+|vllm-mi300x-fp16-tp8-latency|MI300X|fp16|vllm|8|latency|optimized|
+|vllm-mi300x-fp16-tp8-throughput|MI300X|fp16|vllm|8|throughput|optimized|
+|vllm-mi300x-fp8-tp2-latency|MI300X|fp8|vllm|2|latency|optimized|
+|vllm-mi300x-fp8-tp2-throughput|MI300X|fp8|vllm|2|throughput|optimized|
+|vllm-mi300x-fp8-tp4-latency|MI300X|fp8|vllm|4|latency|optimized|
+|vllm-mi300x-fp8-tp4-throughput|MI300X|fp8|vllm|4|throughput|optimized|
+|vllm-mi300x-fp8-tp8-latency|MI300X|fp8|vllm|8|latency|optimized|
+|vllm-mi300x-fp8-tp8-throughput|MI300X|fp8|vllm|8|throughput|optimized|
+|vllm-mi325x-fp16-tp4-latency|MI325X|fp16|vllm|4|latency|unoptimized|
+|vllm-mi325x-fp16-tp4-throughput|MI325X|fp16|vllm|4|throughput|unoptimized|
+|vllm-mi325x-fp16-tp8-latency|MI325X|fp16|vllm|8|latency|unoptimized|
+|vllm-mi325x-fp16-tp8-throughput|MI325X|fp16|vllm|8|throughput|unoptimized|
+|vllm-mi325x-fp8-tp2-latency|MI325X|fp8|vllm|2|latency|unoptimized|
+|vllm-mi325x-fp8-tp2-throughput|MI325X|fp8|vllm|2|throughput|unoptimized|
+|vllm-mi325x-fp8-tp4-latency|MI325X|fp8|vllm|4|latency|unoptimized|
+|vllm-mi325x-fp8-tp4-throughput|MI325X|fp8|vllm|4|throughput|unoptimized|
+|vllm-mi325x-fp8-tp8-latency|MI325X|fp8|vllm|8|latency|unoptimized|
+|vllm-mi325x-fp8-tp8-throughput|MI325X|fp8|vllm|8|throughput|unoptimized|
+|vllm-mi350x-fp16-tp2-latency|MI350X|fp16|vllm|2|latency|optimized|
+|vllm-mi350x-fp16-tp2-throughput|MI350X|fp16|vllm|2|throughput|optimized|
+|vllm-mi350x-fp16-tp4-latency|MI350X|fp16|vllm|4|latency|optimized|
+|vllm-mi350x-fp16-tp4-throughput|MI350X|fp16|vllm|4|throughput|preview|
+|vllm-mi350x-fp16-tp8-latency|MI350X|fp16|vllm|8|latency|optimized|
+|vllm-mi350x-fp16-tp8-throughput|MI350X|fp16|vllm|8|throughput|preview|
+|vllm-mi350x-fp8-tp1-latency|MI350X|fp8|vllm|1|latency|optimized|
+|vllm-mi350x-fp8-tp1-throughput|MI350X|fp8|vllm|1|throughput|optimized|
+|vllm-mi350x-fp8-tp2-latency|MI350X|fp8|vllm|2|latency|optimized|
+|vllm-mi350x-fp8-tp2-throughput|MI350X|fp8|vllm|2|throughput|preview|
+|vllm-mi350x-fp8-tp4-latency|MI350X|fp8|vllm|4|latency|unoptimized|
+|vllm-mi350x-fp8-tp4-throughput|MI350X|fp8|vllm|4|throughput|unoptimized|
+|vllm-mi350x-fp8-tp8-latency|MI350X|fp8|vllm|8|latency|optimized|
+|vllm-mi350x-fp8-tp8-throughput|MI350X|fp8|vllm|8|throughput|optimized|
+|vllm-mi355x-fp16-tp2-latency|MI355X|fp16|vllm|2|latency|optimized|
+|vllm-mi355x-fp16-tp2-throughput|MI355X|fp16|vllm|2|throughput|optimized|
+|vllm-mi355x-fp16-tp4-latency|MI355X|fp16|vllm|4|latency|preview|
+|vllm-mi355x-fp16-tp4-throughput|MI355X|fp16|vllm|4|throughput|preview|
+|vllm-mi355x-fp16-tp8-latency|MI355X|fp16|vllm|8|latency|optimized|
+|vllm-mi355x-fp16-tp8-throughput|MI355X|fp16|vllm|8|throughput|preview|
+|vllm-mi355x-fp8-tp1-latency|MI355X|fp8|vllm|1|latency|optimized|
+|vllm-mi355x-fp8-tp1-throughput|MI355X|fp8|vllm|1|throughput|optimized|
+|vllm-mi355x-fp8-tp2-latency|MI355X|fp8|vllm|2|latency|optimized|
+|vllm-mi355x-fp8-tp2-throughput|MI355X|fp8|vllm|2|throughput|preview|
+|vllm-mi355x-fp8-tp4-latency|MI355X|fp8|vllm|4|latency|unoptimized|
+|vllm-mi355x-fp8-tp4-throughput|MI355X|fp8|vllm|4|throughput|unoptimized|
+|vllm-mi355x-fp8-tp8-latency|MI355X|fp8|vllm|8|latency|optimized|
+|vllm-mi355x-fp8-tp8-throughput|MI355X|fp8|vllm|8|throughput|optimized|
 
 The columns should be read as follows:
 * **Profile**: Name of the deployment profile.
@@ -128,12 +161,16 @@ The columns should be read as follows:
 * **Metric**: Performance metric optimized the profile is optimized for. Common metrics are `latency` (time taken to generate a response) and `throughput` (number of requests handled per second).
 * **Type**: Indicates whether the profile is `optimized`, `unoptimized`, or `general`.
   * `"optimized"`: Performance-tuned profiles with benchmarked configurations for specific model/hardware combinations
-  * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation
+  * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation; these are never selected automatically and must be requested explicitly
   * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
   * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
 
+## Getting Started
 
-# Terms of use
+See the [deployment guide](DEPLOYMENT.md) for Docker and Kubernetes instructions.
+
+
+# Terms of Use
 
 
 This AIM can be used in accordance with the following licenses: Apache-2.0, MIT.

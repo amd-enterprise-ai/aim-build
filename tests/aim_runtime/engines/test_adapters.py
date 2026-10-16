@@ -198,20 +198,20 @@ class TestVllmDynamicSynthesis:
 class TestSupervisorGating:
     def test_dynamic_adapter_profile_needs_supervisor(self, tmp_path):
         eng = _vllm_engine(str(tmp_path), adapter_mode="dynamic")
-        assert eng.needs_runtime_supervisor(_adapter_profile(["adapters"])) is True
+        assert eng.needs_adapter_watcher(_adapter_profile(["adapters"])) is True
 
     def test_static_adapter_profile_no_supervisor(self, tmp_path):
         eng = _vllm_engine(str(tmp_path), adapter_mode="static")
-        assert eng.needs_runtime_supervisor(_adapter_profile(["adapters"])) is False
+        assert eng.needs_adapter_watcher(_adapter_profile(["adapters"])) is False
 
     def test_non_adapter_profile_no_supervisor(self, tmp_path):
         eng = _vllm_engine(str(tmp_path), adapter_mode="dynamic")
-        assert eng.needs_runtime_supervisor(_adapter_profile([])) is False
+        assert eng.needs_adapter_watcher(_adapter_profile([])) is False
 
     def test_scale_only_profile_no_supervisor_in_dynamic_mode(self, tmp_path):
         # adapters-scale-only has no runtime add/remove -> static path, no watcher.
         eng = _vllm_engine(str(tmp_path), adapter_mode="dynamic")
-        assert eng.needs_runtime_supervisor(_adapter_profile(["adapters-scale-only"])) is False
+        assert eng.needs_adapter_watcher(_adapter_profile(["adapters-scale-only"])) is False
 
     def test_scale_only_profile_gets_static_not_resolver_env(self, tmp_path):
         # Even in dynamic mode, a scale-only profile must not get the resolver

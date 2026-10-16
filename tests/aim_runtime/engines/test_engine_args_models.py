@@ -123,7 +123,16 @@ class TestVllmOmniEngineArgsModelNative:
 
 
 class TestVllmEngineArgsModel:
-    """Tests for VllmEngineArgsModel."""
+    """Tests for the Pydantic fallback path of VllmEngineArgsModel.
+
+    A test that needs the parser path patches ``_vllm_parser`` itself.
+    ``tests/aim_runtime/test_engine_config.py::TestVllmParserIntegration`` tests
+    the parser contract against a real vLLM.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _pydantic_fallback(self, monkeypatch):
+        monkeypatch.setattr(VllmEngineArgsModel, "_vllm_parser", staticmethod(lambda: None))
 
     # ------------------------------------------------------------------
     # Valid inputs

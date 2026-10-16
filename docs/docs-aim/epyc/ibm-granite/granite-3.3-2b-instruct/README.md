@@ -9,13 +9,15 @@ SPDX-License-Identifier: MIT
 AIM stands for AMD Inference Microservice. AIMs provide standardized, portable inference microservices for serving AI
 models on AMD Instinct™ GPUs, AMD Radeon™ Pro GPUs, and EPYC™ CPUs. AIMs use ROCm under the hood.
 
-AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. Serving AI models
-in general and LLMs in particular is not a trivial task. AIMs abstract away the complexities involved in configuring
-and serving AI models by providing a mechanism to automatically choose optimal runtime parameters based on the user's
-input, hardware, and model specifications.
+AIMs are distributed as Docker images, making them easy to deploy and manage in various environments. AIMs abstract
+away the complexities involved in configuring and serving AI models by providing a mechanism to automatically choose
+optimal runtime parameters based on the user's input, hardware, and model specifications.
 
-AIM exposes an [OpenAI-compatible API](https://platform.openai.com/docs/api-reference/introduction) for LLMs, making it
-easy to integrate with existing applications and services.
+AIM exposes an HTTP API for every model. LLMs use an
+[OpenAI-compatible API](https://platform.openai.com/docs/api-reference/introduction), which makes them easy to
+integrate with existing applications and services. Models for other use cases, such as biomolecular structure
+prediction, medical image segmentation and text-to-video generation, expose task-specific APIs. The deployment guide
+of each AIM documents its endpoints and its request and response formats.
 
 ::::{grid} 1 2 3 3
 :gutter: 3
@@ -44,35 +46,43 @@ Explore the AIM build system, profiles, and runtime on GitHub.
 
 * **Broad model support**
   * Including community models, custom fine-tuned models, and popular foundation models.
+  * Beyond language models, the catalog covers tasks in life sciences and health care, generative media, and weather
+    and earth sciences.
 * **Intelligent Configuration based on profiles**.
   * Profiles are predefined configurations optimized for specific models and hardware.
   * Profile selection is an automated process of choosing the best profile based on the user's input, hardware, and model.
     * It is possible to bypass automatic selection and specify a particular profile directly using an environment variable.
     * Custom profiles can be created by users to suit their specific needs.
   * All published profiles are validated, tested on the target hardware, and optimized for throughput or latency.
+* **Automatic engine selection**
+  * AIM runs language models on vLLM. Models that need a runner of their own use BentoML or vLLM-Omni.
+  * The profile gives the engine, and AIM starts it. AIM abstracts the engine away, so the deployment steps are the
+    same for all engines.
 * **Models downloading and caching**
-  * Models can be downloaded from Hugging Face.
+  * Models can be downloaded from Hugging Face, or from another source that the model publisher provides.
   * Downloaded models can be cached in different ways to speed-up subsequent runs.
   * Downloading gated models from Hugging Face is supported.
 * **Integration**
   * Logging is available on the container level and can be used by orchestrating frameworks.
   * AIM Runtime CLI simplifies the integration with orchestrating frameworks, such as Kubernetes.
-  * AIM exposes OpenAI-compatible API for LLMs.
+  * AIM exposes an OpenAI-compatible API for LLMs, and a task-specific HTTP API for every other model family.
 
-## Terminology reference
+## Terminology Reference
 
-| Word    | Explanation                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-| AIM     | AMD Inference Microservice                                                                          |
-| CPU     | Central processing unit. AIMs support running on AMD EPYC™ CPUs without a GPU                       |
-| Docker  | A platform for developing, shipping, and running applications in containers                         |
-| GPU     | A graphics processing unit. Essential hardware for running AI models                                |
-| HF      | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
-| IPC     | Inter-Process Communication. In Docker, `--ipc=host` shares the host's IPC namespace (including shared memory) with the container |
-| LLM     | Large Language Model                                                                                |
-| Profile | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
-| ROCm    | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
-| YAML    | A human-readable data serialization format often used for configuration files                       |
+| Word     | Explanation                                                                                        |
+|----------|----------------------------------------------------------------------------------------------------|
+| AIM      | AMD Inference Microservice                                                                          |
+| CPU      | Central processing unit. AIMs support running on AMD EPYC™ CPUs without a GPU                       |
+| Docker   | A platform for developing, shipping, and running applications in containers                         |
+| Engine   | The inference engine that runs the model in the AIM container                                       |
+| GPU      | A graphics processing unit. Essential hardware for running AI models                                |
+| HF       | Hugging Face, a popular platform for sharing machine learning models and datasets                   |
+| IPC      | Inter-Process Communication. In Docker, `--ipc=host` shares the host's IPC namespace (including shared memory) with the container |
+| LLM      | Large Language Model                                                                                |
+| MONAI    | Medical Open Network for AI — a framework/bundle format for medical-imaging models                  |
+| Profile  | A predefined AIM run configuration that can be optimized for specific models, compute, or use cases |
+| ROCm     | Radeon Open Compute, AMD's open software platform for GPU computing                                 |
+| YAML     | A human-readable data serialization format often used for configuration files                       |
 
 
 # Model-specific AIM
@@ -88,7 +98,7 @@ This AIM allows to deploy ibm-granite/granite-3.3-2b-instruct with a tailored se
   * instruction
 
 
-## Available profiles
+## Available Profiles
 
 The following profiles are available for this model:
 
@@ -112,12 +122,12 @@ The columns should be read as follows:
   * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
   * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
 
-## Getting started
+## Getting Started
 
 See the [deployment guide](DEPLOYMENT.md) for Docker and Kubernetes instructions.
 
 
-# Terms of use
+# Terms of Use
 
 
 This AIM can be used in accordance with the following licenses: Apache-2.0, MIT, AMD EPYC CONTAINER LICENSE AGREEMENT.

@@ -116,6 +116,7 @@ AIM containers support the following environment variables:
 * `AIM_LOG_LEVEL`: Log level for AIM runtime packages (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, default: `INFO`). See [Logging Configuration](docs/logging_configuration.md) for more details
 * `AIM_PORT`: Port for accessing inference API (numeric value up to `65535`, default: `8000`)
 * `AIM_ENGINE_ARGS`: Override or add engine-specific arguments as JSON (see [Engine Arguments Override](docs/engine-args-override.md) for details)
+* `AIM_SERVE_SUPERVISOR`: Run the engine under AIM Runtime supervision (`true`, default) or restore unsupervised execution (`false`). Dynamic adapter profiles always use supervision so their adapter watcher can run.
 
 Please refer to [Environment Variables](docs/environment_variables.md) document for detailed examples of the usage of
 the environment variables. The document covers the following topics:

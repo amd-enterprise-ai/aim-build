@@ -31,6 +31,6 @@ org:
       vendor: "AMD"
       authors: ""
       licenses: "Apache-2.0"
-      description: "Swin UNETR 3D multi-organ abdominal CT segmentation (BTCV) — MONAI bundle AIM"
+      description: "Multi-organ abdominal CT segmentation model."
       documentation: ""
       source: "https://github.com/amd-enterprise-ai/aim-build"

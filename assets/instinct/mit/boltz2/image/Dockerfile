@@ -20,12 +20,16 @@ FROM python:3.12-slim
 RUN echo "Specialized base image placeholder for Boltz-2"
 
 # TODO: Will be removed once the real boltz image is added
-RUN apt-get update && apt-get install -y git gpg curl && rm -rf /var/lib/apt/lists/*
+# Versions aren't pinned: this Dockerfile is an explicit placeholder pending
+# a full rewrite (see header comment above).
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends git gpg curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/model
 
 COPY src/ /workspace/model/src/
 
 # Add /workspace/model/src to sys.path so the harness can import sibling modules.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN python -c "import sysconfig; print(sysconfig.get_path('purelib'))" \
     | xargs -I{} sh -c 'echo /workspace/model/src > {}/workspace-model.pth'

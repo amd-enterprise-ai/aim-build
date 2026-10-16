@@ -401,6 +401,17 @@ class TestEndpointChecks:
         assert result.success
         assert "reasoning content" in result.detail
 
+    def test_chat_completions_passes_on_null_content_with_reasoning_field_when_declared(self, service):
+        service.route(
+            "/v1/chat/completions",
+            (200, chat_body(content=None, reasoning='The user just said "')),
+        )
+
+        result = check_chat_completions_endpoint(service.url, "stub", reasoning_enabled=True)
+
+        assert result.success
+        assert "reasoning content" in result.detail
+
 
 # ---------------------------------------------------------------------------
 # Tool calling
@@ -484,6 +495,33 @@ class TestToolAvoidance:
 
         assert not result.success
         assert "empty or non-string content" in result.detail
+
+    def test_thinking_only_reply_passes_when_reasoning_declared(self, service):
+        service.route("/v1/chat/completions", (200, chat_body(None, reasoning_content="The user just said hello.")))
+
+        result = check_tool_avoidance(service.url, "stub", reasoning_enabled=True)
+
+        assert result.success
+        assert result.warnings == [
+            "Request #0 answered only in the reasoning field",
+            "Request #1 answered only in the reasoning field",
+        ]
+
+    def test_thinking_only_reply_fails_when_reasoning_not_declared(self, service):
+        service.route("/v1/chat/completions", (200, chat_body(None, reasoning_content="The user just said hello.")))
+
+        result = check_tool_avoidance(service.url, "stub")
+
+        assert not result.success
+        assert "empty or non-string content" in result.detail
+
+    def test_leaked_token_in_reasoning_content_warns(self, service):
+        service.route("/v1/chat/completions", (200, chat_body(None, reasoning_content="<tool_call>get_weather")))
+
+        result = check_tool_avoidance(service.url, "stub", reasoning_enabled=True)
+
+        assert result.success
+        assert any("<tool_call>" in warning for warning in result.warnings)
 
     def test_every_request_is_evaluated_before_failing(self, service):
         """CI scores each regular-chat request independently; both must be reported."""
@@ -593,6 +631,14 @@ class TestReasoning:
         result = check_reasoning(service.url, "stub")
 
         assert result.success
+        assert any("Answered only in the reasoning field" in warning for warning in result.warnings)
+
+    def test_finished_turn_with_content_does_not_warn_about_reasoning_only(self, service):
+        service.route("/v1/chat/completions", (200, chat_body("425", reasoning_content="25 * 17 = 425")))
+
+        result = check_reasoning(service.url, "stub")
+
+        assert result.success
         assert not result.warnings
 
     def test_content_only_passes_but_warns_about_missing_parser(self, service):
@@ -601,10 +647,45 @@ class TestReasoning:
         result = check_reasoning(service.url, "stub")
 
         assert result.success
-        assert any("reasoning_content" in warning for warning in result.warnings)
+        assert any("reasoning parser" in warning for warning in result.warnings)
+
+    def test_reasoning_field_counts_when_reasoning_content_is_absent(self, service):
+        body = chat_body(None, reasoning="Ice is less dense because its crystal structure holds more space.")
+        body["choices"][0]["finish_reason"] = "length"
+        body["usage"]["completion_tokens"] = 2048
+        service.route("/v1/chat/completions", (200, body))
+
+        result = check_reasoning(service.url, "stub")
+
+        assert result.success
+        assert not result.warnings
+        assert "5 with reasoning text" in result.detail
+
+    def test_length_cutoff_with_no_reasoning_text_still_fails(self, service):
+        body = chat_body(None)
+        body["choices"][0]["finish_reason"] = "length"
+        body["usage"]["completion_tokens"] = 2048
+        service.route("/v1/chat/completions", (200, body))
+
+        result = check_reasoning(service.url, "stub")
+
+        assert not result.success
+        assert "empty response" in result.detail
+        assert "finish_reason=length" in result.detail
 
     def test_fails_on_empty_responses(self, service):
         service.route("/v1/chat/completions", (200, chat_body("")))
+
+        result = check_reasoning(service.url, "stub")
+
+        assert not result.success
+        assert "empty response" in result.detail
+
+    def test_no_tokens_at_all_still_fails(self, service):
+        body = chat_body("")
+        body["choices"][0]["finish_reason"] = "length"
+        body["usage"]["completion_tokens"] = 0
+        service.route("/v1/chat/completions", (200, body))
 
         result = check_reasoning(service.url, "stub")
 

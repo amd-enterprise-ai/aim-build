@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+defaults:
+  numbered: false
+  maxdepth: 2
+root: overview
+title: AIMs
+subtrees:
+  - entries:
+      - file: deployment_overview
+        title: Deployment
+        subtrees:
+          - entries:
+              - file: docker_deployment
+                title: Docker
+              - file: kubernetes_deployment
+                title: Pure Kubernetes
+              - file: kserve_deployment
+                title: KServe
+              - file: custom_profiles
+                title: Customize AIM Deployment
+      - file: guides/guides
+        title: Guides
+        subtrees:
+          - entries:
+              - file: guides/deployment-guide
+                title: AIM Quick Start Guide
+      # The catalog page organizes the per-model pages by accelerator itself;
+      # the individual docs-aim/**/README pages are reached from there, not the
+      # sidebar (they are excluded from the nav in docs/sphinx/site-toc.yaml).
+      - file: catalog/models
+        title: AIMs Catalog
+      - file: accelerator_support
+        title: Supported Accelerator Models

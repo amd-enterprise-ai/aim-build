@@ -22,6 +22,8 @@ from aim_runtime.engines import (
     BentomlEngine,
     BentomlEngineArgsModel,
     EngineArgsFormat,
+    LlamaCppEngine,
+    LlamaCppEngineArgsModel,
     VllmEngine,
     VllmEngineArgsModel,
     VllmOmniEngine,
@@ -46,6 +48,7 @@ class TestFactory:
             (Engine.VLLM, VllmEngine),
             (Engine.VLLM_OMNI, VllmOmniEngine),
             (Engine.BENTOML, BentomlEngine),
+            (Engine.LLAMACPP, LlamaCppEngine),
         ],
     )
     def test_engine_class_for(self, engine, expected):
@@ -61,6 +64,7 @@ class TestFactory:
             (Engine.VLLM, VllmEngine),
             (Engine.VLLM_OMNI, VllmOmniEngine),
             (Engine.BENTOML, BentomlEngine),
+            (Engine.LLAMACPP, LlamaCppEngine),
         ],
     )
     def test_build_engine_instantiates(self, engine, expected):
@@ -95,10 +99,16 @@ class TestClassAttributes:
         assert BentomlEngine.ARGS_FORMAT is EngineArgsFormat.FORWARDED
         assert BentomlEngine.requires_aiter_kernels is False
 
+    def test_llamacpp_args_model_and_format(self):
+        assert LlamaCppEngine.ARGS_MODEL is LlamaCppEngineArgsModel
+        assert LlamaCppEngine.ARGS_FORMAT is EngineArgsFormat.STANDARD
+        assert LlamaCppEngine.requires_aiter_kernels is False
+
     def test_engine_hierarchy(self):
         assert issubclass(VllmEngine, BaseEngine)
         assert issubclass(VllmOmniEngine, VllmEngine)
         assert issubclass(BentomlEngine, BaseEngine)
+        assert issubclass(LlamaCppEngine, BaseEngine)
 
 
 class TestLaunchPrefix:

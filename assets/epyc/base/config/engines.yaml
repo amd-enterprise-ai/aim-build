@@ -22,6 +22,6 @@ vllm:
 #   launch: python -m sglang.launch_server
 #   model_arg: --model-path
 
-# llamacpp:
-#   launch: llama-server
-#   model_arg: -m
+llamacpp:
+  launch: llama-server
+  model_arg: -m

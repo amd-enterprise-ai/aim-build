@@ -280,6 +280,9 @@ class AIMRuntime:
         if self.engine.requires_aiter_kernels and profile.metadata:
             _install_aiter_prebuilt_kernels(profile.metadata.accelerator_model)
 
+        # Engine-specific model preparation (e.g. download, HF -> GGUF conversion)
+        self.engine.prepare_model(model_id, profile)
+
         # Step 3: Generate execution parameters
         logger.info("Generating execution parameters...")
         command_list, env_vars = self.command_generator.generate_execution_params(profile)

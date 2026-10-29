@@ -12,7 +12,7 @@ and functionality to estimate storage requirements for model downloads.
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, Optional
 
 from huggingface_hub import HfApi, snapshot_download
 
@@ -185,12 +185,20 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
         api_result = self._estimate_from_api(model_id)
         return api_result
 
-    def download(self, model_id: str, cache_dir: str = None, use_hf_cache: bool = False) -> str:
+    def download(
+        self,
+        model_id: str,
+        cache_dir: str = None,
+        use_hf_cache: bool = False,
+        allow_patterns: Optional[List[str]] = None,
+        ignore_patterns: Optional[List[str]] = None,
+    ) -> str:
         """
         Download a model from HuggingFace Hub using snapshot_download.
 
         This downloads the complete model repository including all files
-        (weights, config, tokenizer, etc.) to the cache directory.
+        (weights, config, tokenizer, etc.) to the cache directory, filtered by
+        ``allow_patterns`` and ``ignore_patterns`` when given.
 
         Args:
             model_id: HuggingFace model ID (with or without hf:// prefix)
@@ -199,6 +207,9 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                       (determined by HF_HOME or platform defaults).
             use_hf_cache: If True, uses HuggingFace's cache structure (cache_dir parameter).
                          If False (default), downloads directly to local directory (local_dir parameter).
+            allow_patterns: Glob patterns of repository files to download. None downloads
+                            the whole repository.
+            ignore_patterns: Glob patterns of repository files to skip.
 
         Returns:
             Path to the downloaded model directory
@@ -227,8 +238,8 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                     cache_dir=cache_dir,
                     token=self._hf_token,
                     resume_download=True,
-                    allow_patterns=None,
-                    ignore_patterns=None,
+                    allow_patterns=allow_patterns,
+                    ignore_patterns=ignore_patterns,
                 )
             else:
                 # Use local_dir parameter to download directly to the target directory
@@ -243,8 +254,8 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                     local_dir=local_dir_path,
                     token=self._hf_token,
                     resume_download=True,
-                    allow_patterns=None,
-                    ignore_patterns=None,
+                    allow_patterns=allow_patterns,
+                    ignore_patterns=ignore_patterns,
                 )
 
             logger.info(f"Successfully downloaded model to: {downloaded_path}")
@@ -324,7 +335,14 @@ class StorageBackendRegistry:
 
         return backend.estimate_storage(model_id)
 
-    def download(self, model_source: str, cache_dir: str = None, use_hf_cache: bool = False) -> str:
+    def download(
+        self,
+        model_source: str,
+        cache_dir: str = None,
+        use_hf_cache: bool = False,
+        allow_patterns: Optional[List[str]] = None,
+        ignore_patterns: Optional[List[str]] = None,
+    ) -> str:
         """
         Download a model using the appropriate backend.
 
@@ -334,6 +352,9 @@ class StorageBackendRegistry:
                       For HuggingFace backend: If None, uses HF's default cache (HF_HOME).
             use_hf_cache: For HuggingFace backend, whether to use HF's cache structure (True)
                          or download directly to local directory (False, default).
+            allow_patterns: For HuggingFace backend, glob patterns of repository files to
+                            download. None downloads the whole repository.
+            ignore_patterns: For HuggingFace backend, glob patterns of repository files to skip.
 
         Returns:
             Path to the downloaded model
@@ -355,7 +376,13 @@ class StorageBackendRegistry:
 
         # HuggingFace backend supports both cache_dir and local_dir modes
         if isinstance(backend, HuggingFaceStorageBackend):
-            return backend.download(model_id, cache_dir=cache_dir, use_hf_cache=use_hf_cache)
+            return backend.download(
+                model_id,
+                cache_dir=cache_dir,
+                use_hf_cache=use_hf_cache,
+                allow_patterns=allow_patterns,
+                ignore_patterns=ignore_patterns,
+            )
         else:
             # Other backends (fallback)
             if cache_dir is None:

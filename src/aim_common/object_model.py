@@ -39,6 +39,7 @@ class Engine(StrEnum):
     """
 
     BENTOML = "bentoml"
+    LLAMACPP = "llamacpp"
     VLLM = "vllm"
     VLLM_OMNI = "vllm_omni"
 

@@ -9,9 +9,9 @@ re-exports each engine's argument-validation model for a stable import
 surface. The engine-argument machinery is runtime-only (it moved here from
 ``aim_common`` because the CI side never imported it). Each concrete model now
 lives next to its engine: ``VllmEngineArgsModel`` in ``vllm.py``,
-``BentomlEngineArgsModel`` in ``bentoml.py``, ``VllmOmniEngineArgsModel`` in
-``vllm_omni.py``; only the shared base, format enum, and serializer remain in
-``engine_args_models``.
+``BentomlEngineArgsModel`` in ``bentoml.py``, ``LlamaCppEngineArgsModel`` in
+``llamacpp.py``, ``VllmOmniEngineArgsModel`` in ``vllm_omni.py``; only the
+shared base, format enum, and serializer remain in ``engine_args_models``.
 
 Engine selection keys off the :class:`~aim_common.object_model.Engine` enum:
 ``engine_class_for`` returns the class (usable at profile-load time, no
@@ -30,6 +30,7 @@ from aim_runtime.engines.engine_args_models import (
     EngineArgsModel,
     engine_args_to_cli_list,
 )
+from aim_runtime.engines.llamacpp import LlamaCppEngine, LlamaCppEngineArgsModel
 from aim_runtime.engines.vllm import VllmEngine, VllmEngineArgsModel, validate_vllm_env_vars
 from aim_runtime.engines.vllm_omni import VllmOmniEngine, VllmOmniEngineArgsModel
 
@@ -45,6 +46,7 @@ ENGINE_CLASSES: dict[Engine, type[BaseEngine]] = {
     Engine.VLLM: VllmEngine,
     Engine.VLLM_OMNI: VllmOmniEngine,
     Engine.BENTOML: BentomlEngine,
+    Engine.LLAMACPP: LlamaCppEngine,
 }
 
 
@@ -90,6 +92,8 @@ __all__ = [
     "ENGINE_CLASSES",
     "EngineArgsFormat",
     "EngineArgsModel",
+    "LlamaCppEngine",
+    "LlamaCppEngineArgsModel",
     "VllmEngine",
     "VllmEngineArgsModel",
     "VllmOmniEngine",

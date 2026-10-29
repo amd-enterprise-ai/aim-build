@@ -7,6 +7,50 @@
 ARG PARENT_REGISTRY_PREFIX=dummy_parent_registry_prefix
 ARG PARENT_REPOSITORY=dummy_parent_repository
 ARG PARENT_TAG=dummy_parent_tag
+
+# llama-server with the ZenDNN backend for AIM_ENGINE=llamacpp, built for Zen 4+
+# on the parent image's Ubuntu release so the binaries match its glibc.
+FROM docker.io/ubuntu:22.04 AS llamacpp-build
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# Keep in step with LlamaCppEngineArgsModel (src/aim_runtime/engines/llamacpp.py).
+ARG LLAMACPP_REPO=https://github.com/ggml-org/llama.cpp.git
+ARG LLAMACPP_SHA=d4abd573f6a360201799072384ceec6170fdb60c
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    git \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# The ZenDNN backend requires CMake >= 3.25.
+RUN pip3 install --no-cache-dir "cmake==3.31.6"
+
+RUN git init /opt/llama.cpp \
+    && cd /opt/llama.cpp \
+    && git remote add origin "${LLAMACPP_REPO}" \
+    && git fetch --depth 1 origin "${LLAMACPP_SHA}" \
+    && git checkout FETCH_HEAD
+
+WORKDIR /opt/llama.cpp
+
+# Makefile generator: the ZenDNN sub-build has no install target under Ninja.
+RUN cmake -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGGML_ZENDNN=ON \
+      -DGGML_NATIVE=OFF \
+      -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
+      -DGGML_AVX512=ON -DGGML_AVX512_VBMI=ON -DGGML_AVX512_VNNI=ON -DGGML_AVX512_BF16=ON \
+      -DLLAMA_CURL=OFF \
+      -DLLAMA_BUILD_TESTS=OFF \
+    && cmake --build build --config Release -j"$(nproc)" --target llama-server \
+    && mkdir -p /opt/llamacpp \
+    && cp -a build/bin/. /opt/llamacpp/ \
+    && cp build/_deps/zendnn-prefix/build/install/zendnnl/lib/libzendnnl.so /opt/llamacpp/ \
+    && mkdir -p /opt/llamacpp/convert \
+    && cp -a convert_hf_to_gguf.py conversion gguf-py /opt/llamacpp/convert/
+
 FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
 
 # Re-declare ARGs after FROM to use them in subsequent instructions
@@ -34,6 +78,13 @@ ENV AIM_ACCELERATOR_TYPE="cpu"
 # Set VLLM_CPU_OMP_THREADS_BIND to "auto" by default to allow container environment to function correctly.
 # E.g. There is no way to bind to cpu 0-128 if the container is not given those cores...
 ENV VLLM_CPU_OMP_THREADS_BIND="auto"
+
+# llama.cpp's libraries are on the library path for llama-server only, so they
+# cannot shadow the ones vLLM/zentorch load.
+COPY --from=llamacpp-build /opt/llamacpp /opt/llamacpp
+RUN printf '#!/bin/sh\nexport LD_LIBRARY_PATH="/opt/llamacpp${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\nexec /opt/llamacpp/llama-server "$@"\n' \
+      > /usr/local/bin/llama-server \
+    && chmod +x /usr/local/bin/llama-server
 
 RUN echo "AIM Upstream Image: ${AIM_UPSTREAM_IMAGE_REF}"
 

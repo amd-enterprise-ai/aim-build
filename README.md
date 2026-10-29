@@ -106,7 +106,7 @@ AIM containers support the following environment variables:
 * `AIM_PRECISION`: Precision format (`auto`, `fp4`, `fp8`, `fp16`, `fp32`, `bf16`, `int4`, `int8`, default: `auto`)
 * `AIM_GPU_COUNT`: Number of GPUs to use (`auto` or specific number from `0` to `8`)
 * `AIM_GPU_MODEL`: Override detected GPU model (e.g., `MI300X`, `MI325X`, `MI350X`, `MI355X`, ...) or device id (e.g. `0x74a1`, `0x74a5`, `0x75a0`, `0x75a3`, ...). Use this when automatic GPU detection is not available or when you want to force a specific GPU profile.
-* `AIM_ENGINE`: Inference engine (`vllm`)
+* `AIM_ENGINE`: Inference engine (`vllm`, `llamacpp` on EPYC)
 * `AIM_METRIC`: Optimization metric (`latency`, `throughput`)
 * `AIM_PROFILE_ID`: Specific profile to use (overrides automatic selection)
 * `AIM_ALLOW_GENERAL_PROFILE_FALLBACK`: Allow automatic selection of general profiles (`true`/`false`, default: `true` for base containers, `false` for model-specific containers). When `false`, general profiles are still loaded and explicitly selectable, but excluded from automatic selection.

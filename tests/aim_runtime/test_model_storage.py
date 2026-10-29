@@ -94,6 +94,22 @@ class TestHuggingFaceStorageBackend:
         # When using local_dir (default), the model_id is appended to cache_dir
         assert result == "/tmp/cache/meta-llama/Llama-3.1-8B-Instruct/snapshots/abc123"
 
+    def test_download_passes_file_patterns(self, backend, monkeypatch):
+        """Only the requested repository files are downloaded."""
+        calls = {}
+
+        def mock_snapshot_download(**kwargs):
+            calls.update(kwargs)
+            return kwargs["local_dir"]
+
+        from aim_runtime import model_storage
+
+        monkeypatch.setattr(model_storage, "snapshot_download", mock_snapshot_download)
+
+        backend.download("org/model-GGUF", "/tmp/cache", allow_patterns=["*q8_0*.gguf"], ignore_patterns=["original/*"])
+        assert calls["allow_patterns"] == ["*q8_0*.gguf"]
+        assert calls["ignore_patterns"] == ["original/*"]
+
     def test_download_failure(self, backend, monkeypatch):
         """Test download failure handling."""
 

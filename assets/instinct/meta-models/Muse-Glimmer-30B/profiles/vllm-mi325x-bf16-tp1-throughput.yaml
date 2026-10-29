@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: meta-models/Muse-Glimmer-30B
+model_id: meta-models/Muse-Glimmer-30B
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI325X
+  accelerator_type: gpu
+  capabilities:
+    reasoning: true
+    tool_calling: true
+  engine: vllm
+  features:
+  - adapters
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: optimized
+engine_args:
+  attention-backend: ROCM_AITER_FA
+  disable-uvicorn-access-log: null
+  dtype: bfloat16
+  enable-auto-tool-choice: null
+  generation-config: auto
+  max-model-len: -1
+  max-num-batched-tokens: 512
+  no-async-scheduling: null
+  no-enable-log-requests: null
+  no-trust-remote-code: null
+  reasoning-parser: muse_glimmer
+  tensor-parallel-size: 1
+  tool-call-parser: muse_glimmer
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

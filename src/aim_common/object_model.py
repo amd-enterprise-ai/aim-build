@@ -24,6 +24,7 @@ class Precision(StrEnum):
     FP8 = "fp8"
     FP16 = "fp16"
     FP32 = "fp32"
+    FP64 = "fp64"
     BF16 = "bf16"
     INT4 = "int4"
     INT8 = "int8"
@@ -111,7 +112,7 @@ class AcceleratorModel(StrEnum):
     MI325X = "MI325X"  # 0x74a5, 0x74b9 (MI325X VF)
     MI350X = "MI350X"  # 0x75a0, 0x75b0 (MI350X VF)
     MI355X = "MI355X"  # 0x75a3, 0x75b3 (MI355X VF)
-    MI350P = "MI350P"  # 0x75a8
+    MI350P = "MI350P"  # 0x75a8, 0x75b8 (MI350P VF)
     # AMD Radeon Pro series (GPUs)
     R9700 = "R9700"  # 0x7551 (AI PRO R9700 / R9700S / R9600D)
     V710 = "V710"  # 0x7460, 0x7461 (Radeon Pro V710 MxGPU)
@@ -170,6 +171,7 @@ class AcceleratorModel(StrEnum):
                 "0x75b0": cls.MI350X,  # MI350X VF
                 "0x75b3": cls.MI355X,  # MI355X VF
                 "0x75a8": cls.MI350P,
+                "0x75b8": cls.MI350P,  # MI350P VF
                 # AMD Radeon Pro
                 "0x7551": cls.R9700,  # AI PRO R9700 / R9700S / R9600D
                 "0x7460": cls.V710,
@@ -579,6 +581,7 @@ class CanonicalName:
             "meta-llama": "Meta",
             "MiniMaxAI": "MiniMax",
             "mistralai": "Mistral AI",
+            "moonshotai": "Moonshot AI",
             "openai": "OpenAI",
             "Qwen": "Qwen",
             "zai-org": "Z.ai",

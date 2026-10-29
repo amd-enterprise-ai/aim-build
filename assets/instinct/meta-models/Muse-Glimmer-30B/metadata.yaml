@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "30 billion parameter dense vision-language model for local agentic work, with sliding-window attention on 39 of 52 layers and a 128K context window."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "meta-models/Muse-Glimmer-30B"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "vision-language"
+        - "chat"
+        source: "https://huggingface.co/meta-models/Muse-Glimmer-30B"
+        variants:
+        - "meta-models/Muse-Glimmer-30B"
+        publisher: "Meta Superintelligence Lab"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Muse Glimmer 30B is a 29.6 billion parameter dense vision-language model from Meta Superintelligence Lab, distilled from Muse Spark and built for autonomous agentic work that runs without cloud infrastructure. A 52-layer text decoder of hidden size 6656 is paired with a roughly 1.8 billion parameter ViT-G/14 perception encoder, so the model accepts interleaved text and images and can read screenshots, charts and documents alongside conversation. Three sliding-window attention layers over a 2048-token window alternate with one global-attention layer, repeated 13 times, and grouped-query attention with two key-value heads holds KV cache growth flat across the 131,072-token context. The model is trained for end-to-end task completion, reliable tool use, multi-step reasoning and failure recovery, and reasoning depth is selectable per request through a 'Reasoning strength' line in the system prompt. Output is unlike most chat models: reasoning and tool calls are written as channel-scoped messages carrying XML-style ATEM invocations rather than JSON, so both the muse_glimmer reasoning parser and the muse_glimmer tool-call parser are required and are pinned in every profile. AIM profiles target the publisher's bfloat16 checkpoint, which fits a single Instinct accelerator. No quantized profiles ship yet: the only vLLM-loadable quantizations are third-party, and no AMD Quark export of this checkpoint exists."
+      title: "Muse Glimmer 30B"

@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "27B parameter dense vision-language model with hybrid Gated DeltaNet attention and flexible thinking control."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "Qwen/Qwen3.8-27B"
+        publisher: "Qwen"
+        source: "https://huggingface.co/Qwen/Qwen3.8-27B"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "vision-language"
+        - "multimodal"
+        - "chat"
+        - "reasoning"
+        - "tool-use"
+        variants:
+        - "Qwen/Qwen3.8-27B"
+        - "Qwen/Qwen3.8-27B-FP8"
+        - "amd/Qwen3.8-27B-Quark-AWQ-MXFP4"
+      hfToken:
+        required: false
+      release:
+        notes: "On MI350P, MI350X and MI355X, the fp8 profiles serve the BF16 checkpoint (Qwen/Qwen3.8-27B) with online FP8 per-channel quantization (per-channel weights, per-token activations), which was faster than the FP8 checkpoint at equivalent accuracy. These profiles download the BF16 weights (~62 GB). MI300X and MI325X fp8 profiles use the FP8 checkpoint."
+      description:
+        full: "Qwen3.8-27B is a 27 billion parameter dense vision-language model from the Qwen series by the Qwen Team at Alibaba Group, built on the architectural foundation of Qwen3.5. The language model has 64 layers in a hybrid layout of 16 blocks, each pairing three Gated DeltaNet linear-attention layers with one Gated Attention layer, using 24 query and 4 key/value heads at head dimension 256 for full attention and 48 value and 16 query/key heads at head dimension 128 for linear attention. It is trained with Multi-Token Prediction and pairs the language model with a 27-layer vision encoder for native image and video understanding. Thinking mode is on by default and can be disabled per request, with reasoning depth tunable via reasoning_effort. It natively supports a 262,144 token context length, extensible to 1,000,000 tokens with YaRN RoPE scaling. Suitable for multimodal dialogue, document and video understanding, coding, research and long-horizon agentic tasks."
+      title: "Qwen3.8 27B"

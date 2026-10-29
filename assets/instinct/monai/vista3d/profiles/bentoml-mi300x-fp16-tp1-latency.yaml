@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 # BentoML profile — validated by ci/validate_profiles.py (Pydantic).
+# The model image is published from this profile; the base image it builds
+# on is pinned in ../config.yaml.
 
 aim_id: monai/vista3d
 model_id: monai/vista3d

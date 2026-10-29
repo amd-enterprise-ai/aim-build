@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: google/gemma-4-12B-it
+model_id: google/gemma-4-12B-it-qat-w4a16-ct
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: vllm
+  metric: throughput
+  precision: int4
+  primary: true
+  type: unoptimized
+engine_args:
+  async-scheduling: null
+  attention-backend: ROCM_AITER_UNIFIED_ATTN
+  disable-uvicorn-access-log: null
+  dtype: bfloat16
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.95
+  load-format: runai_streamer
+  max-model-len: -1
+  max-num-batched-tokens: 8192
+  model-loader-extra-config: '{"memory_limit": 8589934592}'
+  no-enable-log-requests: null
+  reasoning-parser: gemma4
+  tensor-parallel-size: 1
+  tool-call-parser: gemma4
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_RMSNORM: '0'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '1'

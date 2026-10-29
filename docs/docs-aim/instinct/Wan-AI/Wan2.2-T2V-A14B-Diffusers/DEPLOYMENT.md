@@ -23,10 +23,13 @@ This guide assumes MI300X accelerator on the target system.
 ```bash
 docker run \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```
 
+`--ipc=host` gives the container the host's shared memory. Profiles that run on more than one accelerator exchange data
+between workers over shared memory and fail to start without it. `--shm-size=32g` works as an alternative.
 
 ### 1.2 Customizing deployment with environment variables
 
@@ -39,6 +42,7 @@ docker run \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8080:8080 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```
@@ -66,6 +70,7 @@ docker run --rm \
 docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```
@@ -228,7 +233,7 @@ This AIM does **not** serve the OpenAI `/v1/completions` or `/v1/chat/completion
 |---|---|---|---|
 | `prompt` | string | required | Text description of the video to generate. |
 | `negative_prompt` | string | not set | Text to steer generation away from. The model runs classifier-free guidance, so a negative prompt is supported. |
-| `size` | string | model default | Frame resolution as `WIDTHxHEIGHT`, for example `832x480`. |
+| `size` | string | model default | Frame resolution as `WIDTHxHEIGHT`. The model targets 480P and 720P; the AIM is benchmarked at `854x480` and `1280x720`. |
 | `seconds` | integer | model default | Clip length in seconds. |
 | `fps` | integer | model default | Frames per second. |
 | `num_inference_steps` | integer | model default | Number of denoising steps. Fewer steps are faster and lower quality; this dominates wall-clock time. |
@@ -354,6 +359,9 @@ The 1800-second timeout applies to the whole benchmark. Increase it if the run n
 `validate` reports `health` and `smoke_video`; `benchmark` reports `throughput_qps` and latency percentiles for the
 chosen recipe.
 
+`aim-runtime evaluate` is not available for this AIM yet: the image does not ship a video-quality evaluation, so the
+command returns a placeholder result.
+
 ## 5. Advanced deployment scenarios
 
 ### 5.1 Using custom profiles
@@ -363,7 +371,7 @@ chosen recipe.
 mkdir -p custom-profiles
 
 # Add your custom profile YAML
-cat > custom-profiles/vllm-custom-profile.yaml << EOF
+cat > custom-profiles/vllm_omni-custom-profile.yaml << EOF
 aim_id: Wan-AI/Wan2.2-T2V-A14B-Diffusers
 model_id: Wan-AI/Wan2.2-T2V-A14B-Diffusers
 metadata:
@@ -377,14 +385,12 @@ metadata:
 
 engine_args:
   gpu-memory-utilization: 0.95
-  dtype: float16
-  tensor-parallel-size: 1
-  max-num-batched-tokens: 1024
-  max-model-len: 2048
+  usp: 1
+  vae-patch-parallel-size: 1
+  vae-use-tiling: null
 
 env_vars:
   VLLM_DO_NOT_TRACK: "1"
-  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
 EOF
 
 # Run with custom profile
@@ -392,9 +398,15 @@ docker run \
   -v $(pwd)/custom-profiles:/workspace/aim-runtime/profiles/custom \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```
+
+`usp` sets how many accelerators share the latent sequence (Unified Sequence Parallelism) and
+`vae-patch-parallel-size` splits the VAE decode across the same accelerators. Keep both equal to `accelerator_count`.
+`vae-use-tiling` decodes the video in tiles, which lowers peak memory. A `null` value is passed as a flag without a
+value.
 
 ### 5.2 Using profiles excluded from automatic selection
 
@@ -405,6 +417,7 @@ desired profile identifier. Profile identifier is the filename of the profile wi
 docker run \
   -e AIM_PROFILE_ID=vllm_omni-mi300x-fp16-tp2-latency-usp2 \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```
@@ -435,6 +448,7 @@ docker run \
 docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
+  --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
 ```

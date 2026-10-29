@@ -1,0 +1,42 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: openai/gpt-oss-120b
+model_id: openai/gpt-oss-120b
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI350P
+  accelerator_type: gpu
+  capabilities:
+    reasoning: true
+  engine: vllm
+  metric: throughput
+  precision: fp4
+  primary: true
+  type: optimized
+engine_args:
+  async-scheduling: null
+  attention-backend: ROCM_AITER_UNIFIED_ATTN
+  block-size: 64
+  compilation-config:
+    cudagraph_mode: FULL_AND_PIECEWISE
+    pass_config:
+      fuse_rope_kvcache: true
+    use_inductor_graph_partition: true
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.95
+  max-model-len: -1
+  max-num-batched-tokens: 2048
+  max-num-seqs: 512
+  reasoning-parser: openai_gptoss
+  tensor-parallel-size: 1
+  tool-call-parser: openai
+env_vars:
+  AMDGCN_USE_BUFFER_OPS: '0'
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'

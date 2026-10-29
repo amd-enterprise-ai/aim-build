@@ -4,7 +4,7 @@
 
 [project]
 name = "aim-build"
-version = "2026.14"
+version = "2026.16"
 description = "AMD Inference Microservice - Container build and configuration tools"
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
@@ -32,7 +32,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instinct = [
-    "huggingface-hub>=0.34.0,<1.0",
+    # Match the vllm-openai-rocm base image. transformers 5.20.2 requires
+    # huggingface-hub>=1.31.0; 1.30.0 is missing huggingface_hub.utils.httpx
+    # and crashes `vllm serve` on startup.
+    "huggingface-hub==1.31.0",
 ]
 
 epyc = [
@@ -162,7 +165,8 @@ no_implicit_optional = false
 explicit_package_bases = true
 scripts_are_modules = true
 check_untyped_defs = false
-exclude = ["tests/", "docker/"]
+# Keep in sync with the mypy hook `exclude` in .pre-commit-config.yaml (same set of paths); see EAI-8215.
+exclude = ["tests/", "docker/", "assets/.+/image/(src|tests)/"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

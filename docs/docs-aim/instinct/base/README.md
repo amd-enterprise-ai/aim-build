@@ -120,6 +120,14 @@ The following profiles are available for this model:
 |vllm-mi325x-fp16-tp4-throughput|MI325X|fp16|vllm|4|throughput|general|
 |vllm-mi325x-fp16-tp8-latency|MI325X|fp16|vllm|8|latency|general|
 |vllm-mi325x-fp16-tp8-throughput|MI325X|fp16|vllm|8|throughput|general|
+|vllm-mi350p-fp16-tp1-latency|MI350P|fp16|vllm|1|latency|general|
+|vllm-mi350p-fp16-tp1-throughput|MI350P|fp16|vllm|1|throughput|general|
+|vllm-mi350p-fp16-tp2-latency|MI350P|fp16|vllm|2|latency|general|
+|vllm-mi350p-fp16-tp2-throughput|MI350P|fp16|vllm|2|throughput|general|
+|vllm-mi350p-fp16-tp4-latency|MI350P|fp16|vllm|4|latency|general|
+|vllm-mi350p-fp16-tp4-throughput|MI350P|fp16|vllm|4|throughput|general|
+|vllm-mi350p-fp16-tp8-latency|MI350P|fp16|vllm|8|latency|general|
+|vllm-mi350p-fp16-tp8-throughput|MI350P|fp16|vllm|8|throughput|general|
 |vllm-mi350x-fp16-tp1-latency|MI350X|fp16|vllm|1|latency|general|
 |vllm-mi350x-fp16-tp1-throughput|MI350X|fp16|vllm|1|throughput|general|
 |vllm-mi350x-fp16-tp2-latency|MI350X|fp16|vllm|2|latency|general|

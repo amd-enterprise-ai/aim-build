@@ -36,7 +36,7 @@ Customize your deployment with optional environment variables:
 
 ```bash
 docker run \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=bf16 \
   -e AIM_ACCELERATOR_COUNT=188 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
@@ -322,7 +322,7 @@ It is possible to check which profile AIM selects based on the provided environm
 ```bash
 docker run \
   -e AIM_ACCELERATOR_COUNT=188 \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=bf16 \
   -e AIM_ACCELERATOR_MODEL=EPYC_9965 \
   -e HF_TOKEN=<YOUR_HUGGINGFACE_TOKEN> \
   amdenterpriseai/aim-epyc-meta-llama-llama-3-2-1b-instruct:0.13.0 \

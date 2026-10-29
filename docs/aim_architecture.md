@@ -21,7 +21,7 @@ The container provides a production‑ready, portable inference microservice for
 * Validated model profiles (YAML) for target hardware
 * Intelligent hardware detection and adaptive configuration (GPU count, precision)
 * Multiple inference engines (vLLM for LLMs, BentoML for specialized models; pluggable design for others such as SGLang)
-* Precision format selection (based on GPU support, e.g. fp16, bf16, fp8, int8, int4)
+* Precision format selection (based on GPU support, e.g. fp16, bf16, fp8, int8, int4; fp64 for HPC/simulation AIMs)
 * Tensor parallel scaling (1/2/4/8 GPU layouts) driven by profiles
 * Support for integration with model caching & persistence acceleration layer
 * Real‑time streaming responses and tool calling enablement
@@ -95,7 +95,7 @@ Each profile YAML file follows a standardized structure with the following key s
   + `engine`: Backend engine (e.g., "vllm", "bentoml", "sglang")
   + `accelerator_type`: Accelerator family ("gpu" or "cpu")
   + `accelerator_model`: Target accelerator model (e.g., "MI300X", "MI325X", "EPYC_9965")
-  + `precision`: Data type precision (e.g., "fp16", "bf16", "fp8", "int8", "int4")
+  + `precision`: Data type precision (e.g., "fp16", "bf16", "fp8", "int8", "int4", "fp64")
   + `accelerator_count`: Number of accelerators for tensor parallelism (1, 2, 4, 8)
   + `metric`: Optimization target ("latency" or "throughput")
   + `type`: Profile type classification (`optimized`, `unoptimized`, `preview`, or `general`). Also determines automatic-selection eligibility — see [Section 3.6](#36-controlling-profile-selection)
@@ -291,7 +291,7 @@ criteria as the profile selector:
 
 1. Automatically selectable profiles are preferred. Only `type: unoptimized` ranks lower; `optimized`, `preview` and
    `general` tie, since all three are eligible for automatic selection.
-2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32`.
+2. Lower precision is preferred: `int4` > `int8` > `fp4` > `fp8` > `fp16` > `bf16` > `fp32` > `fp64`.
 3. Lower accelerator count (smaller tensor-parallel size) is preferred.
 
 Note this differs from the ordering the runtime selector uses to rank profiles it has already filtered, where

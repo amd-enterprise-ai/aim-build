@@ -1436,7 +1436,7 @@ class TestValidateConfigCommand:
         assert result.exit_code == 0
 
     def test_unreferenced_document_still_reported(self, runner, tmp_path, monkeypatch):
-        """A stray, non-partial document (e.g. NOTES.md) is still rejected."""
+        """A stray, non-partial document (e.g. EXTRA.md) is still rejected."""
         monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
         monkeypatch.chdir(tmp_path)
         config_file = tmp_path / "config.yaml"
@@ -1454,16 +1454,16 @@ class TestValidateConfigCommand:
         local_templates.mkdir()
         (local_templates / "README.md").write_text("# local readme\n")
         (local_templates / "DEPLOYMENT.md").write_text("# local deployment\n")
-        (local_templates / "NOTES.md").write_text("# stray doc, not referenced\n")
+        (local_templates / "EXTRA.md").write_text("# stray doc, not referenced\n")
 
         result = runner.invoke(cli, ["validate", "config.yaml"])
         assert result.exit_code != 0
         assert "not referenced" in result.output
-        assert "NOTES.md" in result.output
+        assert "EXTRA.md" in result.output
 
-    @pytest.mark.parametrize("extra_template", [None, "NOTES.md", "api.md", "API.markdown", "nested/API.md"])
+    @pytest.mark.parametrize("extra_template", [None, "EXTRA.md", "api.md", "API.markdown", "nested/API.md"])
     def test_named_api_include(self, runner, tmp_path, monkeypatch, extra_template):
-        """Only templates/API.md is a named include, not a declared output page."""
+        """Only allowlisted names such as templates/API.md are named includes, not declared output pages."""
         monkeypatch.setattr("aim_utils.config_utils._REPO_ROOT", tmp_path)
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()

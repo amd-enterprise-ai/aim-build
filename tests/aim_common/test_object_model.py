@@ -22,6 +22,8 @@ def test_gpu_model_from_string_happy_path():
     assert GPUModel.from_string("Mi300X") == GPUModel.MI300X
     assert GPUModel.from_string("0x740c") == GPUModel.MI250X
     assert GPUModel.from_string("0x74a1") == GPUModel.MI300X
+    assert GPUModel.from_string("0x75a8") == GPUModel.MI350P
+    assert GPUModel.from_string("0x75b8") == GPUModel.MI350P
     assert GPUModel.from_string("0x7551") == GPUModel.R9700
     assert GPUModel.from_string("R9700") == GPUModel.R9700
     assert GPUModel.from_string("r9700") == GPUModel.R9700
@@ -108,3 +110,36 @@ def test_profile_metadata_capabilities_partial_round_trip():
     assert restored.capabilities.reasoning is True
     assert restored.capabilities.tool_calling is False
     assert restored.capabilities.structured_outputs is False
+
+
+def test_profile_metadata_accepts_fp64():
+    """HPC/simulation AIMs such as NAMD3 run in double precision (EAI-7807)."""
+    profile = ProfileMetadata(
+        accelerator_type=AcceleratorType.GPU,
+        engine=Engine.BENTOML,
+        accelerator_model=GPUModel.MI325X,
+        precision=Precision.FP64,
+        accelerator_count=1,
+        metric=Metric.THROUGHPUT,
+        type=ProfileType.UNOPTIMIZED,
+    )
+
+    assert profile.precision is Precision.FP64
+    assert profile.accelerator_label == "bentoml-mi325x-fp64-tp1-throughput"
+
+
+def test_profile_metadata_fp64_round_trip():
+    restored = ProfileMetadata.from_dict(
+        {
+            "engine": "bentoml",
+            "accelerator_type": "gpu",
+            "accelerator_model": "MI325X",
+            "precision": "fp64",
+            "accelerator_count": 1,
+            "metric": "throughput",
+            "type": "unoptimized",
+        }
+    )
+
+    assert restored.precision is Precision.FP64
+    assert restored.to_dict()["precision"] == "fp64"

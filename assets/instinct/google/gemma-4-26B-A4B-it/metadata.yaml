@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "apache-2.0, MIT"
+      description: "Gemma 4 26B A4B IT is a sparse mixture-of-experts, multimodal instruction-tuned model with text and image input and 256K native context."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-4-26B-A4B-it"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "chat"
+        - "instruction"
+        - "reasoning"
+        - "multimodal"
+        source: "https://huggingface.co/google/gemma-4-26B-A4B-it"
+        variants:
+        - "google/gemma-4-26B-A4B-it"
+        publisher: "Google"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Gemma 4 26B A4B IT is the instruction-tuned, sparse mixture-of-experts variant of Google's Gemma 4 (Gemma4ForConditionalGeneration). Its text tower has 30 layers with 128 experts routed top-8 (moe_intermediate_size 704), giving roughly 26.5B total parameters with about 4B active per token. Attention is heterogeneous: 25 sliding-window layers (window 1024, head_dim 256, 8 KV heads) interleaved with 5 full-attention layers (global_head_dim 512, 2 KV heads), and max_position_embeddings is 262144. A SigLIP-based vision encoder provides image input; audio_config is null in the published checkpoint, so this AIM serves text and image only."
+      title: "Gemma 4 26B A4B IT"

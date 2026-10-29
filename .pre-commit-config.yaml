@@ -95,7 +95,8 @@ repos:
   hooks:
   - id: mypy
     args: [ "--config-file=pyproject.toml" ]
-    exclude: ^(tests/|docker/)
+    # Keep in sync with [tool.mypy] exclude in pyproject.toml (same set of paths); see EAI-8215.
+    exclude: ^(tests/|docker/|assets/.+/image/(src|tests)/)
     language_version: python3.12
     additional_dependencies:
     - types-PyYAML
@@ -205,7 +206,7 @@ repos:
     # The trigger MUST include the two shared inputs (docs/templates/README.md
     # and docs/overview.md); without them a shared-template change would
     # silently regenerate nothing.
-    files: ^(assets/[^/]+/.*/config\.yaml|assets/[^/]+/.*/metadata\.yaml|assets/[^/]+/.*/profiles/.*\.yaml|assets/[^/]+/.*/templates/README\.md|docs/templates/README\.md|docs/overview\.md)$
+    files: ^(assets/[^/]+/.*/config\.yaml|assets/[^/]+/.*/metadata\.yaml|assets/[^/]+/.*/profiles/.*\.yaml|assets/[^/]+/.*/templates/(README|NOTES)\.md|docs/templates/README\.md|docs/overview\.md)$
 
 - repo: local
   hooks:

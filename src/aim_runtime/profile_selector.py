@@ -67,6 +67,7 @@ PRECISION_PRIORITY = {
     Precision.FP16: 5,
     Precision.BF16: 6,
     Precision.FP32: 7,
+    Precision.FP64: 8,
 }
 
 

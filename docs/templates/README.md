@@ -56,6 +56,13 @@ The columns should be read as follows:
 No profiles are currently available for this AIM.
 {% endif %}
 
+{% set model_notes = read_file('templates/NOTES.md', missing_ok=True) | skip_lines(6) | trim %}
+{% if model_notes %}
+## Notes
+
+{{ model_notes }}
+
+{% endif %}
 ## Getting Started
 
 See the [deployment guide](DEPLOYMENT.md) for Docker and Kubernetes instructions.

@@ -5,6 +5,7 @@
 import importlib.util
 import sys
 from pathlib import Path
+from unittest import mock
 
 import dinov2_inference
 import pytest
@@ -27,7 +28,11 @@ def _load_service():
     previous = sys.modules.get("inference")
     sys.modules["inference"] = dinov2_inference
     try:
-        spec.loader.exec_module(module)
+        # service.py resolves its port at import time via bentoml.use_arguments(BentoArgs), which
+        # needs the `--arg port=...` that aim-runtime passes to `bentoml serve`. A test run has no
+        # such argument, so supply one here instead of giving BentoArgs.port a default.
+        with mock.patch.object(bentoml, "use_arguments", lambda model: model(port=8000)):
+            spec.loader.exec_module(module)
     finally:
         if previous is None:
             sys.modules.pop("inference", None)

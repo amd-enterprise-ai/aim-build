@@ -5,7 +5,7 @@
 base_image:
   base_registry_namespace: vllm
   base_repository: vllm-openai-rocm
-  base_tag: v0.28.0
+  base_tag: nightly-rocm100-df6603f0583375f244d1ac6d36265462b7490392
   registry_host: docker.io
 
 # Install the accuracy-evaluation backend (lm-eval and its pinned deps) into the

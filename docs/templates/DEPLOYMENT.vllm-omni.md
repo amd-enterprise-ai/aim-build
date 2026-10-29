@@ -66,7 +66,7 @@ Customize your deployment with optional environment variables:
 
 ```bash
 docker run \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION={{ aim_deployment.precision }} \
   -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
@@ -431,7 +431,7 @@ It is possible to check which profile AIM selects based on the provided environm
 ```bash
 docker run \
   -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION={{ aim_deployment.precision }} \
 {% if aim_deployment.accelerator_family.value == "instinct" %}
   -e AIM_ACCELERATOR_MODEL=MI300X \
 {% elif aim_deployment.accelerator_family.value == "radeon" %}

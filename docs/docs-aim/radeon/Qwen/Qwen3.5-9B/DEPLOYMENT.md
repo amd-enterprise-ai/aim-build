@@ -34,7 +34,7 @@ Customize your deployment with optional environment variables:
 
 ```bash
 docker run \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=bf16 \
   -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
@@ -317,7 +317,7 @@ It is possible to check which profile AIM selects based on the provided environm
 ```bash
 docker run \
   -e AIM_ACCELERATOR_COUNT=1 \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=bf16 \
   -e AIM_ACCELERATOR_MODEL=W7900 \
   amdenterpriseai/aim-radeon-qwen-qwen3-5-9b:2026.11.0 \
   dry-run

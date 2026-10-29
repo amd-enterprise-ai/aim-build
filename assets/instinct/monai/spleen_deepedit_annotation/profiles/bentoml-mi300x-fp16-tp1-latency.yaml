@@ -4,6 +4,8 @@
 
 # BentoML profile — validated by ci/validate_profiles.py (Pydantic).
 # Structure is identical for all MONAI models.
+# The model image is published from this profile; the base image it builds
+# on is pinned in ../config.yaml.
 
 aim_id: monai/spleen_deepedit_annotation
 model_id: monai/spleen_deepedit_annotation

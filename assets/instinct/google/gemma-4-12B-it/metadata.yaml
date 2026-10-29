@@ -1,0 +1,39 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0, MIT"
+      description: "Gemma 4 12B IT is an encoder-free multimodal instruction-tuned model with text, image, audio and video input, 256K context, from a w4a16 QAT checkpoint."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "google/gemma-4-12B-it"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "audio-text-to-text"
+        - "video-text-to-text"
+        - "chat"
+        - "instruction"
+        - "reasoning"
+        - "multimodal"
+        source: "https://huggingface.co/google/gemma-4-12B-it"
+        variants:
+        - "google/gemma-4-12B-it"
+        - "google/gemma-4-12B-it-qat-w4a16-ct"
+        publisher: "Google"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Gemma 4 12B IT is the instruction-tuned variant of Google's Gemma 4 12B Unified (Gemma4UnifiedForConditionalGeneration). It is a dense (non-MoE) 48-layer model with a heterogeneous attention topology (head_dim 256 on the sliding-attention layers, global_head_dim 512 on the full-attention layers), a 1024-token sliding window, and 256K native max_position_embeddings. The architecture is encoder-free for every modality: it ships no SigLIP vision tower and no audio tower, instead projecting raw image patches and raw 16 kHz audio waveform frames directly into the text backbone through lightweight linear layers, so text, image, audio, and video are all first-class inputs. Audio clips are capped at 30 seconds and video is processed as a sequence of frames. These profiles serve Google's own quantization-aware-trained w4a16 checkpoint (compressed-tensors pack-quantized, 4-bit symmetric group-32 integer weights with bfloat16 activations), which the AIM catalog records as int4 precision. The 512-dim full-attention head restricts vLLM to the TRITON_ATTN and ROCM_AITER_UNIFIED_ATTN backends, which the profiles pin explicitly per accelerator."
+      title: "Gemma 4 12B IT"

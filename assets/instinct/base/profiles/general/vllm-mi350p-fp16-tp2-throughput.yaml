@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+metadata:
+  accelerator_count: 2
+  accelerator_model: MI350P
+  accelerator_type: gpu
+  engine: vllm
+  metric: throughput
+  precision: fp16
+  type: general
+engine_args:
+  gpu-memory-utilization: 0.95
+  tensor-parallel-size: 2
+env_vars:
+  NCCL_MIN_NCHANNELS: '112'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_DO_NOT_TRACK: '1'

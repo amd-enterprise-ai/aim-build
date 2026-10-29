@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3.8-27B
+model_id: Qwen/Qwen3.8-27B-FP8
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  capabilities:
+    reasoning: true
+  engine: vllm
+  features:
+  - adapters
+  metric: throughput
+  precision: fp8
+  primary: true
+  type: optimized
+engine_args:
+  attention-backend: ROCM_AITER_FA
+  dtype: auto
+  enable-auto-tool-choice: null
+  kv-cache-dtype: fp8
+  max-model-len: -1
+  max-num-batched-tokens: 8192
+  max-num-seqs: 512
+  reasoning-parser: qwen3
+  tensor-parallel-size: 1
+  tool-call-parser: qwen3_coder
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

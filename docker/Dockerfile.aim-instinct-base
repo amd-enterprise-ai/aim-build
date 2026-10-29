@@ -25,7 +25,8 @@ ARG PARENT_TAG
 # - vllm/vllm-openai-rocm:v0.26.0                               = LMCache v0.5.2      = cd2c0d6
 # - vllm/vllm-openai-rocm:v0.27.1                               = LMCache v0.5.2      = cd2c0d6
 # - vllm/vllm-openai-rocm:v0.28.0                               = LMCache v0.5.2      = cd2c0d6
-ARG INSTALL_LMCACHE=true
+# - vllm/vllm-openai-rocm:nightly-rocm100                      = LMCache v0.5.3 (ships natively in base; no source install needed)
+ARG INSTALL_LMCACHE=false
 ARG INSTALL_LMCACHE_COMMIT=cd2c0d6
 
 # Set environment variables

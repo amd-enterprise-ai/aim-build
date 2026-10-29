@@ -11,7 +11,13 @@ import pytest
 from aim_common import AcceleratorModel, AcceleratorType, Engine, GPUModel, Metric, Precision, ProfileType
 from aim_runtime.config import AIMConfig
 from aim_runtime.object_model import Profile, ProfileMetadata
-from aim_runtime.profile_selector import ProfileCompatibilityState, ProfileNotFound, ProfileSelector
+from aim_runtime.profile_selector import (
+    PRECISION_PRIORITY,
+    UNKNOWN_PRIORITY,
+    ProfileCompatibilityState,
+    ProfileNotFound,
+    ProfileSelector,
+)
 
 
 @pytest.fixture
@@ -1057,3 +1063,16 @@ def test_find_profile_variant_tie_error_includes_aim_id(
     assert aim_config.aim_id in message
     # original detail must be preserved
     assert inner_message in message
+
+
+def test_precision_priority_covers_every_precision() -> None:
+    """Every Precision member must be ranked, or it silently sorts last (EAI-7807)."""
+    unranked = [p for p in Precision if p not in PRECISION_PRIORITY]
+    assert unranked == []
+
+
+def test_precision_priority_ranks_fp64_last() -> None:
+    """fp64 is the widest precision, so it is least preferred for auto-selection."""
+    assert PRECISION_PRIORITY[Precision.FP64] > PRECISION_PRIORITY[Precision.FP32]
+    assert PRECISION_PRIORITY[Precision.FP64] == max(PRECISION_PRIORITY.values())
+    assert PRECISION_PRIORITY[Precision.FP64] < UNKNOWN_PRIORITY

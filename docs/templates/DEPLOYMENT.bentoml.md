@@ -403,7 +403,7 @@ It is possible to check which profile AIM selects from the given environment var
 docker run \
   -e AIM_ID={{ aim_deployment.model_name }} \
   -e AIM_ACCELERATOR_COUNT={{ aim_deployment.accelerator_count }} \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION={{ aim_deployment.precision }} \
 {% if aim_deployment.accelerator_family.value == "instinct" %}
   -e AIM_ACCELERATOR_MODEL=MI300X \
 {% elif aim_deployment.accelerator_family.value == "radeon" %}

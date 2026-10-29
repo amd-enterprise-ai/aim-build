@@ -1,0 +1,37 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Kimi K3 License, MIT"
+      description: "2.8T-parameter native multimodal MoE with Kimi Delta Attention, a 1M-token context window, and MXFP4 weights."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "moonshotai/Kimi-K3"
+        tags:
+        - "text-generation"
+        - "image-text-to-text"
+        - "chat"
+        - "conversational"
+        - "multimodal"
+        - "reasoning"
+        - "tool-use"
+        source: "https://huggingface.co/moonshotai/Kimi-K3"
+        variants:
+        - "moonshotai/Kimi-K3"
+        publisher: "Moonshot AI"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "Kimi K3 is an open-weight, native multimodal agentic model from Moonshot AI. It is a 2.8-trillion-parameter Mixture-of-Experts model (16 of 896 experts active per token, 104B active) built on Kimi Delta Attention (KDA) and Attention Residuals (AttnRes), with native vision via MoonViT-V2 and a 1-million-token context window. Weights are quantization-aware-trained MXFP4 with MXFP8 activations. Kimi K3 always has thinking enabled and returns reasoning_content; thinking effort is configured with reasoning_effort (low, high, max). Tool calling uses the kimi_k3 parser. Both the code repository and the model weights are released under the Kimi K3 License."
+      title: "Kimi K3"

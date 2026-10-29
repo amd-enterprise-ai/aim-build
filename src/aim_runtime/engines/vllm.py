@@ -177,6 +177,7 @@ class VllmEngineArgsModel(EngineArgsModel):
             "auto",
             "pt",
             "safetensors",
+            "fastsafetensors",
             "npcache",
             "dummy",
             "tensorizer",

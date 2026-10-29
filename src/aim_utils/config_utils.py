@@ -726,7 +726,7 @@ def resolve_build_targets(accelerator_family: str) -> None:
 # else in a leaf ``templates/`` dir (embedded images, data assets, …) is an
 # auxiliary that templates pull in without declaring.
 _DECLARABLE_TEMPLATE_SUFFIXES = frozenset({".md", ".markdown", ".j2", ".jinja"})
-_MODEL_SPECIFIC_DOC_FILENAMES = frozenset({"API.md"})
+_MODEL_SPECIFIC_DOC_FILENAMES = frozenset({"API.md", "NOTES.md"})
 
 
 def is_allowed_template_include(template_file: Path, leaf_templates_dir: Path) -> bool:

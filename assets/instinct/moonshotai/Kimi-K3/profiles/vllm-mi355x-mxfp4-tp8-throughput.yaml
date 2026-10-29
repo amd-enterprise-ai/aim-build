@@ -1,0 +1,58 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: moonshotai/Kimi-K3
+model_id: moonshotai/Kimi-K3
+metadata:
+  accelerator_count: 8
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  capabilities:
+    tool_calling: true
+    structured_outputs: false
+    reasoning: true
+  engine: vllm
+  metric: throughput
+  precision: fp4
+  primary: true
+  type: optimized
+engine_args:
+  compilation-config:
+    cudagraph_mode: FULL_DECODE_ONLY
+    custom_ops:
+    - +fused_rms_norm_gated
+  disable-uvicorn-access-log: null
+  distributed_executor_backend: mp
+  dtype: auto
+  enable-auto-tool-choice: null
+  enable-prefix-caching: null
+  gpu-memory-utilization: 0.9
+  kv-cache-dtype: fp8
+  language-model-only: null
+  load-format: fastsafetensors
+  max-model-len: 1048576
+  max-num-batched-tokens: 8192
+  max-num-seqs: 128
+  mm-encoder-tp-mode: data
+  no-enable-log-requests: null
+  reasoning-parser: kimi_k3
+  speculative-config:
+    attention_backend: ROCM_AITER_MLA
+    draft_sample_method: probabilistic
+    kv_cache_dtype: fp8
+    method: dspark
+    model: Inferact/Kimi-K3-DSpark
+    num_speculative_tokens: 3
+  tensor-parallel-size: 8
+  tool-call-parser: kimi_k3
+  trust-remote-code: null
+env_vars:
+  SAFETENSORS_FAST_GPU: '1'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_ENGINE_READY_TIMEOUT_S: '3600'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '1800'
+  VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: INT4
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MOE_SITUV2: '1'
+  VLLM_USE_BREAKABLE_CUDAGRAPH: '0'

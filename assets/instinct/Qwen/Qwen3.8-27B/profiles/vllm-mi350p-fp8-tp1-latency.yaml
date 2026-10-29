@@ -1,0 +1,38 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: Qwen/Qwen3.8-27B
+model_id: Qwen/Qwen3.8-27B
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI350P
+  accelerator_type: gpu
+  capabilities:
+    reasoning: true
+  engine: vllm
+  features:
+  - adapters
+  metric: latency
+  precision: fp8
+  primary: false
+  type: optimized
+engine_args:
+  attention-backend: ROCM_AITER_FA
+  compilation-config:
+    pass_config:
+      fuse_norm_quant: false
+  dtype: auto
+  enable-auto-tool-choice: null
+  kv-cache-dtype: fp8
+  max-model-len: -1
+  max-num-batched-tokens: 8192
+  max-num-seqs: 512
+  quantization: fp8_per_channel
+  reasoning-parser: qwen3
+  tensor-parallel-size: 1
+  tool-call-parser: qwen3_coder
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'

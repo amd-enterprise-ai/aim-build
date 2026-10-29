@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: google/gemma-4-26B-A4B-it
+model_id: google/gemma-4-26B-A4B-it
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI325X
+  accelerator_type: gpu
+  engine: vllm
+  metric: latency
+  precision: bf16
+  primary: true
+  type: preview
+engine_args:
+  async-scheduling: null
+  attention-backend: TRITON_ATTN
+  dtype: bfloat16
+  enable-auto-tool-choice: null
+  gpu-memory-utilization: 0.92
+  max-model-len: -1
+  max-num-batched-tokens: 8192
+  reasoning-parser: gemma4
+  tensor-parallel-size: 1
+  tool-call-parser: gemma4
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '900'
+  VLLM_ROCM_USE_AITER: '1'
+  VLLM_ROCM_USE_AITER_MOE: '0'
+  VLLM_ROCM_USE_AITER_RMSNORM: '0'
+  VLLM_ROCM_USE_AITER_TRITON_ROPE: '0'

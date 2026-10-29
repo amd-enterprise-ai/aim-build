@@ -10,7 +10,7 @@ The AIM catalog includes ready-to-deploy inference microservices for popular ope
 
 The catalog also holds models for other tasks, such as biomolecular structure prediction, medical image segmentation and text-to-video generation. Each of these gives an API of its own and does not answer the OpenAI chat and completion APIs. The deployment guide of the AIM names its endpoints and payloads.
 
-AIMs are available for AMD Instinct™, Radeon™, and EPYC™. Browse the catalog below to find a container for your model and hardware. 
+AIMs are available for AMD Instinct™, Radeon™, and EPYC™. Browse the catalog below to find a container for your model and hardware.
 
 <div style="display: flex; flex-wrap: wrap; gap: 1em; align-items: end; margin-bottom: 1em;">
   <label style="display: flex; flex-direction: column; gap: 0.25em;">

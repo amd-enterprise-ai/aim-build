@@ -34,7 +34,7 @@ Customize your deployment with optional environment variables:
 
 ```bash
 docker run \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=fp4 \
   -e AIM_ACCELERATOR_COUNT=2 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
@@ -317,7 +317,7 @@ It is possible to check which profile AIM selects based on the provided environm
 ```bash
 docker run \
   -e AIM_ACCELERATOR_COUNT=2 \
-  -e AIM_PRECISION=fp16 \
+  -e AIM_PRECISION=fp4 \
   -e AIM_ACCELERATOR_MODEL=MI300X \
   amdenterpriseai/aim-zai-org-glm-4-7:0.12.0 \
   dry-run

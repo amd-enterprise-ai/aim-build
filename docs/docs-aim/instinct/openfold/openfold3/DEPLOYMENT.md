@@ -38,7 +38,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
 `AIM_ACCELERATOR_COUNT` must agree with the `accelerator_count` of the selected profile. Set an integer, not `auto`,
@@ -60,7 +60,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8080:8080 \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
 ## 2. Model caching for production
@@ -83,7 +83,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
 The first start is slower than later starts, because it downloads the weights. Size the volume for the model
@@ -117,7 +117,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+          image: amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
           imagePullPolicy: Always
           env:
             - name: AIM_ID
@@ -515,7 +515,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
 `AIM_ACCELERATOR_COUNT` must match the `accelerator_count` of the selected profile. If the two disagree, the
@@ -529,7 +529,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0 \
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0 \
   --help
 ```
 
@@ -537,7 +537,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0 \
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0 \
   <subcommand> --help
 ```
 
@@ -553,7 +553,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
 ### 6.3 Checking profile selection results
@@ -566,7 +566,7 @@ docker run \
   -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_ACCELERATOR_MODEL=MI300X \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0 \
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0 \
   dry-run
 ```
 
@@ -574,7 +574,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-target-openfold-openfold3-model-openfold-openfold3:0.13.0 \
+  amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0 \
   list-profiles
 ```
 

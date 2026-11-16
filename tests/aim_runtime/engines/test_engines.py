@@ -125,7 +125,7 @@ class TestEngineDefaults:
         assert args["served-model-name"] == ["model-a", "aim-a"]
 
     def test_vllm_omni_inherits_served_model_name(self):
-        # Intentional behavior change (EAI-5778): Omni now also sets served-model-name.
+        # Intentional behavior change: Omni now also sets served-model-name.
         eng = build_engine(_config(Engine.VLLM_OMNI), _engine_config(Engine.VLLM_OMNI))
         args: dict = {}
         eng.apply_engine_defaults(args, ["model-a"])

@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "label": "8gpp",
+    "description": "PDB 8GPP - 3 chain(s), 624 residues",
+    "sets": [
+      "fast",
+      "timing-18"
+    ],
+    "set_relationship": "One directory, two named sets. All eighteen fixtures live in examples/benchmark_sequences/ and are baked to /workspace/model/benchmarks. harness._load_eval_cases keeps a case when the set named by BOLTZ2_BENCHMARK_SET (default 'fast') is in metadata.sets. 'fast' has six targets and 'timing-18' has all eighteen. The six are members of both sets, so the sets overlap: never add their totals. tests/unit/test_benchmark_sets.py pins the default set to exactly those six.",
+    "reference_pdb_id": "8GPP",
+    "reference_url": "https://files.rcsb.org/download/8GPP.cif",
+    "reference_file": "references/8gpp.cif",
+    "reference_sha256": "3fba07d33aa9ba41079ef0c39639004fcd5ff7f04915c167f4ad59bbe314c81b",
+    "reference_fetched_at": "2026-08-21",
+    "reference_license": "CC0 1.0 Universal (wwPDB archive data; public domain)",
+    "accuracy": {
+      "scoreable": true,
+      "timing_only": false,
+      "reason": "A deposition exists, so an experimental reference is staged at data/references/<label>.cif and harness._check_structure_accuracy computes a C-alpha RMSD for it. The number is still reported UNGRADED: this fixture's recipe does not match harness.ACCURACY_GATE_RECIPE (it diverges on use_msa_server, sampling_steps and step_scale), so the gate abstains and the value lands under the ungraded_* metrics. Same treatment as the six-target set."
+    },
+    "provenance": "One of the eighteen timing targets, taken from a public performance table. Chain sequences are reused VERBATIM from assets/instinct/openfold/openfold3/image/examples/benchmark_sequences/8gpp/8gpp.json so the two structure-prediction AIMs in this repo score the same targets; only recipe=full targets are used, because the other recipes alter the entity list and would make a whole-structure comparison against the deposition wrong. The sibling stores chains under data.queries.<id>.chains[] with a molecule_type field, which is NOT this AIM's schema, so the sequences were TRANSLATED into Boltz's own sequences[] form (single-key mappings keyed protein/dna/rna) rather than copied. Each translated sequence was cross-checked against the RCSB deposition entity by exact string comparison. It is also a target of the public OpenFold3 reference set, whose documented accuracy workflow is to score predictions against RCSB-fetched reference structures. That is why this target is in both sets: it was in this asset's 'fast' six-target instrument before the whole of Table 2 was added, and the six were chosen as the targets the sibling openfold3 AIM already scored.",
+    "residues": 624,
+    "chains": 3,
+    "entities": 1,
+    "recipe": {
+      "purpose": "Timing instrument, not an accuracy eval set. This case measures the time of one structure prediction. It does not run the configuration this AIM serves, and it is not part of the set the accuracy floors in tuning.yaml come from. Every fixture in examples/benchmark_sequences/ requests this identical recipe, whichever set it belongs to.",
+      "source": "Request body of a published Boltz-2 performance test.",
+      "fields_from_source": [
+        "recycling_steps",
+        "sampling_steps",
+        "diffusion_samples",
+        "step_scale",
+        "output_format"
+      ],
+      "msa": "use_msa_server=false is this AIM's own choice, so that the per-target time has no live MSA server round trip. Skipping the MSA search is not the same as a single-sequence run, so a comparison against a reference timed with a precomputed MSA is a bound, not a like-for-like ratio.",
+      "diverges_from_serving_defaults": "sampling_steps 50 vs the served default 200, and step_scale 1.638 vs boltz-2's own resolved default 1.5. Both divergences are declared in image/tests/references/benchmark_recipe.json and asserted by image/tests/unit/test_recipe_parity.py. IDENTICAL to what the six-target set requests: this set is a COVERAGE change, not a methodology change, and a unit test pins the two sets to one recipe. The AIM's serving defaults are unchanged and continue to track upstream `boltz predict`."
+    }
+  },
+  "data": {
+    "version": 1,
+    "sequences": [
+      {
+        "protein": {
+          "id": [
+            "A",
+            "B",
+            "C"
+          ],
+          "sequence": "MGHHHHHHPCYSIDGVIPVVSPDAFVHPTAVLIGDVIIEAGVYVGPFASLRADFGRIHINQNANIQDSCTVHGFPQSVTLVEEMGHIGHGAILHGCRIGKNVLVGMNSVILDYAEIGENTIIGANSLVKTKDIIPANVLAMGSPAKVARDLSEQEKKWKTRGTQEYMELAQRCLNSMQEVQPLSSESDDRLTYKDFSSSNYQIKQDSV"
+        }
+      }
+    ],
+    "name": "8gpp",
+    "output_format": "mmcif",
+    "use_msa_server": false,
+    "recycling_steps": 3,
+    "sampling_steps": 50,
+    "diffusion_samples": 1,
+    "step_scale": 1.638
+  }
+}

@@ -1,0 +1,44 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Versions follow the `inference` extra of ecmwf/aifs-single-2.0's pyproject.toml
+# and its uv.lock; ecmwf/aifs-ens-2.0 pins the same apart from anemoi-models and
+# anemoi-graphs. torch, torchvision and triton come from the ROCm base image and
+# must not be listed; flash-attn is built from ROCm source in the Dockerfile.
+
+# Serving engine. Must stay >= 1.4.8, where bentoml.use_arguments() was added.
+bentoml==1.4.39
+# anyio, pydantic and huggingface-hub must match the AIM runtime's pins, which the base installs last.
+anyio==4.16.0
+pydantic==2.14.2
+
+anemoi-inference[huggingface]==0.8.3
+anemoi-transform==0.1.16.post2
+anemoi-utils==0.4.35.post3
+anemoi-plugins-ecmwf-inference[opendata]==0.2.1
+earthkit-data==0.19.3
+earthkit-regrid==0.5.1
+earthkit-utils==0.3.0
+ecmwf-opendata==0.3.29
+eccodes==2.47.0
+eccodeslib==2.46.2.19
+torch-geometric==2.6.1
+# anemoi-models and anemoi-graphs live in /opt/anemoi/<variant> (requirements-single.txt,
+# requirements-ens.txt); both versions of each need these.
+matplotlib==3.10.9
+networkx==3.6.1
+plotly==7.1.0
+scikit-learn==1.9.1
+typeguard==4.6.0
+huggingface-hub==1.31.0
+hydra-core==1.3.2
+omegaconf==2.3.0
+einops==0.8.2
+
+# anemoi-graphs requires numpy<2; the base image ships 2.x.
+numpy==1.26.4
+
+# Forecast files.
+xarray==2026.4.0
+netcdf4==1.7.4

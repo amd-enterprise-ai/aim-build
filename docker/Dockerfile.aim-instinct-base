@@ -26,6 +26,7 @@ ARG PARENT_TAG
 # - vllm/vllm-openai-rocm:v0.27.1                               = LMCache v0.5.2      = cd2c0d6
 # - vllm/vllm-openai-rocm:v0.28.0                               = LMCache v0.5.2      = cd2c0d6
 # - vllm/vllm-openai-rocm:nightly-rocm100                      = LMCache v0.5.3 (ships natively in base; no source install needed)
+# - vllm/vllm-openai-rocm:v0.33.0 (ROCm 10.0.0)                 = LMCache wheel ships in the upstream image; no source install needed
 ARG INSTALL_LMCACHE=false
 ARG INSTALL_LMCACHE_COMMIT=cd2c0d6
 
@@ -126,9 +127,9 @@ RUN if [ "$INSTALL_EVALUATION_DEPS" = "true" ]; then \
 ENV AIM_EVAL_BACKEND_COMMAND="/workspace/tools/eval-venv/bin/lm_eval"
 
 # Pre-built AITER JIT attention kernels (per GPU architecture).
-# Built by CI on a GPU pod, stored as a container image in GHCR.
+# Built by CI on a CPU runner, stored as a container image in GHCR.
 # At runtime, the matching arch's kernels are copied into AITER's system
-# JIT directory so AITER finds them without needing AITER_JIT_DIR override.
+# JIT directory (or symlinked into AITER_JIT_DIR on read-only images).
 # See docker/aiter-jit-prebuilt/README.md for details.
 ARG AITER_KERNEL_CHECKSUM=""
 ENV AITER_KERNEL_CHECKSUM=${AITER_KERNEL_CHECKSUM}

@@ -149,6 +149,23 @@ def get_base_image_name(accelerator: str, base_target_id: str) -> ImageName:
     return _get_base_image_name(family, base_target_id)
 
 
+def get_engine_image_name(accelerator: str, engine_id: str) -> ImageName:
+    """Return the repository name for an engine image: ``aim-{acc}-engine-{engine_id}``.
+
+    An engine is not an AIM, so it has no public alias.
+    """
+    family = AcceleratorFamily.try_parse(accelerator)
+    if family is None:
+        valid = ", ".join(a.value for a in AcceleratorFamily)
+        raise ValueError(f"Unknown accelerator: '{accelerator}'. Must be one of: {valid}")
+    if not _is_safe_image_ref_component(engine_id) or engine_id != engine_id.lower():
+        raise ValueError(
+            f"Invalid engine_id: '{engine_id}'. Must contain only lowercase alphanumerics, '.', '_', or '-'."
+        )
+    canonical = f"aim-{family.value}-engine-{engine_id}"
+    return ImageName(canonical=canonical, public=canonical)
+
+
 def get_model_image_name(accelerator: str, canonical_name_sanitized: str, target_id: str) -> ImageName:
     """Return internal/public repository names for a model-specific AIM image."""
     family = AcceleratorFamily.try_parse(accelerator)
@@ -169,7 +186,11 @@ def parse_image_name(repository: str) -> ParsedImageName:
     """Parse an image repository name into accelerator, canonical_name_sanitized, and is_base.
 
     Accepts public or canonical forms, e.g. 'aim-instinct-base' or 'aim-base'.
+    An engine repository (``aim-{acc}-engine-{engine_id}``) is not an AIM
+    image and is rejected rather than read as a model named ``engine-{engine_id}``.
     """
+    if _is_engine_image(repository):
+        raise ValueError(f"'{repository}' is an engine image, not an AIM image")
 
     # Order matters: more-specific formats must be attempted before legacy catch-alls.
     parsers = [
@@ -186,6 +207,15 @@ def parse_image_name(repository: str) -> ParsedImageName:
             return parsed
 
     raise ValueError(f"Unrecognized image repository format: '{repository}'")
+
+
+def _is_engine_image(repository: str) -> bool:
+    """Return True for an engine repository name as built by :func:`get_engine_image_name`."""
+    for family in _FAMILIES_BY_SPECIFICITY:
+        prefix = f"aim-{family.value}-engine-"
+        if repository.startswith(prefix):
+            return _is_safe_image_ref_component(repository[len(prefix) :])
+    return False
 
 
 def _parse_known_base_image(repository: str) -> Optional[ParsedImageName]:
@@ -392,7 +422,7 @@ def parse_image_ref(image_ref: str) -> tuple[str, str, str, str]:
     """Parse a full Docker image reference into its components.
 
     Args:
-        image_ref: Complete reference like ghcr.io/silogen/aim-instinct-base:0.3.0
+        image_ref: Complete reference like docker.io/amdenterpriseai/aim-base:0.13
 
     Returns:
         Tuple of (registry_host, namespace, repository, tag).

@@ -6,6 +6,8 @@
 Tests for engine_config.py — YAML-driven engine launch configuration.
 """
 
+import importlib.util
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,9 +17,23 @@ from aim_runtime.engines import (
     VllmEngineArgsModel,
     engine_args_to_cli_list,
 )
+from aim_runtime.engines.vllm import VLLM_CLI_ARGS_MODULES, vllm_cli_args_module
 
 _VLLM_AVAILABLE = bool(VllmEngineArgsModel._vllm_parser())
 from aim_utils.yaml_utils import dump_yaml  # noqa: E402
+
+
+def _vllm_importable() -> bool:
+    if importlib.util.find_spec("vllm") is None:
+        return False
+    try:
+        import vllm  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+_VLLM_IMPORTABLE = _vllm_importable()
 
 
 class TestEngineConfig:
@@ -224,6 +240,85 @@ def _flags_defined_by_installed_vllm() -> set[str]:
     return {option for action in parser._actions for option in action.option_strings}
 
 
+class TestVllmCliArgsModule:
+    """Resolving vLLM's CLI-args module across the layouts vLLM has used."""
+
+    @staticmethod
+    def _fake_import(available: set[str], missing_as: str = "module", broken: dict[str, str] | None = None):
+        """Fake ``importlib.import_module``.
+
+        ``missing_as`` names what an unavailable candidate reports as missing:
+        ``module`` (its package exists, only ``cli_args`` is absent), ``package``
+        (the parent package is absent) or ``vllm`` (vLLM is not installed).
+        """
+
+        def _import(name):
+            if broken and name in broken:
+                raise ModuleNotFoundError(f"No module named {broken[name]!r}", name=broken[name])
+            if name in available:
+                return name
+            missing = {"module": name, "package": name.rsplit(".", 1)[0], "vllm": "vllm"}[missing_as]
+            raise ModuleNotFoundError(f"No module named {missing!r}", name=missing)
+
+        return _import
+
+    @pytest.mark.parametrize("missing_as", ["module", "package"])
+    @pytest.mark.parametrize("found", VLLM_CLI_ARGS_MODULES)
+    def test_first_existing_layout_wins(self, monkeypatch, found, missing_as):
+        monkeypatch.setattr("importlib.import_module", self._fake_import({found}, missing_as))
+        assert vllm_cli_args_module() == found
+
+    def test_newest_layout_preferred(self, monkeypatch):
+        monkeypatch.setattr("importlib.import_module", self._fake_import(set(VLLM_CLI_ARGS_MODULES)))
+        assert vllm_cli_args_module() == VLLM_CLI_ARGS_MODULES[0]
+
+    @pytest.mark.parametrize("missing_as", ["module", "package", "vllm"])
+    def test_no_layout_raises(self, monkeypatch, missing_as):
+        monkeypatch.setattr("importlib.import_module", self._fake_import(set(), missing_as))
+        with pytest.raises(ModuleNotFoundError, match="none of"):
+            vllm_cli_args_module()
+
+    @pytest.mark.parametrize("dependency", ["transformers", f"{VLLM_CLI_ARGS_MODULES[0].rsplit('.', 1)[0]}.cli"])
+    def test_broken_dependency_is_not_skipped(self, monkeypatch, dependency):
+        """A module missing inside an existing candidate must not fall back to an older layout."""
+        broken = {VLLM_CLI_ARGS_MODULES[0]: dependency}
+        monkeypatch.setattr(
+            "importlib.import_module",
+            self._fake_import(set(VLLM_CLI_ARGS_MODULES), broken=broken),
+        )
+        with pytest.raises(ModuleNotFoundError, match=dependency):
+            vllm_cli_args_module()
+
+
+@pytest.mark.skipif(not _VLLM_IMPORTABLE, reason="vLLM not importable")
+class TestVllmParserAvailable:
+    """With vLLM installed, native validation must not silently switch off.
+
+    A relocated CLI-args module makes ``_vllm_parser`` return None, which would
+    also skip every contract test below.
+    """
+
+    def test_cli_args_module_resolves(self):
+        module = vllm_cli_args_module()
+        assert callable(module.make_arg_parser)
+        assert hasattr(module, "FrontendArgs")
+
+    def test_parser_builds(self):
+        if VllmEngineArgsModel._vllm_parser() is not None:
+            return
+        from vllm.utils.argparse_utils import FlexibleArgumentParser
+
+        try:
+            vllm_cli_args_module().make_arg_parser(FlexibleArgumentParser())
+        except RuntimeError as exc:
+            # vLLM 0.33.0 resolves the device while building its parser and
+            # cannot on a host without a GPU, such as the unit-test runner.
+            if "infer device type" in str(exc):
+                pytest.skip(f"vLLM cannot build its CLI parser on this host: {exc}")
+            raise
+        pytest.fail("vLLM imports and its parser builds, but _vllm_parser() returned None")
+
+
 @_SKIP_VLLM
 class TestVllmParserIntegration:
     """Integration tests verifying vLLM's CLI parser API surface.
@@ -235,9 +330,9 @@ class TestVllmParserIntegration:
 
     def test_make_arg_parser_importable(self):
         """make_arg_parser and FlexibleArgumentParser must be importable."""
-        from vllm.entrypoints.openai.cli_args import make_arg_parser  # noqa: F811
         from vllm.utils.argparse_utils import FlexibleArgumentParser  # noqa: F811
 
+        make_arg_parser = vllm_cli_args_module().make_arg_parser
         parser = make_arg_parser(FlexibleArgumentParser())
         assert parser is not None
 
@@ -245,7 +340,7 @@ class TestVllmParserIntegration:
         """FrontendArgs must contain the fields that appear in AIM profiles."""
         import dataclasses
 
-        from vllm.entrypoints.openai.cli_args import FrontendArgs
+        FrontendArgs = vllm_cli_args_module().FrontendArgs
 
         fields = {f.name for f in dataclasses.fields(FrontendArgs)}
         # Fields commonly used in AIM profiles

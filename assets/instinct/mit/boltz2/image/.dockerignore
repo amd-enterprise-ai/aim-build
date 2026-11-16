@@ -1,0 +1,28 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Keep the Layer-1 build context free of weights, datasets and scratch.
+# Weights live in the runtime cache (AIM_CACHE_PATH) and are never baked in.
+# The harness reads evaluation references from /workspace/data (or AIM_DATA_DIR)
+# when the user mounts them there.
+
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.bin
+**/*.safetensors
+**/*.onnx
+**/*.gguf
+**/*.h5
+**/*.npz
+**/*.pkl
+**/*.cif
+**/*.pdb
+**/*.a3m
+**/*.tar
+**/*.zip
+**/__pycache__/
+**/*.pyc
+**/._*
+**/.DS_Store

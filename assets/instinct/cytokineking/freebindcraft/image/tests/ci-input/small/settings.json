@@ -1,0 +1,8 @@
+{
+  "target_chains": "A",
+  "binder_name": "ci_small",
+  "min_length": 31,
+  "max_length": 45,
+  "num_designs": 1,
+  "max_trajectories": 1
+}

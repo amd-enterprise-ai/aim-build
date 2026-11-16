@@ -161,7 +161,8 @@ The container writes the cache as root.
 
 ### 4.9 Model environment variables
 
-The profile sets these values. Change them only for debugging or experiments:
+Values in the *Profile value* column are set by the profile at startup and override anything passed with `-e` or
+in the pod spec. Only the variables the profile does not set can be changed this way:
 
 | Variable | Profile value | Effect |
 |---|---|---|

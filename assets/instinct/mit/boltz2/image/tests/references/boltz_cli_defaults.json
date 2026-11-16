@@ -1,0 +1,42 @@
+{
+  "boltz_version": "2.2.1",
+  "source": "click option defaults on boltz.main.predict",
+  "note": "subsample_msa is an is_flag option with no default, so the CLI passes False even though its help text and the python signature default both say True. This AIM follows the CLI.",
+  "cli_defaults": {
+    "recycling_steps": 3,
+    "sampling_steps": 200,
+    "diffusion_samples": 1,
+    "max_parallel_samples": 5,
+    "step_scale": null,
+    "output_format": "mmcif",
+    "num_workers": 2,
+    "use_msa_server": false,
+    "msa_server_url": "https://api.colabfold.com",
+    "msa_pairing_strategy": "greedy",
+    "max_msa_seqs": 8192,
+    "subsample_msa": false,
+    "num_subsampled_msa": 1024,
+    "no_kernels": false,
+    "accelerator": "gpu",
+    "devices": 1,
+    "model": "boltz2",
+    "method": null,
+    "seed": null,
+    "use_potentials": false
+  },
+  "aim_deviations": {
+    "num_workers": {
+      "aim_value": 0,
+      "swept": false,
+      "enforced_by": "profile env_var BOLTZ2_NUM_WORKERS='0' plus the ServiceConfig field default; the Field keeps validation_alias, so the env var still overrides if exported \u2014 this is 'not swept', not 'not settable'",
+      "reason": "Fixed at 0 and removed from the Tuner's sweep, for two independent reasons. HAZARD: /v1/inference is a sync `def` @bentoml.api, and BentoML 1.4.35 dispatches those via anyio.to_thread.run_sync (_bentoml_impl/server/app.py:826, :655-666) \u2014 the handler runs on an AnyIO worker thread, not the main thread. torch spawns DataLoader workers with the default multiprocessing context, which on Linux + CPython 3.12 is fork, and forking from a non-main thread of a multi-threaded process is the documented deadlock shape (CPython 3.12 DeprecationWarning). traffic.timeout cannot reclaim a wedged handler \u2014 it cancels an asyncio task, which cannot kill an OS thread (the client gets a 504 while the handler keeps running), and the released capacity token lets the next request barge in (bentoml/BentoML#5642). VALUE: boltz's predict_dataloader is batch_size=1 over a dataset of len(manifest.records), and runner.py submits exactly one input per request, so the loader yields exactly one batch \u2014 extra workers have nothing to overlap and only pay fork+IPC. torch avoids the fork at exactly 0 (_SingleProcessDataLoaderIter, dataloader.py:429-433), so 1 forks as much as 4 and is not a safer middle ground."
+    },
+    "optimizations": {
+      "aim_value": "on",
+      "swept": false,
+      "upstream_equivalent": null,
+      "enforced_by": "ServiceConfig field default 'on'; the profile does not set it (a profile env_var would override docker run -e without a warning). BOLTZ2_OPTIMIZATIONS=off restores upstream boltz unchanged.",
+      "reason": "boltz 2.2.1 has no ROCm kernel path and no compile step, so this is an ADDITION to the upstream recipe. 'on' installs OpenFold3 0.4.1's Triton triangle attention kernel and our own Inductor-compiled triangle multiply over boltz's triangle layers (src/rocm_triangle), compiles the Transition and token-transformer modules with TorchInductor and runs a start-up warm-up prediction. cuEquivariance (use_kernels via boltz[cuda], CUDA-only) is always off, which is why upstream's no_kernels=false does not apply."
+    }
+  }
+}

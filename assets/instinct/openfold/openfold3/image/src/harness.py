@@ -115,19 +115,23 @@ HTTP_TOO_MANY_REQUESTS = 429
 # Mirrors the service's own derivation (ServiceConfig.effective_max_concurrency ->
 # request_budget.max_concurrency_for). Recomputed here rather than imported: the
 # harness is loaded by path from aim_runtime.harness.discovery, so a sibling
-# import of the service's modules is not guaranteed to resolve. Both read the
-# same env vars, so they cannot disagree about a deployment's configuration.
+# import of the service's modules is not guaranteed to resolve.
+# OPENFOLD3_MAX_CONCURRENCY is an environment override both processes inherit.
+# The worker count is not: CommandGenerator forwards the selected profile's
+# metadata.accelerator_count as ``bentoml serve --arg accelerator_count``, and
+# CI does not set AIM_ACCELERATOR_COUNT.
 DEFAULT_CONCURRENCY_PER_WORKER = 3
 
+# Requests beyond the in-flight limit in the default overload burst. Sending
+# more than the limit guarantees that a working service refuses some of them.
+OVERLOAD_EXCESS_REQUESTS = 7
 
-def _expected_in_flight() -> int:
+
+def _expected_in_flight(profile: dict[str, Any]) -> int:
     """How many concurrent requests the service accepts before answering 429."""
-    explicit = os.environ.get("OPENFOLD3_MAX_CONCURRENCY", "").strip()
-    if explicit.isdigit() and int(explicit) > 0:
-        return int(explicit)
-    accelerators = os.environ.get("AIM_ACCELERATOR_COUNT", "").strip()
-    count = int(accelerators) if accelerators.isdigit() and int(accelerators) > 0 else 1
-    return count * DEFAULT_CONCURRENCY_PER_WORKER
+    explicit = int(os.environ.get("OPENFOLD3_MAX_CONCURRENCY") or 0)
+    accelerator_count = profile.get("metadata", {}).get("accelerator_count", 1)
+    return explicit or accelerator_count * DEFAULT_CONCURRENCY_PER_WORKER
 
 
 def _post_predict_status(service_url: str, payload: dict[str, Any], *, timeout_seconds: int) -> int | str:
@@ -338,9 +342,15 @@ class OpenFold3Harness(ModelHarness):
         inline-MSA smoke case: it needs no MSA server and still occupies its
         slot for seconds, which is far longer than the millisecond spread of
         the burst.
+
+        The check passes when no more than the limit is accepted and the rest is
+        refused with 429. It does not require the limit to be reached exactly:
+        BentoML gives each worker ceil(max_concurrency / workers) slots, and the
+        kernel picks which worker accepts each connection, so with several
+        workers some can refuse requests while others still have free slots.
         """
-        total = int(config.get("overload_requests", 10))
-        expected_in_flight = int(config.get("overload_max_concurrency", 0)) or _expected_in_flight()
+        expected_in_flight = int(config.get("overload_max_concurrency", 0)) or _expected_in_flight(config.profile)
+        total = int(config.get("overload_requests", 0)) or expected_in_flight + OVERLOAD_EXCESS_REQUESTS
         expected_shed = max(total - expected_in_flight, 0)
         request_timeout = int(config.get("predict_timeout_seconds", 600))
         payload = _build_smoke_payload(output_format="pdb", inline_msa=True)
@@ -382,10 +392,10 @@ class OpenFold3Harness(ModelHarness):
         shed = sum(1 for o in outcomes if o == HTTP_TOO_MANY_REQUESTS)
         other = [o for o in outcomes if o not in (200, HTTP_TOO_MANY_REQUESTS)]
 
-        success = accepted == expected_in_flight and shed == expected_shed and not other
+        success = 0 < accepted <= expected_in_flight and shed == total - accepted
         detail = (
             f"{total} simultaneous: {accepted} accepted (200), {shed} shed (429), "
-            f"expected {expected_in_flight}/{expected_shed}, elapsed={elapsed:.1f}s"
+            f"expected at most {expected_in_flight} accepted, elapsed={elapsed:.1f}s"
         )
         if other:
             detail += f"; unexpected outcomes: {sorted(str(o) for o in other)}"

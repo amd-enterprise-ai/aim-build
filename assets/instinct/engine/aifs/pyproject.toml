@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aifs-single-2-0-aim"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+description = "AIM serving wrapper for ecmwf/aifs-single-2.0 and ecmwf/aifs-ens-2.0"
+dependencies = [
+    "bentoml==1.4.39",
+    "pydantic==2.14.2",
+    "anemoi-inference[huggingface]==0.8.3",
+    "earthkit-data==0.19.3",
+    "earthkit-regrid==0.5.1",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+# Serving modules only; the harness modules live in the base image.
+py-modules = [
+    "anemoi_variant",
+    "canonical_api",
+    "config",
+    "data_utils",
+    "model_runner",
+    "scoring",
+    "service",
+]

@@ -1,0 +1,28 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aurora-v1-0p25deg-pretrained-large-aim"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "AIM serving wrapper for microsoft/aurora-v1-0p25deg-pretrained-large"
+dependencies = [
+    "bentoml==1.4.39",
+    "pydantic==2.14.2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+# Serving modules only; the harness modules live in the base image.
+py-modules = [
+    "canonical_api",
+    "config",
+    "data_utils",
+    "model_runner",
+    "service",
+]

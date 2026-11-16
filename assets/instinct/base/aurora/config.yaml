@@ -1,0 +1,25 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Base image for the Aurora weather models: adds the AIM runtime and the weather
+# harness on top of the engine image at assets/instinct/engine/aurora/.
+#
+# base_image is the engine image this builds FROM, not the upstream vendor
+# image. The repository and tag below apply to a manual build; an automated
+# build resolves them when it builds the engine image.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-engine-aurora
+  base_tag: "2026.24.0"
+specialized: true
+
+dockerfile: assets/instinct/base/aurora/Dockerfile
+
+templates:
+  readme: docs/templates/README.md
+  deployment: docs/templates/DEPLOYMENT.bentoml.md
+# The base serves nothing until a model image adds a profile.
+docs:
+  standalone: false

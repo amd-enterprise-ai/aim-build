@@ -1,0 +1,29 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# H-optimus-0 AIM Python dependencies
+# Base image (rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1)
+# provides: python3.12, pip, ROCm runtime, PyTorch with ROCm support.
+# Do NOT pin torch/torchvision here — use the ROCm-enabled versions from base.
+# bentoml/timm/Pillow pins: see the base image of this branch
+
+# BentoML serving engine
+bentoml==1.4.39
+
+# H-optimus-0 is loaded via timm (ViT giant backbone, not HuggingFace transformers pipeline)
+timm==1.0.15
+
+# HuggingFace hub auth — required to pull the gated H-optimus-0 weights
+huggingface-hub==1.31.0
+
+# Image I/O for decoding base64 JPEG/PNG tiles
+Pillow==13.0.0
+
+# Imported directly by service.py (/health forwarder, request models, ASGI routes).
+# Versions are what `pip freeze` reports in the validation image: built from PR head
+# 2ee25358a on a Crusoe MI355X node (not a CI image; Layer 2 built locally). pydantic
+# 2.13.5 is the aim-runtime layer's pin, which overrides anything installed earlier.
+httpx==0.28.1
+pydantic==2.13.5
+starlette==1.10.0

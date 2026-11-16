@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""In-pod LoRA adapter watcher for dynamic mode (ADR-0004).
+"""In-pod LoRA adapter watcher for dynamic mode.
 
 Polls ``AIM_ADAPTER_SOURCE`` every ``AIM_ADAPTER_REFRESH_INTERVAL`` seconds,
 diffs the directory against the last-known state, and reconciles the engine via
@@ -13,7 +13,7 @@ its OpenAI-compatible runtime endpoints:
     disappear     -> POST /v1/unload_lora_adapter
 
 Disk is ground truth: an adapter unloaded out-of-band but still present on disk
-is re-loaded on the next tick (ADR §Known hazards). Failures are logged and the
+is re-loaded on the next tick. Failures are logged and the
 loop continues — a bad adapter must not crash the pod.
 """
 

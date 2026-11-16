@@ -1,0 +1,13 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# SaProt 650M AF2 AIM dependencies.
+# ROCm PyTorch is pre-installed in the base image; do not re-install torch here.
+bentoml==1.4.39
+# huggingface_hub must equal the aim-runtime layer pin (requirements/instinct-requirements.txt);
+# transformers 4.x declares huggingface-hub<1.0 and fails at import against it, so use 5.x.
+transformers==5.17.0
+huggingface_hub==1.31.0
+tokenizers==0.23.1
+numpy==1.26.4

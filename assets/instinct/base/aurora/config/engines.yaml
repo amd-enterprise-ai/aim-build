@@ -1,0 +1,11 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Engine definitions for the Aurora weather base image.
+#
+# /workspace/model is where bentofile.yaml lives; BentoML reads its `service:`
+# import string from there to find the service class.
+
+bentoml:
+  launch: python -m bentoml serve --working-dir /workspace/model

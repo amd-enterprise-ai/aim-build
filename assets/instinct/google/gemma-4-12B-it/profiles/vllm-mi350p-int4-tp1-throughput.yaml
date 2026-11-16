@@ -15,7 +15,7 @@ metadata:
   type: unoptimized
 engine_args:
   async-scheduling: null
-  attention-backend: ROCM_AITER_UNIFIED_ATTN
+  attention-backend: TRITON_ATTN
   disable-uvicorn-access-log: null
   dtype: bfloat16
   enable-auto-tool-choice: null

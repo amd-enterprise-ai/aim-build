@@ -1,0 +1,54 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      title: "Aurora 0.25-degree Pretrained (full-size) — global weather forecasting"
+      model:
+        canonicalName: "microsoft/aurora-v1-0p25deg-pretrained-large"
+        publisher: "Microsoft"
+        source: "https://github.com/microsoft/aurora"
+        tags:
+          - "weather-forecasting"
+          - "global-forecast"
+          - "atmospheric-foundation-model"
+          - "pretrained"
+        variants:
+          - "microsoft/aurora-v1-0p25deg-pretrained-large"
+      hfToken:
+        required: false
+      release:
+        notes: >
+          Serves the full-size 0.25-degree pretrained checkpoint
+          aurora-0.25-pretrained.ckpt (class aurora.AuroraPretrained, 1.26 B
+          parameters, 5 GB). POST /v1/inference takes the initial condition
+          inline as input_netcdf_b64, or as input_netcdf_path naming a file in
+          the input directory. One initial condition is about 345 MB, so the
+          path is the practical option. The image holds ten days of ERA5 (1 to
+          10 June 2022) as inputs; they contain modified Copernicus Climate
+          Change Service information, attributed in /workspace/NOTICE.md. The
+          build checks do not score forecast accuracy.
+      description:
+        full: >
+          Aurora is a foundation model of the atmosphere from Microsoft
+          Research. This AIM serves the general 0.25-degree pretrained
+          checkpoint: a deterministic, autoregressive global forecaster on the
+          ERA5 0.25-degree lat/lon grid (721x1440 native, cropped to 720x1440 at
+          patch_size 4), the 13 standard ERA5 pressure levels from 50 to 1000
+          hPa, four surface variables (2t, 10u, 10v, msl), three static
+          variables (lsm, z, slt) and five upper-air variables (z, u, v, t, q).
+          It advances the state in 6-hour steps via aurora.rollout.rollout and
+          is served over HTTP: POST /v1/inference rolls the
+          model forward the requested number of forecast steps and returns a
+          NetCDF forecast retaining every step under a lead_time dimension.
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Aurora 0.25deg full-size pretrained: autoregressive global weather forecaster served over HTTP."
+      documentation: "https://microsoft.github.io/aurora/models.html"
+      source: "https://github.com/microsoft/aurora"

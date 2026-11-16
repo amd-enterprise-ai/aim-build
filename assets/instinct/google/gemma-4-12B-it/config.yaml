@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 base_image:
-  base_registry_namespace: silogenai
+  base_registry_namespace: amdenterpriseai
   base_repository: aim-base
-  base_tag: "2026.11.0-rc11"
+  base_tag: "2026.22.0"
   registry_host: docker.io
 templates:
   deployment: docs/templates/DEPLOYMENT.md

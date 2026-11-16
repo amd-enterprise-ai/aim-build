@@ -24,7 +24,7 @@ This guide assumes MI300X accelerator on the target system.
 docker run \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 
@@ -34,13 +34,13 @@ Customize your deployment with optional environment variables:
 
 ```bash
 docker run \
-  -e AIM_PRECISION=fp4 \
+  -e AIM_PRECISION=fp8 \
   -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_METRIC=throughput \
   -e AIM_PORT=8080 \
   --device=/dev/kfd --device=/dev/dri \
   -p 8080:8080 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 ## 2. Model caching for production
@@ -56,7 +56,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1 \
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1 \
   download-to-cache --model-id Qwen/Qwen3.8-27B
 ```
 
@@ -67,7 +67,7 @@ docker run \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 ## 3. Kubernetes deployment
@@ -98,7 +98,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+          image: amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -264,7 +264,7 @@ docker run \
   -e AIM_METRIC=throughput \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 ### 5.2 Using profiles excluded from automatic selection
@@ -274,10 +274,10 @@ desired profile identifier. Profile identifier is the filename of the profile wi
 
 ```bash
 docker run \
-  -e AIM_PROFILE_ID=vllm-mi325x-bf16-tp1-latency \
+  -e AIM_PROFILE_ID=vllm-mi300x-bf16-tp1-latency \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -288,7 +288,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1 \
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1 \
   --help
 ```
 
@@ -296,7 +296,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1 \
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1 \
   <subcommand> --help
 ```
 
@@ -307,7 +307,7 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   --device=/dev/kfd --device=/dev/dri \
   -p 8000:8000 \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1
 ```
 
 ### 6.3 Checking profile selection results
@@ -317,9 +317,9 @@ It is possible to check which profile AIM selects based on the provided environm
 ```bash
 docker run \
   -e AIM_ACCELERATOR_COUNT=1 \
-  -e AIM_PRECISION=fp4 \
+  -e AIM_PRECISION=fp8 \
   -e AIM_ACCELERATOR_MODEL=MI300X \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1 \
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1 \
   dry-run
 ```
 
@@ -327,7 +327,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.15.0-rc1 \
+  amdenterpriseai/aim-qwen-qwen3-8-27b:2026.22.1 \
   list-profiles
 ```
 

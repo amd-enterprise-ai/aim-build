@@ -1,0 +1,15 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Vendor fallback — no specialized aim-base for GROMACS yet.
+# Layer-1 image built directly on top of the ROCm vendor base.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: rocm
+  base_repository: dev-ubuntu-24.04
+  base_tag: "7.2.4"
+specialized: false
+templates:
+  deployment: docs/templates/DEPLOYMENT.job.md
+  readme: docs/templates/README.md

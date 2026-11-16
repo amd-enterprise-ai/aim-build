@@ -1,0 +1,20 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: rssrwn/semlaflow
+model_id: rssrwn/semlaflow
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp32
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  PYTORCH_ROCM_ARCH: gfx950
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

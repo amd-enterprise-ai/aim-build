@@ -20,6 +20,6 @@ spec:
     - name: {{ release.image_pull_secret }}
 {% endif %}
   maxModels: {{ release.max_models | default(100) }}
-  registry: {{ release.registry | default("ghcr.io") }}
+  registry: {{ release.registry | default("docker.io") }}
   syncInterval: {{ release.sync_interval | default("1h") }}
 

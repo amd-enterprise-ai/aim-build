@@ -30,6 +30,7 @@ from aim_runtime.engines.engine_args_models import (
     EngineArgsModel,
     engine_args_to_cli_list,
 )
+from aim_runtime.engines.job import JobEngine
 from aim_runtime.engines.vllm import VllmEngine, VllmEngineArgsModel, validate_vllm_env_vars
 from aim_runtime.engines.vllm_omni import VllmOmniEngine, VllmOmniEngineArgsModel
 
@@ -45,6 +46,7 @@ ENGINE_CLASSES: dict[Engine, type[BaseEngine]] = {
     Engine.VLLM: VllmEngine,
     Engine.VLLM_OMNI: VllmOmniEngine,
     Engine.BENTOML: BentomlEngine,
+    Engine.JOB: JobEngine,  # Never instantiated; stub satisfies ENGINE_CLASSES invariant
 }
 
 
@@ -90,6 +92,7 @@ __all__ = [
     "ENGINE_CLASSES",
     "EngineArgsFormat",
     "EngineArgsModel",
+    "JobEngine",
     "VllmEngine",
     "VllmEngineArgsModel",
     "VllmOmniEngine",

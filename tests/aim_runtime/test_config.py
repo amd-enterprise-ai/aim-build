@@ -106,7 +106,7 @@ class TestLogLevelConfig:
     """Tests for AIM_LOG_LEVEL_ROOT and AIM_LOG_LEVEL environment variables."""
 
     def test_default_log_levels(self):
-        """Test that log levels default to WARNING for root and INFO for aim_runtime."""
+        """Test that log levels default to INFO for root and aim_runtime."""
         env_vars = {
             "AIM_MODEL_ID": "test/model",
         }
@@ -115,7 +115,7 @@ class TestLogLevelConfig:
         with patch.dict(os.environ, clean_env, clear=True):
             with patch.dict(os.environ, env_vars, clear=False):
                 config = AIMConfig.from_environment()
-                assert config.log_level_root == "WARNING"
+                assert config.log_level_root == "INFO"
                 assert config.log_level == "INFO"
 
     def test_custom_log_levels(self):

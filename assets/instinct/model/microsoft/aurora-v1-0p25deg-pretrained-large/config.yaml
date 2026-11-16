@@ -1,0 +1,17 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Model image: profiles and config only, no code. Built on the Aurora base image.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: silogenai
+  base_repository: aim-instinct-aurora-base
+  base_tag: "2026.24.0"
+specialized: true
+
+dockerfile: assets/instinct/model/microsoft/aurora-v1-0p25deg-pretrained-large/Dockerfile
+
+templates:
+  readme: docs/templates/README.md
+  deployment: docs/templates/DEPLOYMENT.bentoml.md

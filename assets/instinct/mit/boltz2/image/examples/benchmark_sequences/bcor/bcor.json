@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "label": "bcor",
+    "description": "UniProt Q6W2J9 - 1 chain(s), 1755 residues",
+    "sets": [
+      "timing-18"
+    ],
+    "set_relationship": "One directory, two named sets. All eighteen fixtures live in examples/benchmark_sequences/ and are baked to /workspace/model/benchmarks. harness._load_eval_cases keeps a case when the set named by BOLTZ2_BENCHMARK_SET (default 'fast') is in metadata.sets. 'fast' has six targets and 'timing-18' has all eighteen. The six are members of both sets, so the sets overlap: never add their totals. tests/unit/test_benchmark_sets.py pins the default set to exactly those six.",
+    "uniprot": {
+      "accession": "Q6W2J9",
+      "protein_name": "BCL-6 corepressor",
+      "organism": "Homo sapiens",
+      "fasta_url": "https://rest.uniprot.org/uniprotkb/Q6W2J9.fasta",
+      "fasta_sha256": "573dec601701f84019b7daef46f946077f92d50b120d924c5b00838b4907b1e6",
+      "sequence_sha256": "fb1596c539433cf01c09c974fd7e67a952ecf3264cfb6dd981c31dc0ffef6db5",
+      "fetched_at": "2026-08-27",
+      "fasta_header": ">sp|Q6W2J9|BCOR_HUMAN BCL-6 corepressor OS=Homo sapiens OX=9606 GN=BCOR PE=1 SV=1"
+    },
+    "reference_pdb_id": null,
+    "reference_url": null,
+    "reference_file": null,
+    "accuracy": {
+      "scoreable": false,
+      "timing_only": true,
+      "reason": "TIMING ONLY - THIS TARGET CANNOT CARRY AN ACCURACY CLAIM, and that is a property of the target, not an omission. The public table identifies it by a UniProt entry name, not a PDB id: there is no deposition, so there is no experimentally-determined structure to superpose a prediction onto and no C-alpha RMSD can be computed for it in principle. harness._check_structure_accuracy will therefore record this case with error='reference structure not staged at .../<label>.cif' and leave rmsd_a null. That is the CORRECT outcome and not a staging failure - nothing is missing that could be fetched. The prediction still yields a wall-clock time and Boltz-2's own complex_plddt, which is self-reported and needs no reference, so the target contributes to the timing instrument in full."
+    },
+    "provenance": "One of the eighteen timing targets, taken from a public performance table. NOT A PDB DEPOSITION. The table's Test ID 'bcor' is the lowercased UniProt entry-name prefix of BCL-6 corepressor, accession Q6W2J9 (Homo sapiens), which is why no RCSB reference exists for it and why searching the PDB for 'bcor' finds nothing. IDENTIFICATION RESTS ON TWO INDEPENDENT SIGNALS, not one: the sequence length is 1755 and the table says 1755 (delta 0, where every PDB row in the table is off by 0 to 8 residues), and the entry name itself matches the Test ID. Fetched as a single-chain protein from https://rest.uniprot.org/uniprotkb/Q6W2J9.fasta on 2026-08-27.",
+    "residues": 1755,
+    "chains": 1,
+    "entities": 1,
+    "recipe": {
+      "purpose": "Timing instrument, not an accuracy eval set. This case measures the time of one structure prediction. It does not run the configuration this AIM serves, and it is not part of the set the accuracy floors in tuning.yaml come from. Every fixture in examples/benchmark_sequences/ requests this identical recipe, whichever set it belongs to.",
+      "source": "Request body of a published Boltz-2 performance test.",
+      "fields_from_source": [
+        "recycling_steps",
+        "sampling_steps",
+        "diffusion_samples",
+        "step_scale",
+        "output_format"
+      ],
+      "msa": "use_msa_server=false is this AIM's own choice, so that the per-target time has no live MSA server round trip. Skipping the MSA search is not the same as a single-sequence run, so a comparison against a reference timed with a precomputed MSA is a bound, not a like-for-like ratio.",
+      "diverges_from_serving_defaults": "sampling_steps 50 vs the served default 200, and step_scale 1.638 vs boltz-2's own resolved default 1.5. Both divergences are declared in image/tests/references/benchmark_recipe.json and asserted by image/tests/unit/test_recipe_parity.py. IDENTICAL to what the six-target set requests: this set is a COVERAGE change, not a methodology change, and a unit test pins the two sets to one recipe. The AIM's serving defaults are unchanged and continue to track upstream `boltz predict`."
+    }
+  },
+  "data": {
+    "version": 1,
+    "sequences": [
+      {
+        "protein": {
+          "id": "A",
+          "sequence": "MLSATPLYGNVHSWMNSERVRMCGASEDRKILVNDGDASKARLELREENPLNHNVVDASTAHRIDGLAALSMDRTGLIREGLRVPGNIVYSSLCGLGSEKGREAATSTLGGLGFSSERNPEMQFKPNTPETVEASAVSGKPPNGFSAIYKTPPGIQKSAVATAEALGLDRPASDKQSPLNINGASYLRLPWVNPYMEGATPAIYPFLDSPNKYSLNMYKALLPQQSYSLAQPLYSPVCTNGERFLYLPPPHYVGPHIPSSLASPMRLSTPSASPAIPPLVHCADKSLPWKMGVSPGNPVDSHAYPHIQNSKQPRVPSAKAVTSGLPGDTALLLPPSPRPSPRVHLPTQPAADTYSEFHKHYARISTSPSVALSKPYMTVSSEFPAARLSNGKYPKAPEGGEGAQPVPGHARKTAVQDRKDGSSPPLLEKQTVTKDVTDKPLDLSSKVVDVDASKADHMKKMAPTVLVHSRAGSGLVLSGSEIPKETLSPPGNGCAIYRSEIISTAPSSWVVPGPSPNEENNGKSMSLKNKALDWAIPQQRSSSCPRMGGTDAVITNVSGSVSSAGRPASASPAPNANADGTKTSRSSVETTPSVIQHVGQPPATPAKHSSSTSSKGAKASNPEPSFKANENGLPPSSIFLSPNEAFRSPPIPYPRSYLPYPAPEGIAVSPLSLHGKGPVYPHPVLLPNGSLFPGHLAPKPGLPYGLPTGRPEFVTYQDALGLGMVHPMLIPHTPIEITKEEKPERRSRSHERARYEDPTLRNRFSEILETSSTKLHPDVPTDKNLKPNPNWNQGKTVVKSDKLVYVDLLREEPDAKTDTNVSKPSFAAESVGQSAEPPKPSVEPALQQHRDFIALREELGRISDFHETYTFKQPVFTVSKDSVLAGTNKENLGLPVSTPFLEPPLGSDGPAVTFGKTQEDPKPFCVGSAPPSVDVTPTYTKDGADEAESNDGKVLKPKPSKLAKRIANSAGYVGDRFKCVTTELYADSSQLSREQRALQMEGLQEDSILCLPAAYCERAMMRFSELEMKEREGGHPATKDSEMCKFSPADWERLKGNQDKKPKSVTLEEAIAEQNESERCEYSVGNKHRDPFEAPEDKDLPVEKYFVERQPVSEPPADQVASDMPHSPTLRVDRKRKVSGDSSHTETTAEEVPEDPLLKAKRRRVSKDDWPEREMTNSSSNHLEDPHYSELTNLKVCIELTGLHPKKQRHLLHLRERWEQQVSAADGKPGRQSRKEVTQATQPEAIPQGTNITEEKPGRKRAEAKGNRSWSEESLKPSDNEQGLPVFSGSPPMKSLSSTSAGGKKQAQPSCAPASRPPAKQQKIKENQKTDVLCADEEEDCQAASLLQKYTDNSEKPSGKRLCKTKHLIPQESRRGLPLTGEYYVENADGKVTVRRFRKRPEPSSDYDLSPAKQEPKPFDRLQQLLPASQSTQLPCSSSPQETTQSRPMPPEARRLIVNKNAGETLLQRAARLGYEEVVLYCLENKICDVNHRDNAGYCALHEACARGWLNIVRHLLEYGADVNCSAQDGTRPLHDAVENDHLEIVRLLLSYGADPTLATYSGRTIMKMTHSELMEKFLTDYLNDLQGRNDDDASGTWDFYGSSVCEPDDESGYDVLANPPGPEDQDDDDDAYSDVFEFEFSETPLLPCYNIQVSVAQGPRNWLLLSDVLKKLKMSSRIFRCNFPNVEIVTIAEAEFYRQVSASLLFSCSKDLEAFNPESKELLDLVEFTNEIQTLLGSSVEWLHPSDLASDNYW"
+        }
+      }
+    ],
+    "name": "bcor",
+    "output_format": "mmcif",
+    "use_msa_server": false,
+    "recycling_steps": 3,
+    "sampling_steps": 50,
+    "diffusion_samples": 1,
+    "step_scale": 1.638
+  }
+}

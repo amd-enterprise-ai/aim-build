@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Tests for the dynamic-mode AdapterWatcher (ADR-0004)."""
+"""Tests for the dynamic-mode AdapterWatcher."""
 
 from __future__ import annotations
 

@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "bioptimus/h-optimus-0"
+        tags:
+        - "pathology"
+        - "medical-imaging"
+        - "vision-transformer"
+        - "embeddings"
+        source: "https://huggingface.co/bioptimus/H-optimus-0"
+        variants:
+        - "bioptimus/H-optimus-0"
+        publisher: "Bioptimus"
+      hfToken:
+        required: true
+      release:
+        notes: ""
+      description:
+        full: "`H-optimus-0` is an open-source foundation model for histology, developed by Bioptimus. The model is a 1.1B parameter vision transformer trained on a proprietary collection of more than 500,000 H&E stained whole slide histology images. `H-optimus-0` can be used to extract powerful features from histology images for various downstream applications, such as mutation prediction, survival analysis, or tissue classification. H-optimus-0 expects images of size 224x224 that were extracted at 0.5 microns per pixel. Source: Hugging Face model card for bioptimus/H-optimus-0 (Apache-2.0). Access to the model on Hugging Face is gated, so a valid HF token is required."
+      title: "H-optimus-0"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Bioptimus H-optimus-0 pathology foundation model (ViT, 1536-dim embeddings)."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

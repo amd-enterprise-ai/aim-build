@@ -55,9 +55,8 @@ def test_validate_profile_with_deprecated_gpu_keys_should_warn(
     assert "'gpu_count' (use 'accelerator_count')" in caplog.text
 
 
-def test_validate_valid_model_profile_dict(profile_validator: ProfileValidator):
-    """Test validating a valid model profile from a dict."""
-    profile_data = {
+def _valid_model_profile_dict() -> dict:
+    return {
         "aim_id": "meta-llama/Llama-3.1-8B-Instruct",
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "metadata": {
@@ -72,7 +71,60 @@ def test_validate_valid_model_profile_dict(profile_validator: ProfileValidator):
         "engine_args": {"dtype": "float16", "tensor-parallel-size": 1},
         "env_vars": {},
     }
-    profile_validator.validate(profile_data)
+
+
+def test_validate_valid_model_profile_dict(profile_validator: ProfileValidator):
+    """Test validating a valid model profile from a dict."""
+    validated = profile_validator.validate(_valid_model_profile_dict())
+
+    assert validated.download_filter is None
+    assert "download_filter" not in validated.model_dump(exclude_unset=True)
+
+
+def test_validate_model_profile_with_empty_download_filter(profile_validator: ProfileValidator):
+    profile_data = _valid_model_profile_dict()
+    profile_data["download_filter"] = {}
+
+    validated = profile_validator.validate(profile_data)
+
+    assert validated.download_filter is not None
+    assert validated.download_filter.include == []
+    assert validated.download_filter.exclude == []
+    assert validated.model_dump(exclude_unset=True)["download_filter"] == {}
+
+
+def test_validate_model_profile_with_populated_download_filter(profile_validator: ProfileValidator):
+    profile_data = _valid_model_profile_dict()
+    profile_data["download_filter"] = {
+        "include": ["*.safetensors", "config.json"],
+        "exclude": ["*.bin"],
+    }
+
+    validated = profile_validator.validate(profile_data)
+
+    assert validated.download_filter is not None
+    assert validated.download_filter.include == ["*.safetensors", "config.json"]
+    assert validated.download_filter.exclude == ["*.bin"]
+
+
+@pytest.mark.parametrize(
+    "download_filter",
+    [
+        {"include": [""]},
+        {"include": ["*.safetensors,config.json"]},
+        {"exclude": ["path with spaces/*"]},
+        {"include": [1]},
+        {"ignore": ["*.bin"]},
+    ],
+)
+def test_validate_model_profile_with_invalid_download_filter_should_fail(
+    profile_validator: ProfileValidator, download_filter: dict
+):
+    profile_data = _valid_model_profile_dict()
+    profile_data["download_filter"] = download_filter
+
+    with pytest.raises(Exception):
+        profile_validator.validate(profile_data)
 
 
 def test_validate_valid_general_profile_dict(profile_validator: ProfileValidator):

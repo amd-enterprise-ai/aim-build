@@ -111,28 +111,22 @@ The following profiles are available for this model:
 |vllm-mi300x-bf16-tp1-throughput|MI300X|bf16|vllm|1|throughput|optimized|
 |vllm-mi300x-fp8-tp1-latency|MI300X|fp8|vllm|1|latency|preview|
 |vllm-mi300x-fp8-tp1-throughput|MI300X|fp8|vllm|1|throughput|optimized|
-|vllm-mi325x-bf16-tp1-latency|MI325X|bf16|vllm|1|latency|unoptimized|
-|vllm-mi325x-bf16-tp1-throughput|MI325X|bf16|vllm|1|throughput|unoptimized|
-|vllm-mi325x-fp8-tp1-latency|MI325X|fp8|vllm|1|latency|unoptimized|
-|vllm-mi325x-fp8-tp1-throughput|MI325X|fp8|vllm|1|throughput|unoptimized|
+|vllm-mi325x-bf16-tp1-latency|MI325X|bf16|vllm|1|latency|optimized|
+|vllm-mi325x-bf16-tp1-throughput|MI325X|bf16|vllm|1|throughput|preview|
+|vllm-mi325x-fp8-tp1-latency|MI325X|fp8|vllm|1|latency|optimized|
+|vllm-mi325x-fp8-tp1-throughput|MI325X|fp8|vllm|1|throughput|optimized|
 |vllm-mi350p-bf16-tp1-latency|MI350P|bf16|vllm|1|latency|optimized|
-|vllm-mi350p-bf16-tp1-throughput|MI350P|bf16|vllm|1|throughput|optimized|
+|vllm-mi350p-bf16-tp1-throughput|MI350P|bf16|vllm|1|throughput|preview|
 |vllm-mi350p-fp8-tp1-latency|MI350P|fp8|vllm|1|latency|optimized|
 |vllm-mi350p-fp8-tp1-throughput|MI350P|fp8|vllm|1|throughput|optimized|
-|vllm-mi350p-mxfp4-tp1-latency|MI350P|fp4|vllm|1|latency|optimized|
-|vllm-mi350p-mxfp4-tp1-throughput|MI350P|fp4|vllm|1|throughput|optimized|
 |vllm-mi350x-bf16-tp1-latency|MI350X|bf16|vllm|1|latency|optimized|
 |vllm-mi350x-bf16-tp1-throughput|MI350X|bf16|vllm|1|throughput|optimized|
 |vllm-mi350x-fp8-tp1-latency|MI350X|fp8|vllm|1|latency|optimized|
 |vllm-mi350x-fp8-tp1-throughput|MI350X|fp8|vllm|1|throughput|optimized|
-|vllm-mi350x-mxfp4-tp1-latency|MI350X|fp4|vllm|1|latency|optimized|
-|vllm-mi350x-mxfp4-tp1-throughput|MI350X|fp4|vllm|1|throughput|optimized|
 |vllm-mi355x-bf16-tp1-latency|MI355X|bf16|vllm|1|latency|optimized|
 |vllm-mi355x-bf16-tp1-throughput|MI355X|bf16|vllm|1|throughput|optimized|
 |vllm-mi355x-fp8-tp1-latency|MI355X|fp8|vllm|1|latency|optimized|
 |vllm-mi355x-fp8-tp1-throughput|MI355X|fp8|vllm|1|throughput|optimized|
-|vllm-mi355x-mxfp4-tp1-latency|MI355X|fp4|vllm|1|latency|optimized|
-|vllm-mi355x-mxfp4-tp1-throughput|MI355X|fp4|vllm|1|throughput|optimized|
 
 The columns should be read as follows:
 * **Profile**: Name of the deployment profile.
@@ -146,6 +140,11 @@ The columns should be read as follows:
   * `"unoptimized"`: Basic profiles with default or minimal tuning, suitable as starting points for experimentation; these are never selected automatically and must be requested explicitly
   * `"general"`: Generic profiles applicable across multiple models, providing baseline configurations when model-specific profiles are unavailable
   * `"preview"`: Performance-tuned profiles which do not reach the same level of performance as "optimized" profiles, intended for early access to new configurations
+
+## Notes
+
+- The FP8 profiles for MI350P, MI350X and MI355X serve the BF16 checkpoint (`Qwen/Qwen3.8-27B`) with FP8 quantization applied at runtime. The FP8 profiles for MI300X and MI325X serve the pre-quantized `Qwen/Qwen3.8-27B-FP8` checkpoint.
+- MXFP4 profiles are not included in this release because of a bug in the vLLM 0.33 base image that prevents them from starting.
 
 ## Getting Started
 

@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "label": "8eil",
+    "description": "PDB 8EIL - 1 chain(s), 186 residues",
+    "sets": [
+      "accuracy-gate"
+    ],
+    "set_relationship": "ACCURACY-GATE SET, a SEPARATE DIRECTORY from examples/benchmark_sequences/, selected with BOLTZ2_BENCHMARK_DIR (not BOLTZ2_BENCHMARK_SET) because it differs from the timing instrument by RECIPE, not by coverage. Same six targets as the 'fast' set in the sibling directory, same reference structure (data/references/8eil.cif) — the only change is the request recipe, which here matches harness.ACCURACY_GATE_RECIPE exactly (served defaults plus use_msa_server=true), so harness._check_structure_accuracy grades these cases instead of abstaining on them. Chosen as the SAME six rather than a new set of targets because the complex_plddt floors in tuning.yaml (PLDDT_MEAN_FLOOR, PLDDT_PER_CASE_FLOOR) were themselves derived on exactly these six at exactly this recipe, so grading them again is a regression check against that derivation, not a new claim about unseen targets.",
+    "reference_pdb_id": "8EIL",
+    "reference_url": "https://files.rcsb.org/download/8EIL.cif",
+    "reference_file": "references/8eil.cif",
+    "reference_sha256": "c9416b449d1f29a26bb0f646a561acd27f6fdd5ef4fb35f294227e89ef980a79",
+    "reference_fetched_at": "2026-08-21",
+    "reference_license": "CC0 1.0 Universal (wwPDB archive data; public domain)",
+    "accuracy": {
+      "scoreable": true,
+      "timing_only": false,
+      "reason": "This fixture's recipe matches harness.ACCURACY_GATE_RECIPE exactly (use_msa_server=true, and every other field left at the served default), so harness._check_structure_accuracy grades it: the reported Ca-RMSD and complex_plddt count toward structure_accuracy / confidence_regression, they do not land under the ungraded_* keys."
+    },
+    "residues": 186,
+    "chains": 1,
+    "entities": 1,
+    "recipe": {
+      "purpose": "ACCURACY-GATE INSTRUMENT, NOT THE TIMING SET. This case requests the same configuration the AIM serves by default, plus use_msa_server=true — exactly harness.ACCURACY_GATE_RECIPE. It exists so the gate has at least one case set it can grade rather than abstain on; see tests/unit/test_accuracy_gate_fixtures.py.",
+      "source": "harness.ACCURACY_GATE_RECIPE (= harness.SERVED_REQUEST_DEFAULTS with use_msa_server forced to true), image/src/harness.py.",
+      "fields_from_source": [
+        "use_msa_server"
+      ],
+      "msa": "use_msa_server=true IS the point of this set: every number PLDDT_MEAN_FLOOR / PLDDT_PER_CASE_FLOOR / RMSD_REGRESSION_THRESHOLD_A rest on was measured with an MSA, and a gate that graded single-sequence predictions against MSA-derived floors would be grading the wrong configuration.",
+      "diverges_from_serving_defaults": "NONE besides use_msa_server, which IS the one declared departure ACCURACY_GATE_RECIPE itself specifies. sampling_steps, recycling_steps, diffusion_samples and step_scale are all OMITTED here so the service applies its own served defaults — the opposite of the timing set, which pins every one of those fields to the published performance-testing recipe."
+    }
+  },
+  "data": {
+    "version": 1,
+    "sequences": [
+      {
+        "protein": {
+          "id": "A",
+          "sequence": "GSHMKPGFLYTIGLSNKGMPGLYRLELQVTKGSGKLATSGLWNSSSAKEQVKIAFDYFKANASRISGGSKVMEHDFHLHVVELQNTGPLSHLALPSLVAFASGLLGRSVQSQMVVLGDMSLGGSVTPVESIAECLQVAFDAGAKKVALPMSSAADIPTIPVELFTKFQTSFYADPVDAVFKGLGVD"
+        }
+      }
+    ],
+    "name": "8eil",
+    "output_format": "mmcif",
+    "use_msa_server": true
+  }
+}

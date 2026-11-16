@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Tests for ProfileMetadata.features (LoRA adapter tokens, ADR-0004)."""
+"""Tests for ProfileMetadata.features (LoRA adapter tokens)."""
 
 from __future__ import annotations
 

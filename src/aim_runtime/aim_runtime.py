@@ -9,13 +9,19 @@ This module contains the AIMRuntime class which orchestrates the complete
 AIM runtime workflow including profile selection and command generation.
 """
 
+import contextlib
+import hashlib
+import importlib.metadata
+import importlib.util
 import logging
 import os
 import shlex
 import shutil
+import stat
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from aim_runtime.utils import read_yaml
 
@@ -25,6 +31,7 @@ from .cpu_detector import EpycDetector
 from .engine_config import load_engine_config
 from .engines import build_engine
 from .gpu_detector import get_gfx_arch
+from .model_cache_resolver import ModelCacheResolver
 from .model_storage import StorageBackendRegistry
 from .object_model import AcceleratorType
 from .profile_selector import ProfileSelector
@@ -79,52 +86,125 @@ def _add_storage_estimates(models: List[Dict[str, Any]], storage_registry: Stora
             model_info["size_gb"] = size_gb
 
 
+def _private_temp_dir(name: str) -> Path:
+    """Return a reusable temp directory only the current user can write to.
+
+    The predictable path in a shared /tmp could be pre-created by another user to plant
+    native modules, so falls back to a fresh random directory if it isn't private. A
+    directory that was ever open to others is not trusted, as it may already hold such files.
+    """
+    path = Path(tempfile.gettempdir()) / name
+    try:
+        path.mkdir(mode=0o700, exist_ok=True)
+        st = path.lstat()
+        if not stat.S_ISLNK(st.st_mode) and st.st_uid == os.getuid() and not st.st_mode & 0o077:
+            return path
+    except OSError:
+        pass
+    logger.warning(f"{path} is not a private directory, using a fresh temporary directory")
+    return Path(tempfile.mkdtemp(prefix=f"{name}-"))
+
+
+def _aiter_version() -> str:
+    """Return the installed AITER version from package metadata, or "" if unavailable."""
+    try:
+        return importlib.metadata.version("amd-aiter")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+    # Scanning all distributions is slow, so only done for builds under another name.
+    for dist in importlib.metadata.packages_distributions().get("aiter", []):
+        try:
+            return importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            pass
+    return ""
+
+
 def _install_aiter_prebuilt_kernels(gpu_model: str) -> None:
-    """Copy pre-built AITER kernels into the system AITER JIT directory.
+    """Make pre-built AITER kernels visible to AITER.
 
-    Instead of redirecting AITER_JIT_DIR (which requires symlinking all
-    52 system modules into each arch directory), this copies only the
-    pre-built attention kernels into AITER's default JIT directory.
-    AITER then finds both pre-built and system modules in one place.
-
-    This approach is robust against /workspace volume mounts, symlink
-    breakage on overlayfs, and AITER package path changes.
+    Copies them into AITER's package JIT directory, or, if that is read-only or
+    AITER_JIT_DIR is set, symlinks the package modules and any pre-built
+    kernels into AITER_JIT_DIR. See docker/aiter-jit-prebuilt/README.md.
 
     Args:
         gpu_model: GPU model from profile.metadata.gpu (e.g., "MI300X")
     """
+    logger.info("Installing pre-built AITER kernels for %s", gpu_model)
     gfx_arch = get_gfx_arch(gpu_model)
-    if not gfx_arch:
-        return
-
     prebuilt_dir = Path(f"/workspace/aiter-jit-prebuilt/{gfx_arch}")
-    if not prebuilt_dir.is_dir():
+    prebuilt_dirs: List[Path] = []
+    if not gfx_arch:
+        logger.warning("Could not resolve a GFX architecture for GPU model %s", gpu_model)
+    elif not prebuilt_dir.is_dir():
+        logger.warning("Pre-built AITER kernel directory not found at %s", prebuilt_dir)
+    else:
+        prebuilt_dirs = [prebuilt_dir]
+
+    # Importing aiter on a read-only install copies its JIT dir into $HOME.
+    spec = importlib.util.find_spec("aiter")
+    if spec is None or not spec.submodule_search_locations:
+        logger.warning("AITER package not available; skipping pre-built kernel installation")
         return
 
-    try:
-        import aiter
-
-        jit_dir = Path(aiter.__file__).parent / "jit"
-    except ImportError:
-        logger.debug("AITER package not available, skipping kernel installation")
-        return
-
+    jit_dir = Path(list(spec.submodule_search_locations)[0]) / "jit"
     if not jit_dir.is_dir():
         logger.warning(f"AITER JIT directory not found at {jit_dir}")
         return
 
-    installed = 0
-    for so_file in prebuilt_dir.glob("*.so"):
-        dest = jit_dir / so_file.name
-        if not dest.exists():
+    if "AITER_JIT_DIR" not in os.environ and os.access(jit_dir, os.W_OK):
+        _install_modules(prebuilt_dirs, jit_dir, shutil.copy2)
+        return
+
+    try:
+        if os.environ.get("AITER_JIT_DIR"):
+            target_dir = Path(os.environ["AITER_JIT_DIR"])
+            target_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # Runtime JIT builds are reused across restarts. The upstream image (AITER build, toolchain,
+            # install paths) and AITER version decide whether they are compatible.
+            build_key = f"{os.environ.get('AIM_UPSTREAM_IMAGE_REF', '')}\n{_aiter_version()}"
+            build_id = hashlib.sha256(build_key.encode()).hexdigest()[:12]
+            target_dir = _private_temp_dir(f"aiter-jit-{build_id}-{gfx_arch or 'none'}-{os.getuid()}")
+    except OSError as e:
+        logger.warning(f"No writable AITER JIT directory, skipping kernel installation: {e}")
+        return
+    os.environ["AITER_JIT_DIR"] = str(target_dir)
+    # AITER's codegen cache defaults to ~/.aiter, which is shared across images on Apptainer/Slurm.
+    # A subdirectory, because AITER_REBUILD=1 wipes $AITER_ROOT_DIR/build.
+    os.environ.setdefault("AITER_ROOT_DIR", str(target_dir / "root"))
+    logger.info(f"Using AITER_JIT_DIR={target_dir}")
+    _install_modules([jit_dir, *prebuilt_dirs], target_dir, os.symlink)
+
+
+def _install_modules(source_dirs: List[Path], target_dir: Path, install: Callable[[Path, Path], object]) -> None:
+    """Install .so files from source_dirs into target_dir, earlier sources and existing files winning.
+
+    Broken symlinks (e.g. left by an image with AITER at another path) are removed first, as AITER
+    would otherwise write freshly compiled modules through them.
+    """
+    for link in target_dir.glob("*.so"):
+        if link.is_symlink() and not link.exists():
+            with contextlib.suppress(OSError):
+                link.unlink()
+
+    installed = existing = 0
+    for source_dir in source_dirs:
+        for so_file in source_dir.glob("*.so"):
+            dest = target_dir / so_file.name
+            if dest.exists():
+                existing += 1
+                continue
+            tmp = target_dir / f".{so_file.name}.{os.getpid()}.tmp"
             try:
-                shutil.copy2(so_file, dest)
+                install(so_file, tmp)
+                os.replace(tmp, dest)
                 installed += 1
             except OSError as e:
-                logger.warning(f"Failed to install pre-built kernel {so_file.name}: {e}")
+                tmp.unlink(missing_ok=True)
+                logger.warning(f"Failed to install AITER module {so_file.name}: {e}")
 
-    if installed:
-        logger.info(f"Installed {installed} pre-built AITER kernel(s) for {gpu_model} ({gfx_arch}) into {jit_dir}")
+    logger.info(f"AITER modules in {target_dir}: {installed} installed, {existing} already present")
 
 
 class AIMRuntime:
@@ -199,6 +279,7 @@ class AIMRuntime:
         logger.info("AIM Runtime download-to-cache mode...")
         logger.debug(f"Log levels - Root: {self.config.log_level_root}, AIM: {self.config.log_level}")
         logger.info(f"Using cache directory: {self.config.cache_path}")
+        download_filter = None
 
         if model_id:
             # Use explicit model id (with protocol)
@@ -209,6 +290,7 @@ class AIMRuntime:
             logger.info("Selecting profile...")
             profile = self.profile_selector.find_profile()
             logger.info(f"Selected profile: {profile.profile_handling.path}")
+            download_filter = profile.download_filter
 
             # Read and parse profile to extract model
             profile_data = read_yaml(Path(profile.profile_handling.path))
@@ -241,7 +323,10 @@ class AIMRuntime:
             logger.info(f"Downloading model to local directory: {self.config.cache_path}")
 
         downloaded_path = self.storage_registry.download(
-            model_source, self.config.cache_path, use_hf_cache=use_hf_cache
+            model_source,
+            self.config.cache_path,
+            use_hf_cache=use_hf_cache,
+            download_filter=download_filter,
         )
 
         logger.info(f"✓ Model successfully downloaded to: {downloaded_path}")
@@ -274,6 +359,17 @@ class AIMRuntime:
 
         if not model_id:
             raise ValueError("Model not specified in profile or configuration")
+
+        if profile.download_filter is not None and not ModelCacheResolver(
+            self.config.cache_path
+        ).check_local_dir_exists(model_id, profile.download_filter):
+            logger.info("Downloading model with profile download filter...")
+            downloaded_path = self.storage_registry.download(
+                self.normalize_model_source(model_id),
+                self.config.cache_path,
+                download_filter=profile.download_filter,
+            )
+            logger.info(f"Model available at: {downloaded_path}")
 
         # Install pre-built AITER kernels for the target GPU architecture
         # (only for engines that use them, e.g. vLLM).

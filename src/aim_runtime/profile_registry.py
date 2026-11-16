@@ -150,6 +150,7 @@ class ProfileRegistry:
             metadata=metadata,
             engine_args=profile_data["engine_args"],
             env_vars=profile_data["env_vars"],
+            download_filter=getattr(validated_profile, "download_filter", None),
         )
 
     def find_by_id(self, profile_id: str) -> Optional[Profile]:

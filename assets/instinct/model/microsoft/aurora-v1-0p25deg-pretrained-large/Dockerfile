@@ -1,0 +1,55 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Model image: profiles and environment only, no code.
+
+# ARGs before FROM are used in the FROM instruction
+# these must be overridden via --build-arg
+ARG PARENT_REGISTRY_PREFIX=dummy_parent_registry_prefix
+ARG PARENT_REPOSITORY=dummy_parent_repository
+ARG PARENT_TAG=dummy_parent_tag
+FROM ${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG} AS final
+
+# Re-declare ARGs after FROM to use them in subsequent instructions
+ARG PARENT_REGISTRY_PREFIX
+ARG PARENT_REPOSITORY
+ARG PARENT_TAG
+ARG ORG
+ARG MODEL
+ARG ACCELERATOR_FAMILY
+
+# Validate required build arguments
+RUN test -n "${ORG}" || (echo "ERROR: ORG build arg is required and cannot be empty" && exit 1)
+RUN test -n "${MODEL}" || (echo "ERROR: MODEL build arg is required and cannot be empty" && exit 1)
+
+# Set environment variables
+# AIM_ID identifies this as a model-specific AIM container
+ENV AIM_BASE_IMAGE_REF=${PARENT_REGISTRY_PREFIX}/${PARENT_REPOSITORY}:${PARENT_TAG}
+ENV AIM_ID=${ORG}/${MODEL}
+ENV AIM_ALLOW_GENERAL_PROFILE_FALLBACK="false"
+
+RUN echo "AIM Base Image: ${AIM_BASE_IMAGE_REF}"
+RUN echo "AIM ID: ${AIM_ID}"
+
+# Copy model-specific profiles
+COPY assets/${ACCELERATOR_FAMILY}/model/${ORG}/${MODEL}/profiles /workspace/aim-runtime/profiles/${ORG}/${MODEL}/
+
+# Check if the LICENSE file is present in the workspace (if ACCELERATOR_FAMILY is epyc also check for LICENSE.EPYC_AIMS)
+# If not found, exit with error
+RUN if [ "$ACCELERATOR_FAMILY" = "epyc" ]; then \
+        if [ -f "/workspace/LICENSE.EPYC_AIMS" ]; then \
+            echo "LICENSE.EPYC_AIMS file found"; \
+        else \
+            echo "ERROR: LICENSE.EPYC_AIMS file not found"; \
+            exit 1; \
+        fi; \
+        if [ -f "/workspace/LICENSE" ]; then \
+            echo "LICENSE file found"; \
+        else \
+            echo "ERROR: LICENSE file not found"; \
+            exit 1; \
+        fi; \
+    fi
+
+ENTRYPOINT ["./entrypoint.py"]

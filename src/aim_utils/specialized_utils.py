@@ -34,13 +34,16 @@ target-qualified ``aim-<acc>-target-<engine>-model-<org>-<model>``).
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from aim_common.object_model import AcceleratorFamily
-from aim_utils.asset_utils import PROFILES_DIRNAME
+import yaml
+
+from aim_common.object_model import AcceleratorFamily, Engine, JobType
+from aim_utils.asset_utils import ENGINE_LEAF_DIRNAME, MODEL_LEAF_DIRNAME, PROFILES_DIRNAME
 from aim_utils.image_naming import (
     LEGACY_VLLM_BASE_TARGET_ID,
     ImageName,
@@ -48,6 +51,11 @@ from aim_utils.image_naming import (
     get_model_image_name,
 )
 from aim_utils.yaml_utils import read_yaml
+
+logger = logging.getLogger(__name__)
+
+# What reading a YAML file can raise: I/O, a missing file (read_yaml raises ValueError), bad YAML.
+_YAML_READ_ERRORS = (OSError, ValueError, yaml.YAMLError)
 
 # Convention constants -------------------------------------------------------
 
@@ -74,6 +82,15 @@ def _sanitize_name(name: str) -> str:
     return sanitized.strip("-_.")
 
 
+def model_target_id(org: str, model: str) -> str:
+    """Target id for a model-level ``image/`` dir: sanitized ``<org>-<model>``.
+
+    Used both for a model-dedicated base and, for a job AIM, as the naming target
+    that makes the image ``aim-<acc>-model-<org>-<model>``.
+    """
+    return f"{_sanitize_name(org)}-{_sanitize_name(model)}"
+
+
 def _layer1_image_name(accelerator_family: str, key: str) -> ImageName:
     """Return the Layer 1 specialized base name for a sanitized ``key``.
 
@@ -83,6 +100,63 @@ def _layer1_image_name(accelerator_family: str, key: str) -> ImageName:
     ``aim-<acc>-specialized-<key>`` form (no ``target-`` discriminator).
     """
     return get_model_image_name(accelerator_family, f"specialized-{key}", LEGACY_VLLM_BASE_TARGET_ID)
+
+
+def is_job_aim(model_asset_dir: str | Path) -> bool:
+    """Return True when every profile of a model asset is a job profile.
+
+    A job AIM's ``image/Dockerfile`` builds the complete image (no aim-runtime, no
+    HTTP server), so it is not a specialized base: CI builds it directly as the
+    model image and runs it as a Kubernetes Job. A profile counts as a job profile
+    when ``metadata.engine`` is ``job`` or ``metadata.job_type`` is
+    ``long_running``. A model with no readable profiles is not a job AIM.
+    """
+    profiles_dir = Path(model_asset_dir) / PROFILES_DIRNAME
+    if not profiles_dir.is_dir():
+        return False
+    profile_paths = sorted(profiles_dir.rglob("*.yaml"))
+    if not profile_paths:
+        return False
+    for profile_path in profile_paths:
+        try:
+            profile = read_yaml(profile_path) or {}
+        except _YAML_READ_ERRORS as exc:
+            logger.warning(f"Cannot read {profile_path}, so {model_asset_dir} is not treated as a job AIM: {exc}")
+            return False
+        metadata = profile.get("metadata") if isinstance(profile, dict) else None
+        if not isinstance(metadata, dict):
+            return False
+        engine = str(metadata.get("engine", "")).lower()
+        if engine != Engine.JOB.value and metadata.get("job_type") != JobType.LONG_RUNNING.value:
+            return False
+    return True
+
+
+def base_leaf_declares_dockerfile(base_leaf_dir: str | Path) -> bool:
+    """Return True for a base leaf: one whose ``config.yaml`` names its own ``dockerfile:``.
+
+    Every file in such a leaf is a build input of that one base image.
+    """
+    config_path = Path(base_leaf_dir) / "config.yaml"
+    if not config_path.is_file():
+        return False
+    try:
+        config = read_yaml(config_path) or {}
+    except _YAML_READ_ERRORS as exc:
+        logger.warning(f"Cannot read {config_path}, so its leaf is not treated as declaring a Dockerfile: {exc}")
+        return False
+    return isinstance(config, dict) and bool(config.get("dockerfile"))
+
+
+def model_leaf_dockerfile_config(file_path: str) -> str | None:
+    """Return the ``config.yaml`` of the model leaf whose own Dockerfile ``file_path`` is.
+
+    Matches ``assets/<acc>/model/<org>/<model>/Dockerfile`` only.
+    """
+    parts = file_path.replace("\\", "/").strip().split("/")
+    if len(parts) != 6 or parts[0] != "assets" or parts[2] != MODEL_LEAF_DIRNAME or parts[5] != DOCKERFILE_NAME:
+        return None
+    return "/".join([*parts[:5], "config.yaml"])
 
 
 def parse_specialized_target_from_path(
@@ -131,13 +205,13 @@ def parse_specialized_target_from_path(
     # Model-level: assets/<acc>/<org>/<model>/image/**
     if len(parts) < acc_index + 4:
         return None
-    if parts[acc_index + 1] in {BASE_DIRNAME, ENGINES_DIRNAME}:
+    if parts[acc_index + 1] in {BASE_DIRNAME, ENGINES_DIRNAME, ENGINE_LEAF_DIRNAME, MODEL_LEAF_DIRNAME}:
         return None
-    org = _sanitize_name(parts[acc_index + 1])
-    model = _sanitize_name(parts[acc_index + 2])
-    if not org or not model:
+    if is_job_aim(Path(image_dir)):
         return None
-    return (accelerator, f"{org}-{model}")
+    if not _sanitize_name(parts[acc_index + 1]) or not _sanitize_name(parts[acc_index + 2]):
+        return None
+    return (accelerator, model_target_id(parts[acc_index + 1], parts[acc_index + 2]))
 
 
 @dataclass(frozen=True)
@@ -189,6 +263,9 @@ def enumerate_specialized_base_targets(
       model image drops the duplicated target segment and is simply
       ``aim-<acc>-model-<org>-<model>`` (e.g. ``aim-instinct-model-openfold-openfold3``).
 
+    Job AIMs (:func:`is_job_aim`) are skipped: their ``image/`` builds the final
+    image, not a base.
+
     Results are sorted by ``target_id`` for deterministic CI matrices.
     """
     acc = accelerator_family.lower()
@@ -226,16 +303,21 @@ def enumerate_specialized_base_targets(
 
     # Model-level: model-dedicated base per <org>/<model>/image/ directory.
     for org_dir in sorted(acc_root.iterdir()):
-        if not org_dir.is_dir() or org_dir.name in {"base", ENGINES_DIRNAME}:
+        if not org_dir.is_dir() or org_dir.name in {
+            BASE_DIRNAME,
+            ENGINES_DIRNAME,
+            ENGINE_LEAF_DIRNAME,
+            MODEL_LEAF_DIRNAME,
+        }:
             continue
         for model_dir in sorted(org_dir.iterdir()):
             if not model_dir.is_dir():
                 continue
             image_dir = model_dir / IMAGE_SUBDIR
             dockerfile = image_dir / DOCKERFILE_NAME
-            if not dockerfile.is_file():
+            if not dockerfile.is_file() or is_job_aim(model_dir):
                 continue
-            key = f"{_sanitize_name(org_dir.name)}-{_sanitize_name(model_dir.name)}"
+            key = model_target_id(org_dir.name, model_dir.name)
             if key in seen_target_ids:
                 continue
             seen_target_ids.add(key)
@@ -343,3 +425,21 @@ def resolve_base_assets_dir(
 
     # 3. Standard accelerator base root.
     return base_root.as_posix()
+
+
+def resolve_asset_test_dir(
+    accelerator_family: str,
+    base_target_id: str,
+    assets_root: str = "assets",
+) -> str | None:
+    """Return the ``image/tests`` dir of the model asset that owns ``base_target_id``.
+
+    Only a model-dedicated base (target_id ``<org>-<model>``) has such an asset. Returns
+    ``None`` for any other base, or when the asset has no ``image/tests`` directory.
+    """
+    for target in enumerate_specialized_base_targets(accelerator_family, assets_root):
+        if target.target_id != base_target_id or target.scope != "model":
+            continue
+        tests_dir = Path(target.context_path) / "tests"
+        return tests_dir.as_posix() if tests_dir.is_dir() else None
+    return None

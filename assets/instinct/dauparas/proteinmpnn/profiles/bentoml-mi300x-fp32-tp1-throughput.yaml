@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: dauparas/proteinmpnn
+model_id: dauparas/proteinmpnn
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp32
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

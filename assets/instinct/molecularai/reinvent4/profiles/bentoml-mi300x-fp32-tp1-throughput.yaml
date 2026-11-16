@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: molecularai/reinvent4
+model_id: molecularai/reinvent4
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp32
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  REINVENT4_SAMPLE_BATCH_SIZE: '1024'

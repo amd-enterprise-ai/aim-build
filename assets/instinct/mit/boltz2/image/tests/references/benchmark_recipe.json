@@ -1,0 +1,173 @@
+{
+  "what_this_declares": "The eighteen cases under image/examples/benchmark_sequences/ are a TIMING INSTRUMENT, not the AIM's serving configuration and not its accuracy eval set. They therefore diverge from the request defaults the service applies. Every divergence is declared below and asserted by image/tests/unit/test_recipe_parity.py; all eighteen request ONE identical recipe and are held to it by image/tests/unit/test_benchmark_sets.py. An UNDECLARED difference between fixture and service is a defect in either direction: a fixture that drifted off the published methodology, or a serving default that drifted off upstream boltz. WHICH SET A NUMBER CAME FROM MATTERS AS MUCH AS THE RECIPE — see the fixture_sets block at the end of this file before reading any benchmark total.",
+  "why_split": "One file cannot describe both the timing recipe and what a caller gets from POST /v1/inference (boltz's own defaults), so the two are separated. A reader must not assume the benchmark set describes the served configuration, which is why this file exists.",
+  "timing_recipe": {
+    "source": "Request body of a published Boltz-2 performance test.",
+    "fields": {
+      "recycling_steps": 3,
+      "sampling_steps": 50,
+      "diffusion_samples": 1,
+      "step_scale": 1.638,
+      "output_format": "mmcif"
+    },
+    "caveat": "The published material states these values inside a performance-testing script. It does not state that they produced any published timing table, and it states no MSA method. Matching the recipe is the closest alignment the material permits; it is not a claim that a published configuration is reproduced."
+  },
+  "not_from_timing_recipe": {
+    "use_msa_server": {
+      "fixture_value": false,
+      "reason": "The published material states no MSA setting. MSA off is this AIM's own choice, so that the per-target time has no live MSA server round trip. Skipping the MSA search is not the same as a single-sequence run, so a comparison against a reference timed with a precomputed MSA is a bound with branches, not a single ratio."
+    }
+  },
+  "upstream_boltz2_defaults": {
+    "source": "boltz v2.2.1, src/boltz/main.py",
+    "fields": {
+      "recycling_steps": 3,
+      "sampling_steps": 200,
+      "diffusion_samples": 1,
+      "step_scale": 1.5,
+      "output_format": "mmcif"
+    },
+    "step_scale_note": "boltz resolves step_scale by model: main.py sets 1.5 when model == 'boltz2' and 1.638 otherwise. This AIM runs model=boltz2. The timing recipe's 1.638 is the Boltz-1 constant and a real deviation from the boltz-2 default: 1.638 - 1.500 = 0.138 = +9.20%."
+  },
+  "serving_request_defaults": {
+    "source": "service.Boltz2Request field defaults - what the AIM applies to a request that omits the field. Snapshotted here so that a SERVING default drifting is a distinguishable failure from a FIXTURE drifting; the two have different fixes.",
+    "constraint": "These must keep tracking upstream `boltz predict`. They are NOT allowed to move toward the benchmark recipe. tests/references/boltz_cli_defaults.json is the upstream side of the same contract.",
+    "fields": {
+      "recycling_steps": 3,
+      "sampling_steps": 200,
+      "diffusion_samples": 1,
+      "step_scale": null,
+      "output_format": "mmcif",
+      "use_msa_server": false
+    }
+  },
+  "declared_divergences": {
+    "sampling_steps": {
+      "fixture_value": 50,
+      "serving_value": 200,
+      "upstream_boltz2_value": 200,
+      "delta": "-150 steps, -75.0% of the step count",
+      "reason": "Matches the published performance-testing recipe. The AIM continues to SERVE 200, which is boltz's own default, and Boltz2Request.sampling_steps is unchanged."
+    },
+    "step_scale": {
+      "fixture_value": 1.638,
+      "serving_value": null,
+      "upstream_boltz2_value": 1.5,
+      "delta": "+0.138 vs the boltz-2 resolved default 1.5, i.e. +9.20%",
+      "reason": "Matches the published performance-testing recipe. It is a diffusion step size, so it does not change the number of steps and has no first-order effect on runtime; it is set for methodology fidelity. The AIM continues to SERVE Boltz2Request.step_scale = None, which boltz resolves to 1.5. runner.apply_step_scale keeps the fixture value from leaking into later requests on the same worker."
+    }
+  },
+  "fields_that_must_NOT_diverge": {
+    "recycling_steps": 3,
+    "diffusion_samples": 1,
+    "output_format": "mmcif",
+    "note": "The published recipe and boltz-2's defaults agree on these three, so the fixtures and the serving defaults agree on them too. A divergence appearing here means one side moved and nobody said so."
+  },
+  "accuracy_gate_relationship": {
+    "gradeable_by_the_in_image_accuracy_gate": false,
+    "mismatching_fields": [
+      "use_msa_server",
+      "sampling_steps",
+      "step_scale"
+    ],
+    "explanation": "harness.ACCURACY_GATE_RECIPE is the serving defaults plus use_msa_server=true, the configuration the floors in tuning.yaml were derived under. These fixtures match none of those three fields, so harness.evaluate() reports their accuracy under ungraded_* keys and marks structure_accuracy / confidence_regression SKIPPED rather than failing them. See test_shipped_fixtures_are_not_gradeable_by_the_accuracy_gate.",
+    "consequence": "The timing set under examples/benchmark_sequences/ runs one recipe by design, so the gate abstains on all eighteen of its cases. Widening or merging coverage never closes a recipe gap.",
+    "closed": "The gate has a case set at its own recipe: examples/benchmark_sequences_accuracy/, described in accuracy_gate_set. See image/tests/unit/test_accuracy_gate_fixtures.py."
+  },
+  "accuracy_gate_set": {
+    "what_this_declares": "The case set that closes the accuracy_gate_relationship gap. It is a separate directory because it differs from fixture_sets by recipe: every fixture here matches harness.ACCURACY_GATE_RECIPE exactly, and every fixture in fixture_sets matches the timing recipe exactly. One file cannot hold two request bodies for the same target.",
+    "directory": "examples/benchmark_sequences_accuracy/",
+    "in_image": "/workspace/model/benchmarks-accuracy",
+    "count": 6,
+    "ids": [
+      "7qsj",
+      "8are",
+      "8c4d",
+      "8cpk",
+      "8eil",
+      "8gpp"
+    ],
+    "same_targets_as": "fixture_sets.sets.fast - the same six RCSB targets the complex_plddt floors in tuning.yaml were derived on, with the same staged reference structures (same reference_file, reference_sha256). Grading them again is a regression check against the data the floors came from, not a claim about unseen targets.",
+    "selected_by": "BOTH BOLTZ2_BENCHMARK_DIR=/workspace/model/benchmarks-accuracy AND BOLTZ2_BENCHMARK_SET=accuracy-gate must be exported. Setting only one selects nothing - BOLTZ2_BENCHMARK_DIR alone still filters by the default BENCHMARK_SET ('fast'), which no fixture in this directory declares. No profile sets either variable, so the default evaluate run is unaffected. Asserted by image/tests/unit/test_accuracy_gate_fixtures.py.",
+    "recipe": "Matches harness.ACCURACY_GATE_RECIPE exactly: the served request defaults, with use_msa_server forced to true and no other field set. accuracy_recipe_mismatch() against every fixture here returns {} (empty), i.e. gradeable - the opposite of fixture_sets, where it returns the three mismatching_fields above for all eighteen.",
+    "consequence": "tuning.yaml's accuracy block now has a case set it can grade: harness.evaluate() with these two env vars set reports structure_accuracy / confidence_regression as PASS or FAIL against the real floors, instead of abstaining under ungraded_* keys. tuning.yaml.accuracy.eval_set_baked_in_image flips to true; gate_applies_to_shipped_benchmark_set stays false, because the set the AIM ships by DEFAULT (the timing instrument) is still ungraded - grading only happens when this directory and set are explicitly selected."
+  },
+  "fixture_sets": {
+    "what_this_declares": "This asset ships one fixture directory and two named, overlapping sets. The block above describes the recipe, which every fixture shares. This block describes which targets each set covers and how a run selects one. A sum over six and a sum over eighteen are both 'the benchmark total' and must not be compared.",
+    "directory": "examples/benchmark_sequences/",
+    "in_image": "/workspace/model/benchmarks",
+    "count": 18,
+    "selected_by": "metadata.sets on each fixture, matched against harness.BENCHMARK_SET, which reads BOLTZ2_BENCHMARK_SET and defaults to harness.DEFAULT_BENCHMARK_SET = 'fast'. Nothing has to be set to get the default set. No profile sets BOLTZ2_BENCHMARK_SET or BOLTZ2_BENCHMARK_DIR - verified, and asserted by test_no_profile_claims_either_benchmark_selection_seam.",
+    "why_the_set_and_not_the_directory": "A fixture file is a (target, recipe) pair, not a target. These two sets differ ONLY in which targets they cover - they request one identical recipe - so giving each its own directory duplicated the six shared targets and made drift between the copies possible. Naming the sets in metadata removes the duplicate rather than testing it. A set that differed by RECIPE would still need its own directory, because one file cannot hold two request bodies for the same target; BOLTZ2_BENCHMARK_DIR remains for that case. The accuracy-gate set described under accuracy_gate_relationship.consequence is exactly such a set.",
+    "overlap_warning": "THE SETS OVERLAP: all six of 'fast' are also in 'timing-18'. Their totals must NEVER be added together, and a sum over one is not comparable to a sum over the other.",
+    "sets": {
+      "fast": {
+        "count": 6,
+        "ids": [
+          "7qsj",
+          "8are",
+          "8c4d",
+          "8cpk",
+          "8eil",
+          "8gpp"
+        ],
+        "role": "The fast-iteration instrument. Every timing, accuracy and gate-abstention figure this asset has published is a sum over exactly these six, so they are frozen: any change to them silently re-baselines the whole history."
+      },
+      "timing-18": {
+        "count": 18,
+        "ids": [
+          "8eil",
+          "8c4d",
+          "7qsj",
+          "8cpk",
+          "8are",
+          "8owf",
+          "7tpu",
+          "7ylz",
+          "8gpp",
+          "8clz",
+          "8k7x",
+          "8ibx",
+          "8gi1",
+          "8sm6",
+          "8pso",
+          "msc1",
+          "bcor",
+          "evpl"
+        ],
+        "role": "All eighteen targets of the public timing table, so a per-target time can be placed against every row. It is not a replacement for the default set and not its superset for reporting; the two totals must never be added or compared.",
+        "overlap_with_default_set": {
+          "ids": [
+            "7qsj",
+            "8are",
+            "8c4d",
+            "8cpk",
+            "8eil",
+            "8gpp"
+          ],
+          "rule": "The six are members of both sets, held in one file each. The file carries both memberships in metadata.sets and states both provenances, pinned by test_the_six_shared_targets_record_both_memberships."
+        },
+        "timing_only_ids": [
+          "msc1",
+          "bcor",
+          "evpl"
+        ],
+        "timing_only_rule": "These three cannot carry an accuracy claim, in principle and not by omission. The public table identifies them by UniProt entry name, not PDB id (msc1 = Q9UT79, bcor = Q6W2J9, evpl = Q92817), so no deposition exists and no experimental structure can be superposed. The harness records them with error='reference structure not staged' and rmsd_a null; that is the correct outcome. They still contribute wall-clock time and Boltz-2's own complex_plddt, which needs no reference.",
+        "recipe_is_identical_to_the_default_set": "Deliberate: every field of every fixture equals the same field of every other fixture, so a change of coverage never changes the methodology. Asserted by test_every_fixture_requests_one_identical_recipe.",
+        "gradeable_by_the_in_image_accuracy_gate": false,
+        "gate_note": "Same three mismatching fields as the default set, for the same reason: the recipe is identical. This set does not close the coverage gap recorded under accuracy_gate_relationship.consequence. Asserted by test_neither_set_is_gradeable_and_the_wider_one_does_not_close_that_gap.",
+        "non_standard_residues": {
+          "count": 2,
+          "of_residues": 16888,
+          "fraction_pct": 0.0118,
+          "mechanism": "boltz 2.2.1 data/parse/schema.py:1162 is `seq = [token_map.get(c, unk_token) for c in list(raw_seq)]` — an unrecognised letter is SILENTLY mapped to the unknown token (protein UNK, dna DN, rna N), never rejected.",
+          "ids": [
+            "8clz",
+            "8pso"
+          ],
+          "rule": "Kept VERBATIM rather than corrected, so this AIM and the sibling openfold3 AIM score the identical input. Each affected fixture must carry a metadata.non_standard_residues block naming the letter, its position and what boltz maps it to. The offending set is RECOMPUTED from boltz's own three token maps by test_non_standard_letters_are_found_from_the_token_maps_and_declared, not read from a list — so a third one appearing later fails the suite."
+        }
+      }
+    }
+  }
+}

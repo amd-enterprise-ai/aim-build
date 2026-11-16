@@ -107,8 +107,8 @@ The following profiles are available for this model:
 |vllm-mi300x-bf16-tp1-latency|MI300X|bf16|vllm|1|latency|optimized|
 |vllm-mi300x-bf16-tp1-throughput|MI300X|bf16|vllm|1|throughput|optimized|
 |vllm-mi325x-bf16-tp1-latency|MI325X|bf16|vllm|1|latency|optimized|
-|vllm-mi325x-bf16-tp1-throughput|MI325X|bf16|vllm|1|throughput|optimized|
-|vllm-mi350p-bf16-tp1-latency|MI350P|bf16|vllm|1|latency|preview|
+|vllm-mi325x-bf16-tp1-throughput|MI325X|bf16|vllm|1|throughput|preview|
+|vllm-mi350p-bf16-tp1-latency|MI350P|bf16|vllm|1|latency|optimized|
 |vllm-mi350p-bf16-tp1-throughput|MI350P|bf16|vllm|1|throughput|preview|
 |vllm-mi350x-bf16-tp1-latency|MI350X|bf16|vllm|1|latency|optimized|
 |vllm-mi350x-bf16-tp1-throughput|MI350X|bf16|vllm|1|throughput|preview|

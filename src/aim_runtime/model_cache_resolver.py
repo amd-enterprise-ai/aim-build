@@ -10,12 +10,69 @@ This module provides functionality to locate models in different cache formats:
 2. Local directory format (cache_dir/org/model/)
 """
 
+import json
 import logging
 import os
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
+from aim_common import DownloadFilter
+
 logger = logging.getLogger(__name__)
+
+DOWNLOAD_COMPLETION_MARKER = ".aim-download-complete.json"
+
+
+def _download_filter_manifest(download_filter: Optional[DownloadFilter]) -> dict[str, list[str]]:
+    if download_filter is None:
+        return {"include": [], "exclude": []}
+    return {
+        "include": list(download_filter.include),
+        "exclude": list(download_filter.exclude),
+    }
+
+
+def write_download_completion_marker(
+    local_dir: str,
+    download_filter: Optional[DownloadFilter],
+) -> None:
+    """Record that a local model download completed with the given filter."""
+    marker = Path(local_dir) / DOWNLOAD_COMPLETION_MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"download_filter": _download_filter_manifest(download_filter)}
+    temporary_marker = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=marker.parent,
+            prefix=f".{DOWNLOAD_COMPLETION_MARKER}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file:
+            temporary_marker = Path(file.name)
+            json.dump(payload, file, sort_keys=True)
+            file.write("\n")
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary_marker, marker)
+    except Exception:
+        if temporary_marker is not None:
+            temporary_marker.unlink(missing_ok=True)
+        raise
+
+
+def _has_matching_download_completion_marker(
+    local_dir: str,
+    download_filter: DownloadFilter,
+) -> bool:
+    marker = Path(local_dir) / DOWNLOAD_COMPLETION_MARKER
+    try:
+        payload = json.loads(marker.read_text())
+    except (OSError, ValueError):
+        return False
+    return payload == {"download_filter": _download_filter_manifest(download_filter)}
 
 
 @dataclass
@@ -104,18 +161,28 @@ class ModelCacheResolver:
         local_path = os.path.join(self.cache_dir, org, model)
         return local_path
 
-    def check_local_dir_exists(self, model_id: str) -> bool:
+    def check_local_dir_exists(
+        self,
+        model_id: str,
+        download_filter: Optional[DownloadFilter] = None,
+    ) -> bool:
         """
         Check if a model exists in local directory format.
 
         Args:
             model_id: Model identifier in org/model format
+            download_filter: If provided, require a completion marker for
+                the same filter before treating the directory as usable.
 
         Returns:
             True if model exists in local directory format
         """
         local_path = self._get_local_dir_path(model_id)
-        return local_path is not None and os.path.isdir(local_path)
+        if local_path is None or not os.path.isdir(local_path):
+            return False
+        if download_filter is None:
+            return True
+        return _has_matching_download_completion_marker(local_path, download_filter)
 
     def check_hf_cache_exists(self) -> bool:
         """

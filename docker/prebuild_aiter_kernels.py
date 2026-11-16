@@ -26,28 +26,35 @@ Each kernel build is isolated in its own subprocess for two reasons:
      before dispatch occurs.
 
 Requires:
-  - A GPU with ROCm (tensor creation needs CUDA device)
   - AITER installed (ships with the vLLM ROCm base image)
+    - --prebuild-device cuda: a GPU with ROCm
+    - --prebuild-device cpu: a ROCm container with hipcc; no GPU device required
 
 Usage:
     # Auto-detect architectures from all profile filenames:
-    python3 prebuild_aiter_kernels.py --profile-dir assets/
+    python3 prebuild_aiter_kernels.py --prebuild-device cuda --profile-dir assets/
 
     # Build for specific architectures (overrides auto-detection):
-    python3 prebuild_aiter_kernels.py --archs gfx942 gfx950
+    python3 prebuild_aiter_kernels.py --prebuild-device cuda --archs gfx942 gfx950
+
+    # Build on a CPU-only ROCm container:
+    python3 prebuild_aiter_kernels.py --prebuild-device cpu --archs gfx942
 
     # Custom output directory:
-    python3 prebuild_aiter_kernels.py --output-dir ./prebuilt
+    python3 prebuild_aiter_kernels.py --prebuild-device cuda --output-dir ./prebuilt
 
     # List target kernels without building:
     python3 prebuild_aiter_kernels.py --list
 """
 
 import argparse
+import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -66,6 +73,8 @@ GPU_MODEL_TO_GFX = {
 }
 
 DEFAULT_ARCHS = ["gfx942", "gfx950"]
+PREBUILD_DEVICES = {"cuda", "cpu"}
+DEFAULT_KERNEL_TIMEOUT_SECONDS = 900
 
 
 def _normalize_archs(archs: list[str]) -> list[str]:
@@ -94,6 +103,10 @@ def _get_aiter_jit_dir() -> Path:
     This avoids hard-coding paths that can break across Python versions,
     site-packages vs dist-packages layouts, or virtualenv/conda installs.
     """
+    jit_dir = _find_aiter_jit_dir_from_spec()
+    if jit_dir:
+        return jit_dir
+
     try:
         import aiter
 
@@ -104,6 +117,84 @@ def _get_aiter_jit_dir() -> Path:
         raise FileNotFoundError(f"AITER jit directory not found at {jit_dir}")
     except ImportError as e:
         raise RuntimeError("AITER package not found. Ensure it is installed.") from e
+
+
+def _get_prebuild_device() -> str:
+    device = os.environ.get("AITER_PREBUILD_DEVICE")
+    if device not in PREBUILD_DEVICES:
+        raise ValueError(f"AITER_PREBUILD_DEVICE must be 'cuda' or 'cpu', got {device!r}")
+    return device
+
+
+def _get_kernel_timeout_seconds() -> int:
+    timeout = int(os.environ["AITER_KERNEL_TIMEOUT_SECONDS"])
+    if timeout <= 0:
+        raise ValueError(f"AITER_KERNEL_TIMEOUT_SECONDS must be positive, got {timeout}")
+    return timeout
+
+
+def _find_aiter_jit_dir_from_spec() -> Path | None:
+    spec = importlib.util.find_spec("aiter")
+    if not spec or not spec.submodule_search_locations:
+        return None
+    aiter_pkg_path = Path(next(iter(spec.submodule_search_locations)))
+    jit_dir = aiter_pkg_path / "jit"
+    return jit_dir if jit_dir.is_dir() else None
+
+
+def _install_cpu_runtime_shims(shim_root: Path):
+    """Install import/runtime shims needed by AITER before CPU-only compilation.
+
+    AITER 0.27-era imports query the live GPU via rocminfo and Triton even when
+    GPU_ARCHS is set. The generated kernels still compile once those runtime
+    arch queries return the target architecture, and dispatch failure is OK.
+    """
+    fake_bin = shim_root / "bin"
+    fake_py = shim_root / "python"
+    fake_jax_lib = fake_py / "jax" / "_src" / "lib"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_jax_lib.mkdir(parents=True, exist_ok=True)
+
+    rocminfo = fake_bin / "rocminfo"
+    rocminfo.write_text(
+        "#!/bin/sh\n"
+        'arch="${GPU_ARCHS:-gfx942}"\n'
+        'arch="${arch##*;}"\n'
+        'arch="${arch%%:*}"\n'
+        'echo "  Name:                    ${arch}"\n'
+    )
+    rocminfo.chmod(0o755)
+
+    for init_file in [
+        fake_py / "jax" / "__init__.py",
+        fake_py / "jax" / "_src" / "__init__.py",
+        fake_jax_lib / "__init__.py",
+    ]:
+        init_file.touch()
+    (fake_jax_lib / "gpu_triton.py").write_text(
+        "import os\n\n"
+        "def get_arch_details(device):\n"
+        "    arch = os.environ.get('GPU_ARCHS', 'gfx942').split(';')[-1].split(':')[0]\n"
+        "    return f'{arch}:sramecc+:xnack-'\n"
+    )
+
+    os.environ["PATH"] = f"{fake_bin}:{os.environ['PATH']}"
+    pythonpath = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = f"{fake_py}:{pythonpath}" if pythonpath else str(fake_py)
+    sys.path.insert(0, str(fake_py))
+
+
+def _prepare_cpu_prebuild():
+    jit_dir = os.environ.get("AITER_JIT_DIR")
+    if not jit_dir:
+        resolved_jit_dir = _find_aiter_jit_dir_from_spec()
+        if not resolved_jit_dir:
+            raise RuntimeError("AITER package not found. Ensure it is installed.")
+        os.environ["AITER_JIT_DIR"] = str(resolved_jit_dir)
+    print("CPU prebuild mode enabled: using CPU trigger tensors and runtime arch shims", flush=True)
+    shim_context = tempfile.TemporaryDirectory(prefix="aiter-prebuild-")
+    _install_cpu_runtime_shims(Path(shim_context.name))
+    return shim_context
 
 
 # Each tuple defines one mha_varlen_fwd variant to build.
@@ -148,6 +239,35 @@ MHA_SO_NAMES = [
 
 FMHA_V3_SO = "module_fmha_v3_varlen_fwd.so"
 
+_GFX_ARCH_RE = re.compile(rb"gfx[0-9]+[a-z]*")
+
+
+def _embedded_archs(so_path: Path) -> set[str]:
+    """Return the gfx architecture names embedded in a compiled .so.
+
+    hipcc embeds the target arch (e.g. 'gfx942') in the ELF as plain ASCII
+    in codeobj metadata/symbol names, so a raw byte scan is sufficient
+    without needing an ELF parser.
+    """
+    data = so_path.read_bytes()
+    return {m.decode() for m in _GFX_ARCH_RE.findall(data)}
+
+
+def _verify_kernel_arch(so_path: Path, expected_arch: str, label: str) -> bool:
+    """Check that a built kernel was actually compiled for the requested arch.
+
+    Guards against a wrong-arch kernel silently shipping: AITER's runtime
+    arch detection is shimmed for CPU prebuilds (see _install_cpu_runtime_shims),
+    so nothing else verifies that hipcc targeted the architecture we asked for.
+    """
+    found = _embedded_archs(so_path)
+    if expected_arch not in found:
+        print(
+            f"    ERROR {label}: expected arch '{expected_arch}' not embedded in {so_path.name} (found: {sorted(found) or 'none'})"
+        )
+        return False
+    return True
+
 
 def _clean_jit_artifacts(jit_dir: Path, prefix: str):
     """Remove .so files, build dirs, and lock files matching a name prefix.
@@ -171,10 +291,11 @@ def _clean_jit_artifacts(jit_dir: Path, prefix: str):
 def _trigger_mha_variant(variant_index: int):
     """Trigger AITER JIT for a single mha_varlen_fwd variant (runs in subprocess).
 
-    Called via --_trigger-mha <index>. Creates tensors on GPU and calls
+    Called via --_trigger-mha <index>. Creates tensors on the selected device and calls
     mha_varlen_fwd() which triggers AITER's JIT compilation. The .so file
     is written to disk during compilation, before kernel dispatch. If dispatch
-    crashes (cross-compiled arch mismatch), the .so is still valid.
+    fails after compilation (CPU prebuild, or cross-compiled arch mismatch),
+    the .so is still valid.
     """
     import torch
     from aiter.ops.mha import mha_varlen_fwd
@@ -184,10 +305,11 @@ def _trigger_mha_variant(variant_index: int):
 
     dt = dtype_map[dtype_str]
     seq, d = 256, 128
-    q = torch.randn(seq, 1, d, dtype=dt, device="cuda")
-    k = torch.randn(seq, 1, d, dtype=dt, device="cuda")
-    v = torch.randn(seq, 1, d, dtype=dt, device="cuda")
-    cu = torch.tensor([0, seq], dtype=torch.int32, device="cuda")
+    device = _get_prebuild_device()
+    q = torch.randn(seq, 1, d, dtype=dt, device=device)
+    k = torch.randn(seq, 1, d, dtype=dt, device=device)
+    v = torch.randn(seq, 1, d, dtype=dt, device=device)
+    cu = torch.tensor([0, seq], dtype=torch.int32, device=device)
 
     kwargs = dict(
         max_seqlen_q=seq,
@@ -217,17 +339,18 @@ def _trigger_fmha_v3():
     """Trigger AITER JIT for the fmha_v3 kernel (runs in subprocess).
 
     Called via --_trigger-fmha-v3. The fmha_v3 kernel uses hand-written
-    GPU ASM. Cross-compilation produces a valid .so but dispatch raises
-    RuntimeError (caught here) or segfaults (caught by subprocess isolation).
+    GPU ASM. Cross-compilation produces a valid .so but dispatch can raise
+    RuntimeError (caught here) or segfault (caught by subprocess isolation).
     """
     import torch
     from aiter.ops.mha import fmha_v3_varlen_fwd
 
     seq, d = 256, 128
-    q = torch.randn(seq, 1, d, dtype=torch.bfloat16, device="cuda")
-    k = torch.randn(seq, 1, d, dtype=torch.bfloat16, device="cuda")
-    v = torch.randn(seq, 1, d, dtype=torch.bfloat16, device="cuda")
-    cu = torch.tensor([0, seq], dtype=torch.int32, device="cuda")
+    device = _get_prebuild_device()
+    q = torch.randn(seq, 1, d, dtype=torch.bfloat16, device=device)
+    k = torch.randn(seq, 1, d, dtype=torch.bfloat16, device=device)
+    v = torch.randn(seq, 1, d, dtype=torch.bfloat16, device=device)
+    cu = torch.tensor([0, seq], dtype=torch.int32, device=device)
 
     try:
         fmha_v3_varlen_fwd(
@@ -254,7 +377,14 @@ def _trigger_fmha_v3():
         pass  # Expected when cross-compiling for a non-native arch
 
 
-def _build_kernel_in_subprocess(jit_dir: Path, so_name: str, label: str, trigger_args: list[str]):
+def _build_kernel_in_subprocess(
+    jit_dir: Path,
+    so_name: str,
+    label: str,
+    trigger_args: list[str],
+    prebuild_device: str,
+    timeout_seconds: int,
+):
     """Build a single kernel by triggering JIT in an isolated subprocess.
 
     The subprocess may crash (segfault) when dispatching a cross-compiled
@@ -272,12 +402,17 @@ def _build_kernel_in_subprocess(jit_dir: Path, so_name: str, label: str, trigger
     print(f"    BUILD {label} ...", end="", flush=True)
     start = time.time()
 
-    result = subprocess.run(
-        [sys.executable, __file__] + trigger_args,
-        env=os.environ.copy(),
-        capture_output=True,
-        timeout=300,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, __file__, "--prebuild-device", prebuild_device] + trigger_args,
+            env=os.environ.copy(),
+            capture_output=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start
+        print(f" FAILED ({elapsed:.0f}s, timed out after {timeout_seconds}s)")
+        return False
 
     elapsed = time.time() - start
     if so_path.exists():
@@ -293,7 +428,7 @@ def _build_kernel_in_subprocess(jit_dir: Path, so_name: str, label: str, trigger
         return False
 
 
-def build_kernels(archs: list[str], output_dir: Path):
+def build_kernels(archs: list[str], output_dir: Path, prebuild_device: str, timeout_seconds: int):
     """Build all kernel variants for each target architecture.
 
     For each arch:
@@ -306,7 +441,8 @@ def build_kernels(archs: list[str], output_dir: Path):
     /workspace/aiter-jit-prebuilt/kernels/<arch>/. At runtime, the matching
     arch's kernels are copied into AITER's system JIT directory.
     """
-    jit_dir = Path(os.environ.get("AITER_JIT_DIR", str(_get_aiter_jit_dir())))
+    jit_dir_env = os.environ.get("AITER_JIT_DIR")
+    jit_dir = Path(jit_dir_env) if jit_dir_env else _get_aiter_jit_dir()
     total_failures = 0
 
     for arch in archs:
@@ -323,12 +459,26 @@ def build_kernels(archs: list[str], output_dir: Path):
         built = 0
 
         for i, (_, _, _, _, label) in enumerate(MHA_VARIANTS):
-            if _build_kernel_in_subprocess(jit_dir, MHA_SO_NAMES[i], label, ["--_trigger-mha", str(i)]):
+            if _build_kernel_in_subprocess(
+                jit_dir,
+                MHA_SO_NAMES[i],
+                label,
+                ["--_trigger-mha", str(i)],
+                prebuild_device,
+                timeout_seconds,
+            ):
                 built += 1
             else:
                 total_failures += 1
 
-        if _build_kernel_in_subprocess(jit_dir, FMHA_V3_SO, "fmha_v3", ["--_trigger-fmha-v3"]):
+        if _build_kernel_in_subprocess(
+            jit_dir,
+            FMHA_V3_SO,
+            "fmha_v3",
+            ["--_trigger-fmha-v3"],
+            prebuild_device,
+            timeout_seconds,
+        ):
             built += 1
         else:
             total_failures += 1
@@ -339,6 +489,9 @@ def build_kernels(archs: list[str], output_dir: Path):
         for so_name in MHA_SO_NAMES + [FMHA_V3_SO]:
             src = jit_dir / so_name
             if src.exists():
+                if not _verify_kernel_arch(src, arch, so_name):
+                    total_failures += 1
+                    continue
                 shutil.copy2(src, arch_dir / so_name)
                 collected += 1
 
@@ -393,31 +546,60 @@ def main():
         default=Path("/workspace/aiter-jit-prebuilt/kernels"),
         help="Output directory (kernels stored in <dir>/<arch>/)",
     )
+    parser.add_argument(
+        "--prebuild-device",
+        choices=["cuda", "cpu"],
+        default=None,
+        help="Device used to create trigger tensors; required unless --list is used",
+    )
+    parser.add_argument(
+        "--kernel-timeout-seconds",
+        type=int,
+        default=None,
+        help=f"Per-kernel subprocess timeout (default: {DEFAULT_KERNEL_TIMEOUT_SECONDS})",
+    )
     parser.add_argument("--_trigger-mha", type=int, metavar="INDEX", help=argparse.SUPPRESS)
     parser.add_argument("--_trigger-fmha-v3", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
-
-    if args._trigger_mha is not None:
-        _trigger_mha_variant(args._trigger_mha)
-        return
-
-    if args._trigger_fmha_v3:
-        _trigger_fmha_v3()
-        return
 
     if args.list:
         list_kernels()
         return
 
-    if args.archs:
-        archs = args.archs
-    elif args.profile_dir:
-        archs = infer_archs_from_profiles(args.profile_dir)
-    else:
-        archs = DEFAULT_ARCHS
+    if args.prebuild_device is None:
+        parser.error("--prebuild-device {cuda,cpu} is required unless --list is used")
+    if args.kernel_timeout_seconds is None:
+        args.kernel_timeout_seconds = DEFAULT_KERNEL_TIMEOUT_SECONDS
+    elif args.kernel_timeout_seconds <= 0:
+        parser.error("--kernel-timeout-seconds must be positive")
 
-    archs = _normalize_archs(archs)
-    build_kernels(archs, args.output_dir)
+    os.environ["AITER_PREBUILD_DEVICE"] = args.prebuild_device
+    os.environ["AITER_KERNEL_TIMEOUT_SECONDS"] = str(args.kernel_timeout_seconds)
+
+    shim_context = None
+    try:
+        if args._trigger_mha is not None:
+            _trigger_mha_variant(args._trigger_mha)
+            return
+
+        if args._trigger_fmha_v3:
+            _trigger_fmha_v3()
+            return
+
+        if args.archs:
+            archs = args.archs
+        elif args.profile_dir:
+            archs = infer_archs_from_profiles(args.profile_dir)
+        else:
+            archs = DEFAULT_ARCHS
+
+        archs = _normalize_archs(archs)
+        if args.prebuild_device == "cpu":
+            shim_context = _prepare_cpu_prebuild()
+        build_kernels(archs, args.output_dir, args.prebuild_device, args.kernel_timeout_seconds)
+    finally:
+        if shim_context is not None:
+            shim_context.cleanup()
 
 
 if __name__ == "__main__":

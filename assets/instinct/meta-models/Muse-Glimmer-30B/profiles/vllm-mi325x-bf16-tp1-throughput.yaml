@@ -17,7 +17,7 @@ metadata:
   metric: throughput
   precision: bf16
   primary: true
-  type: optimized
+  type: preview
 engine_args:
   attention-backend: ROCM_AITER_FA
   disable-uvicorn-access-log: null

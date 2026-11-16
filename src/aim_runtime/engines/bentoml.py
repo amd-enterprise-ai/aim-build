@@ -54,10 +54,11 @@ class BentomlEngineArgsModel(EngineArgsModel):
     Consequently this model uses **Pydantic-only validation** — there is no
     ``@model_validator(mode="wrap")`` delegation to a native parser. The
     fields below mirror the ``bentoml serve`` Click options as of BentoML
-    v1.4.x so that AIM profiles can be validated at merge time.
+    v1.4.x plus service template arguments used by AIM profiles.
     """
 
     port: int | None = None
+    accelerator_count: int | None = None
     host: str | None = None
     api_workers: int | None = None
     timeout: int | None = None

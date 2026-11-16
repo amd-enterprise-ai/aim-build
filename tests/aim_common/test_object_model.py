@@ -113,7 +113,7 @@ def test_profile_metadata_capabilities_partial_round_trip():
 
 
 def test_profile_metadata_accepts_fp64():
-    """HPC/simulation AIMs such as NAMD3 run in double precision (EAI-7807)."""
+    """HPC/simulation AIMs such as NAMD3 run in double precision."""
     profile = ProfileMetadata(
         accelerator_type=AcceleratorType.GPU,
         engine=Engine.BENTOML,

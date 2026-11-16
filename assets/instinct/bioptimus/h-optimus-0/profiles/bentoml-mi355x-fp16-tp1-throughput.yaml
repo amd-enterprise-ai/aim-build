@@ -1,0 +1,22 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Preview fp16 profile for H-optimus-0 on MI355X.
+# Same BentoML serving config as the MI300X profile, except env_vars: this profile does not set
+# TORCH_BLAS_PREFER_HIPBLASLT (the MI300X profile sets it to '1'), so PyTorch uses its default BLAS backend.
+
+aim_id: bioptimus/h-optimus-0
+model_id: bioptimus/H-optimus-0
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars: {}

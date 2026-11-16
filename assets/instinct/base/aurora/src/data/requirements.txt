@@ -1,0 +1,12 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# numpy, xarray and netCDF4 match the engine image.
+numpy==2.4.1
+xarray==2026.7.0
+netCDF4==1.7.4
+zarr==3.4.0
+gcsfs==2026.10.0
+fsspec==2026.9.0
+dask==2026.8.0

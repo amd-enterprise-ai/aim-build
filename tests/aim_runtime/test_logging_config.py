@@ -18,12 +18,12 @@ class TestLoggingConfiguration:
     """Test cases for logging configuration functionality."""
 
     def test_configure_logging_defaults(self):
-        """Test that configure_logging uses default levels (WARNING for root, INFO for aim)."""
+        """Test that configure_logging uses default levels (INFO for root and aim)."""
         configure_logging()
 
-        # Check that root logger is set to WARNING level (default)
+        # Check that root logger is set to INFO level (default)
         root_logger = logging.getLogger()
-        assert root_logger.level == logging.WARNING
+        assert root_logger.level == logging.INFO
 
         # Check that aim_runtime logger is set to INFO level (default)
         aim_logger = logging.getLogger("aim_runtime")

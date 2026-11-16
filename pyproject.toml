@@ -4,110 +4,105 @@
 
 [project]
 name = "aim-build"
-version = "2026.16"
+version = "2026.24"
 description = "AMD Inference Microservice - Container build and configuration tools"
-readme = {file = "README.md", content-type = "text/markdown"}
-authors = [
-    { name = "AMD" }
-]
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [{ name = "AMD" }]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.10",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.10",
 ]
 # Core dependencies (aim_runtime)
 dependencies = [
-    "click>=8.4.0",
-    "pydantic>=2.13.3,<3.0",
-    "PyYAML==6.0.3",
-    # Used at top-level import in engines/adapter_watcher.py (dynamic LoRA mode)
-    # and aim_runtime.py; it is present transitively via huggingface-hub, but
-    # declare it explicitly since the runtime imports it directly.
-    "requests>=2.34.2",
+  "click>=8.4.0",
+  "pydantic>=2.13.3,<3.0",
+  "PyYAML==6.0.3",
+  # Used at top-level import in engines/adapter_watcher.py (dynamic LoRA mode)
+  # and aim_runtime.py; declare it explicitly since the runtime imports it directly.
+  "requests>=2.34.2",
+  # Floor for typing_extensions. anyio (pulled by bentoml>=1.4.8 via httpx_ws
+  # in the model layer) imports typing_extensions.sentinel, which only exists
+  # from 4.16.0. Without this floor the compiled lockfiles freeze
+  # typing-extensions at 4.15.0 and the AIM base layer downgrades the model
+  # image, crashing BentoML AIMs at import ("cannot import name 'sentinel'").
+  "typing-extensions>=4.16.0",
+  "certifi==2026.10.18",
 ]
 
 [project.optional-dependencies]
 instinct = [
-    # Match the vllm-openai-rocm base image. transformers 5.20.2 requires
-    # huggingface-hub>=1.31.0; 1.30.0 is missing huggingface_hub.utils.httpx
-    # and crashes `vllm serve` on startup.
-    "huggingface-hub==1.31.0",
+  # Match the vllm-openai-rocm base image. transformers 5.20.2 requires
+  # huggingface-hub>=1.31.0; 1.30.0 is missing huggingface_hub.utils.httpx
+  # and crashes `vllm serve` on startup.
+  "huggingface-hub==1.31.0",
 ]
 
 epyc = [
-    # Match the zentorch vLLM 0.22.1 base image, which ships hub 1.x; do not cap to the 0.x line.
-    "huggingface-hub==1.18.0",
+  # Match the zentorch vLLM 0.22.1 base image, which ships hub 1.x; do not cap to the 0.x line.
+  "huggingface-hub==1.18.0",
 ]
 
-radeon = [
-    "huggingface-hub>=0.34.0,<=1.5.0",
-]
+radeon = ["huggingface-hub>=0.34.0,<=1.5.0"]
 
-cpu = [
-    "huggingface-hub>=0.34.0,<1.0",
-]
+cpu = ["huggingface-hub>=0.34.0,<1.0"]
 
 # Dependencies for running tests
 test = [
-    "pytest-cov>=7.1.0",
-    "pytest==9.1.1",
-    "pytest-mock>=3.14.0",
-    "pytest-xdist>=3.6.1",
-    "coverage",
-    "pytest-html",
-    "pytest-json-report"
+  "pytest-cov>=7.1.0",
+  "pytest==9.1.1",
+  "pytest-mock>=3.14.0",
+  "pytest-xdist>=3.6.1",
+  "coverage",
+  "pytest-html",
+  "pytest-json-report",
+  # Harness tests import bentoml; without it they skip silently in CI.
+  "bentoml==1.4.39",
 ]
 
 # Lightweight CI dependencies (version resolution, registry queries, change detection)
-ci = [
-    "requests>=2.34.2",
-    "semver>=3,<4",
-    "tomli>=2.4.1",
-]
+ci = ["semver>=3,<4", "tomli>=2.4.1"]
 
 # Database dependencies (validation result caching and recording)
-db = [
-    "psycopg[binary]>=3.3.4",
-    "sqlmodel>=0.0.38",
-]
+db = ["psycopg[binary]>=3.3.4", "sqlmodel>=0.0.38"]
 
 # Dependencies for development (CI, pre-commit hooks, linting, running utils, etc.)
 dev = [
-    "black>=26.5.1",
-    "jinja2>=3.1.6",
-    "mypy>=2.3.1",
-    "pre-commit>=4.6.0",
-    "pytest-cov>=7.1.0",
-    "pytest==9.1.1",
-    "pytest-mock>=3.14.0",
-    "pytest-xdist>=3.6.1",
-    # Added for development scripts and tests that require HTTP requests.
-    "requests>=2.34.2",
-    # Kept at an exact version so a dev venv lints identically to the pinned
-    # ruff-pre-commit hook in .pre-commit-config.yaml.
-    "ruff==0.16.8",
-    "semver>=3,<4",
-    "tomli>=2.4.1",
-    "pandas==2.3.3",
-    "openpyxl==3.1.5",
-    # PostgreSQL adapter for validation database and pgcli
-    "psycopg[binary]>=3.3.4",
-    "sqlmodel>=0.0.38",
-    # CLI tool for interactive database exploration
-    "pgcli>=4.0.0",
-    # vRAM estimation tool dependency
-    "hf-mem>=0.5.5"
+  "black>=26.5.1",
+  "jinja2>=3.1.6",
+  "mypy>=2.3.1",
+  "pre-commit>=4.6.0",
+  "pytest-cov>=7.1.0",
+  "pytest==9.1.1",
+  "pytest-mock>=3.14.0",
+  "pytest-xdist>=3.6.1",
+  # Added for development scripts and tests that require HTTP requests.
+  "requests>=2.34.2",
+  # Kept at an exact version so a dev venv lints identically to the pinned
+  # ruff-pre-commit hook in .pre-commit-config.yaml.
+  "ruff==0.16.8",
+  "semver>=3,<4",
+  "tomli>=2.4.1",
+  "pandas==2.3.3",
+  "openpyxl==3.1.5",
+  # PostgreSQL adapter for validation database and pgcli
+  "psycopg[binary]>=3.3.4",
+  "sqlmodel>=0.0.38",
+  # CLI tool for interactive database exploration
+  "pgcli>=4.0.0",
+  # vRAM estimation tool dependency
+  "hf-mem>=0.5.5",
 ]
 
 # Dependencies for accuracy evaluation and model validation
 evaluation = [
-    "transformers>=4.57.6",
-    "lm-eval[api]>=0.4.12",
-    "hf_transfer>=0.1.9"
+  "transformers>=4.57.6",
+  "lm-eval[api]>=0.4.12",
+  "hf_transfer>=0.1.9",
 ]
 
 [project.urls]
@@ -117,15 +112,15 @@ Homepage = "https://github.com/amd-enterprise-ai/aim-build"
 aim-runtime = "entrypoint:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
 packages = [
-    "aim_runtime",
-    "aim_runtime.harness",
-    "aim_runtime.engines",
-    "aim_runtime.evaluation",
-    "aim_runtime.evaluation.backends",
-    "aim_common",
-    "aim_utils",
+  "aim_runtime",
+  "aim_runtime.harness",
+  "aim_runtime.engines",
+  "aim_runtime.evaluation",
+  "aim_runtime.evaluation.backends",
+  "aim_common",
+  "aim_utils",
 ]
 py-modules = ["entrypoint"]
 
@@ -140,7 +135,16 @@ line-length = 120
 [tool.ruff]
 target-version = "py312"
 line-length = 120
-exclude = [".git", "__pycache__", "venv", ".venv", ".github", "build", "dist", "docker"]
+exclude = [
+  ".git",
+  "__pycache__",
+  "venv",
+  ".venv",
+  ".github",
+  "build",
+  "dist",
+  "docker",
+]
 
 [tool.ruff.lint]
 # Deliberately narrow: pycodestyle (E, W), pyflakes (F) and import sorting (I).
@@ -165,48 +169,50 @@ no_implicit_optional = false
 explicit_package_bases = true
 scripts_are_modules = true
 check_untyped_defs = false
-# Keep in sync with the mypy hook `exclude` in .pre-commit-config.yaml (same set of paths); see EAI-8215.
-exclude = ["tests/", "docker/", "assets/.+/image/(src|tests)/"]
+# Keep in sync with the mypy hook `exclude` in .pre-commit-config.yaml (same set of paths)
+exclude = [
+  "tests/",
+  "docker/",
+  "assets/.+/image/(src|tests)/",
+  "assets/[^/]+/engine/",
+  "assets/[^/]+/base/[^/]+/(src|tests)/",
+]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
 pythonpath = ["src", "."]
 addopts = [
-    "-ra",
-    "--strict-markers",
-    "--strict-config",
-    # Harness tests under assets/*/image/tests/ have no __init__.py, so the default
-    # prepend import mode would collide on same-named test modules across harnesses.
-    "--import-mode=importlib",
-    "-m", "not integration",  # Exclude integration tests by default
-    "--cov",
-    "--cov-report=term",
-    "--cov-report=html",
-    "--cov-report=xml",
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  # Harness tests under assets/*/image/tests/ have no __init__.py, so the default
+  # prepend import mode would collide on same-named test modules across harnesses.
+  "--import-mode=importlib",
+  "-m",
+  "not integration and not gpu and not engine",  # Exclude integration, GPU and engine tests by default
+  "--cov",
+  "--cov-report=term",
+  "--cov-report=html",
+  "--cov-report=xml",
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests (requires GPU environment, run with '-m integration')",
-    "unit: marks tests as unit tests",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: marks tests as integration tests (requires GPU environment, run with '-m integration')",
+  "unit: marks tests as unit tests",
+  "gpu: needs a GPU node and a running service (asset smoke tests); never collected in CI",
+  "engine: needs the engine of the image (for example torch or bentoml) but no GPU; runs in unit-tests.yaml inside the base image of its asset",
 ]
-filterwarnings = [
-    "error",
-    "ignore::UserWarning",
-    "ignore::DeprecationWarning",
-]
+filterwarnings = ["error", "ignore::UserWarning", "ignore::DeprecationWarning"]
 [tool.coverage.run]
 source = [
-    "src/aim_runtime",
-    "src/aim_common",
-    "src/aim_utils",
-    "ci/utils",
-    "entrypoint",
+  "src/aim_runtime",
+  "src/aim_common",
+  "src/aim_utils",
+  "ci/utils",
+  "entrypoint",
 ]
-omit = [
-    "*/site-packages/*",
-    "*/dist-packages/*",
-]
+omit = ["*/site-packages/*", "*/dist-packages/*"]

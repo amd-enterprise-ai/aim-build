@@ -101,7 +101,7 @@ The following profiles are available for this model:
 
 |Profile| Accelerator model |Precision|Engine|Accelerator count|Metric|Type|
 |-------|-------------------|---------|------|---------|------|----|
-|bentoml-mi300x-fp16-tp1-latency|MI300X|fp16|bentoml|1|latency|unoptimized|
+|bentoml-mi300x-bf16-tp1-latency|MI300X|bf16|bentoml|1|latency|preview|
 
 The columns should be read as follows:
 * **Profile**: Name of the deployment profile.

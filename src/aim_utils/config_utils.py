@@ -12,10 +12,21 @@ import click
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field, field_validator, model_validator
 
 from aim_common.object_model import AcceleratorFamily
-from aim_utils.image_naming import LEGACY_VLLM_BASE_TARGET_ID, ImageName, get_base_image_name, parse_image_name
-from aim_utils.specialized_utils import enumerate_specialized_base_targets, resolve_base_assets_dir
+from aim_utils.image_naming import (
+    LEGACY_VLLM_BASE_TARGET_ID,
+    ImageName,
+    get_base_image_name,
+    get_engine_image_name,
+    parse_image_name,
+)
+from aim_utils.specialized_utils import (
+    ENGINE_LEAF_DIRNAME,
+    enumerate_specialized_base_targets,
+    resolve_asset_test_dir,
+    resolve_base_assets_dir,
+)
 
-from .asset_utils import AssetDescriptor, Initializer, assets_path_option
+from .asset_utils import AssetDescriptor, Initializer, assets_path_option, resolve_model_assets_dir
 from .dict_utils import get_value
 from .file_utils import TomlFileReader
 from .version_utils import validate_version_tag
@@ -44,9 +55,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset(
     {
         "bentoml",
+        "biohub-esmc-300m",
+        "bioptimus-h-optimus-0",
+        "cytokineking-freebindcraft",
+        "dauparas-proteinmpnn",
         "example-echo-model",
         "facebookresearch-dinov2-vitl14-embedding",
         "mit-boltz2",
+        "molecularai-reinvent4",
         "monai-pancreas-ct-dints-segmentation",
         "monai-spleen-deepedit-annotation",
         "monai-swinunetr",
@@ -54,8 +70,10 @@ NON_VLLM_BASE_TARGET_IDS: frozenset[str] = frozenset(
         "monai-wholebody-ct-segmentation",
         "monai-wholebrainseg-large-unest-segmentation",
         "openfold-openfold3",
+        "rssrwn-semlaflow",
         "vllm-omni",
         "wan-ai-wan2-2-t2v-a14b-diffusers",
+        "westlake-repl-saprot-650m-af2",
     }
 )
 
@@ -84,9 +102,9 @@ class BaseImageConfig(BaseModel):
     """
 
     # Allowed container registry hostnames. Extend this set if additional registries are adopted.
-    ALLOWED_REGISTRY_HOSTS: ClassVar[FrozenSet[str]] = frozenset({"docker.io", "ghcr.io"})
+    ALLOWED_REGISTRY_HOSTS: ClassVar[FrozenSet[str]] = frozenset({"docker.io"})
 
-    registry_host: str = Field(..., description="Registry hostname (e.g., docker.io, ghcr.io)")
+    registry_host: str = Field(..., description="Registry hostname (e.g., docker.io)")
     base_registry_namespace: str = Field(..., description="Registry namespace (e.g., rocm, amdih)")
     base_repository: str = Field(..., description="Repository name (e.g., vllm, zendnn_zentorch)")
     base_tag: str = Field(..., description="Image tag/version")
@@ -168,7 +186,7 @@ class TemplatesConfig(BaseModel):
 class DocsConfig(BaseModel):
     """Declared, per-leaf documentation-rendering switches.
 
-    ADR-0007 Appendix B: whether a leaf is rendered as a standalone AIM document
+    Whether a leaf is rendered as a standalone AIM document
     is a *declared per-leaf* property, not a hardcoded engine list. A base image
     that ships no runnable service of its own (e.g. the bentoml base, which only
     does anything once a model AIM supplies ``/workspace/model``) declares
@@ -215,6 +233,13 @@ class BaseImageConfigFile(EvaluationDepsMixin):
     model_config = ConfigDict(extra="allow")
 
     base_image: BaseImageConfig
+    dockerfile: Optional[str] = Field(
+        default=None,
+        description=(
+            "Repo-root-relative Dockerfile that builds this leaf. Required for "
+            "engine leaves. A base leaf without it uses docker/Dockerfile.aim-<accelerator>-base."
+        ),
+    )
     templates: Optional[TemplatesConfig] = None
     docs: DocsConfig = Field(default_factory=DocsConfig)
 
@@ -247,6 +272,7 @@ class BaseImageTargetConfig(EvaluationDepsMixin, BaseImageConfig):
     """Base image config extended with a target identifier."""
 
     target_id: str = Field(..., description="Target identifier (e.g. legacy_vllm, bentoml)")
+    dockerfile: Optional[str] = Field(default=None, description="Declared Dockerfile, if the leaf has its own")
 
 
 class CiBaseImageTarget(EvaluationDepsMixin):
@@ -336,6 +362,7 @@ def _load_base_target_config(config_path: Path, target_id: str) -> BaseImageTarg
     return BaseImageTargetConfig(
         target_id=target_id,
         install_evaluation_deps=parsed_config.install_evaluation_deps,
+        dockerfile=parsed_config.dockerfile,
         **parsed_config.base_image.model_dump(),
     )
 
@@ -370,10 +397,15 @@ def resolve_base_image_targets(accelerator_family: str) -> list[BaseImageTargetC
     return targets
 
 
+def shared_base_dockerfile(accelerator_family: str) -> str:
+    """Return the shared base Dockerfile every base leaf without its own ``dockerfile:`` uses."""
+    return f"docker/Dockerfile.aim-{accelerator_family.lower()}-base"
+
+
 def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTarget]:
     """Resolve CI build target metadata for all discovered base targets."""
     acc_lower = accelerator_family.lower()
-    dockerfile = f"docker/Dockerfile.aim-{acc_lower}-base"
+    dockerfile = shared_base_dockerfile(acc_lower)
     # Generic CPU has no runner fleet/accelerator model to validate against, so hardware
     # integration validation is intentionally deferred for it.
     integration_validation_supported = acc_lower != "cpu"
@@ -382,14 +414,20 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
     seen_target_ids: set[str] = set()
     for target in resolve_base_image_targets(accelerator_family):
         image_name = get_base_image_name(acc_lower, target.target_id)
+        # A missing declared Dockerfile is reported by resolve-build-config for this target
+        # only, so one broken leaf cannot stop the discovery of every other base.
+        target_dockerfile = target.dockerfile or dockerfile
+        # The generic vLLM smoke test assumes the shared, vLLM-shaped base Dockerfile.
         model_service_validation_supported = (
-            target.target_id not in NON_VLLM_BASE_TARGET_IDS and integration_validation_supported
+            target_dockerfile == dockerfile
+            and target.target_id not in NON_VLLM_BASE_TARGET_IDS
+            and integration_validation_supported
         )
         ci_targets.append(
             CiBaseImageTarget(
                 target_id=target.target_id,
                 image_name=image_name,
-                dockerfile=dockerfile,
+                dockerfile=target_dockerfile,
                 model_service_validation_supported=model_service_validation_supported,
                 integration_validation_supported=integration_validation_supported,
                 upstream_image_ref=target.image_ref,
@@ -430,6 +468,45 @@ def resolve_ci_base_image_targets(accelerator_family: str) -> list[CiBaseImageTa
         seen_target_ids.add(specialized.target_id)
 
     return ci_targets
+
+
+class CiEngineImageConfig(BaseModel):
+    """Build configuration for one engine leaf (``assets/<acc>/engine/<engine_id>/``).
+
+    An engine is not an AIM: it builds from its upstream image with its own
+    Dockerfile, gets no AIM runtime layer, and is published as its own image so
+    that base leaves can build ``FROM`` it by tag.
+    """
+
+    engine_id: str = Field(..., description="Engine leaf directory name (e.g. aifs)")
+    repository: str = Field(..., description="Image repository (e.g. aim-instinct-engine-aifs)")
+    dockerfile: str = Field(..., description="Repo-root-relative Dockerfile declared by the engine leaf")
+    context_path: str = Field(..., description="Build context: the directory holding the declared Dockerfile")
+    base_image_ref: str = Field(..., description="Upstream image passed to the build as BASE_IMAGE")
+
+
+def resolve_ci_engine_config(accelerator_family: str, engine_id: str) -> CiEngineImageConfig:
+    """Resolve the build configuration of one engine leaf from its ``config.yaml``."""
+    acc_lower = accelerator_family.lower()
+    config_path = Path("assets") / acc_lower / ENGINE_LEAF_DIRNAME / engine_id / "config.yaml"
+    if not config_path.is_file():
+        raise click.UsageError(
+            f"Engine leaf '{config_path.parent}' has no config.yaml. An engine leaf declares its "
+            "base_image and dockerfile there."
+        )
+    parsed_config = BaseImageConfigFile.from_yaml_file(config_path)
+    if not parsed_config.dockerfile:
+        raise click.UsageError(f"{config_path}: an engine leaf must declare its Dockerfile with a 'dockerfile:' key.")
+    dockerfile = Path(parsed_config.dockerfile)
+    if not dockerfile.is_file():
+        raise click.UsageError(f"{config_path}: declared dockerfile '{parsed_config.dockerfile}' does not exist.")
+    return CiEngineImageConfig(
+        engine_id=engine_id,
+        repository=get_engine_image_name(acc_lower, engine_id).canonical,
+        dockerfile=dockerfile.as_posix(),
+        context_path=dockerfile.parent.as_posix(),
+        base_image_ref=parsed_config.base_image.image_ref,
+    )
 
 
 class CiBaseImageConfig(EvaluationDepsMixin):
@@ -589,7 +666,11 @@ def init_config(assets_path: str = "assets/instinct", recreate: bool = False) ->
 @assets_path_option
 def get_config_value(key: str, canonical_name: Optional[str] = None, assets_path: str = "assets/instinct"):
     canonical_name = get_canonical_name(canonical_name)
-    config = read_yaml(Path(assets_path) / canonical_name / "config.yaml")
+    config_dir = Path(assets_path) / canonical_name
+    if "/" in canonical_name:
+        org, model_name = canonical_name.split("/", 1)
+        config_dir = resolve_model_assets_dir(assets_path, org, model_name)
+    config = read_yaml(config_dir / "config.yaml")
     value = get_value(config, key)
     print(value)
 
@@ -599,7 +680,8 @@ def get_config_value(key: str, canonical_name: Optional[str] = None, assets_path
 @assets_path_option
 def get_base_image_ref(canonical_name: Optional[str] = None, assets_path: str = "assets/instinct"):
     canonical_name = get_canonical_name(canonical_name)
-    config_path = Path(assets_path) / canonical_name / "config.yaml"
+    org, model_name = canonical_name.split("/", 1)
+    config_path = resolve_model_assets_dir(assets_path, org, model_name) / "config.yaml"
 
     try:
         base_config = BaseImageConfig.from_yaml_file(config_path)
@@ -615,6 +697,18 @@ def get_base_image_ref(canonical_name: Optional[str] = None, assets_path: str = 
             f.write(f"base_image_ref={result}\n")
     else:
         print(f"base_image_ref={result}")
+
+
+@cli.command(name="resolve-model-assets-dir")
+@click.option("--canonical_name", type=str, default=None)
+@assets_path_option
+def resolve_model_assets_dir_command(
+    canonical_name: Optional[str] = None, assets_path: str = "assets/instinct"
+) -> None:
+    """Print the model leaf directory for either supported assets layout."""
+    canonical_name = get_canonical_name(canonical_name)
+    org, model_name = canonical_name.split("/", 1)
+    print(resolve_model_assets_dir(assets_path, org, model_name))
 
 
 @cli.command(name="resolve-build-config")
@@ -649,6 +743,12 @@ def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] 
             f"No base target '{target_id}' found for accelerator family '{accelerator_family}'. "
             f"Available targets: {available}"
         )
+    declares_own_dockerfile = ci_target.dockerfile != shared_base_dockerfile(accelerator_family)
+    if declares_own_dockerfile and not Path(ci_target.dockerfile).is_file():
+        raise click.UsageError(
+            f"Base target '{target_id}' ({accelerator_family}) declares dockerfile '{ci_target.dockerfile}', "
+            "which does not exist."
+        )
 
     ci_config = CiBaseImageConfig(
         base_target_id=ci_target.target_id,
@@ -672,6 +772,30 @@ def resolve_build_config(accelerator_family: str, base_target_id: Optional[str] 
             f.write(f"config={config_json}\n")
     else:
         # Print JSON for local testing
+        print(config_json)
+
+
+@cli.command(name="resolve-engine-build-config")
+@click.option(
+    "--accelerator-family",
+    type=click.Choice([af.value for af in AcceleratorFamily]),
+    required=True,
+    help="Accelerator family (e.g., instinct, epyc, radeon)",
+)
+@click.option("--engine-id", type=str, required=True, help="Engine leaf directory name (e.g. aifs).")
+def resolve_engine_build_config(accelerator_family: str, engine_id: str) -> None:
+    """Resolve the build configuration of one engine leaf.
+
+    Outputs (for GitHub Actions):
+    - config: JSON object with engine_id, repository, dockerfile, context_path, base_image_ref
+    """
+    config_json = resolve_ci_engine_config(accelerator_family, engine_id).model_dump_json()
+
+    github_output = os.getenv("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a") as f:
+            f.write(f"config={config_json}\n")
+    else:
         print(config_json)
 
 
@@ -699,6 +823,19 @@ def resolve_base_assets_dir_command(accelerator_family: str, base_target_id: Opt
     """
     target_id = base_target_id or LEGACY_VLLM_BASE_TARGET_ID
     print(resolve_base_assets_dir(accelerator_family, target_id))
+
+
+@cli.command(name="resolve-asset-test-dir")
+@click.option(
+    "--accelerator-family",
+    type=click.Choice([af.value for af in AcceleratorFamily]),
+    required=True,
+    help="Accelerator family (e.g., instinct, epyc, radeon)",
+)
+@click.option("--base-target-id", type=str, required=True, help="Base image target identifier (e.g. mit-boltz2).")
+def resolve_asset_test_dir_command(accelerator_family: str, base_target_id: str) -> None:
+    """Print the image/tests dir of the model asset that owns the base target, or nothing."""
+    print(resolve_asset_test_dir(accelerator_family, base_target_id) or "")
 
 
 @cli.command(name="resolve-build-targets")
@@ -737,7 +874,7 @@ def is_allowed_template_include(template_file: Path, leaf_templates_dir: Path) -
 def _check_unreferenced_local_templates(config_path: Path, templates: TemplatesConfig) -> list[str]:
     """Fail a leaf that ships a local document template its ``templates:`` block ignores.
 
-    ADR-0007 Appendix B forbids a fallback chain: a leaf that carries its own
+    Forbidden fallback chain: a leaf that carries its own
     ``templates/`` directory must point ``templates.readme`` / ``templates.deployment``
     at every *document* in it. An unreferenced local document is almost always a leaf
     that was given its own README/DEPLOYMENT but forgot to declare it, so it is rejected
@@ -831,6 +968,9 @@ def validate_configs(files, assets_path: Optional[str] = None) -> None:
                     "missing required 'templates' block (declare 'readme' and 'deployment' "
                     "documentation template paths)"
                 )
+            # Repo-root-relative, like templates, so the result does not depend on the CWD.
+            if parsed.dockerfile is not None and not (_REPO_ROOT / parsed.dockerfile).is_file():
+                raise ValueError(f"declared dockerfile '{parsed.dockerfile}' does not exist")
         except Exception as exc:
             errors.append(f"{config_path}: {exc}")
             continue

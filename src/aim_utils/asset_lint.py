@@ -24,7 +24,13 @@ from typing import Iterable, List, Optional, Pattern, Sequence, Tuple
 import click
 import yaml
 
-from .asset_utils import DEFAULT_ASSETS_ROOT, PROFILES_DIRNAME, assets_path_optional_option
+from .asset_utils import (
+    DEFAULT_ASSETS_ROOT,
+    ENGINE_LEAF_DIRNAME,
+    MODEL_LEAF_DIRNAME,
+    PROFILES_DIRNAME,
+    assets_path_optional_option,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,12 +219,15 @@ def find_canonical_name_mismatch(path: Path, assets_root: Optional[str] = None) 
         relative = path.parent.relative_to(Path(assets_root or DEFAULT_ASSETS_ROOT))
     except ValueError:
         return []
-    if len(relative.parts) != 3 or relative.parts[1] in {"base", "engines"}:
+    parts = relative.parts
+    if len(parts) == 4 and parts[1] == MODEL_LEAF_DIRNAME:
+        parts = (parts[0], *parts[2:])
+    if len(parts) != 3 or parts[1] in {"base", "engines", ENGINE_LEAF_DIRNAME, MODEL_LEAF_DIRNAME}:
         return []
 
     metadata = yaml.safe_load(path.read_text(encoding="utf-8"))
     actual = metadata.get("com", {}).get("amd", {}).get("aim", {}).get("model", {}).get("canonicalName")
-    expected = f"{relative.parts[1]}/{relative.parts[2]}"
+    expected = f"{parts[1]}/{parts[2]}"
     if actual != expected:
         return [f"{path}: canonicalName is {actual!r}; expected {expected!r}"]
     return []
@@ -229,7 +238,14 @@ def find_canonical_name_mismatch(path: Path, assets_root: Optional[str] = None) 
 @assets_path_optional_option
 def check_canonical_name_command(files: Sequence[Path], assets_path: str = DEFAULT_ASSETS_ROOT) -> None:
     """Fail when metadata canonicalName does not match its asset path."""
-    targets = [p for p in _iter_files(files, assets_path, "*/*/*/metadata.yaml") if p.name == "metadata.yaml"]
+    targets = sorted(
+        {
+            p
+            for glob in ("*/*/*/metadata.yaml", f"*/{MODEL_LEAF_DIRNAME}/*/*/metadata.yaml")
+            for p in _iter_files(files, assets_path, glob)
+            if p.name == "metadata.yaml"
+        }
+    )
     hits = [hit for path in targets for hit in find_canonical_name_mismatch(path, assets_path)]
     sys.exit(1 if _report(hits, "Canonical names", "enforced-automatically") else 0)
 

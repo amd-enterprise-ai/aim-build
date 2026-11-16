@@ -332,7 +332,7 @@ The `AIMRuntime` class orchestrates the complete workflow, coordinating profile 
    - Model from `AIM_ID` environment variable (fallback for general profiles)
 6. **Execution** – Run the engine under AIM Runtime supervision (serve mode) or generate scripts for inspection (dry-run mode)
 
-**AITER (GPU):** When the image includes `/workspace/aiter-jit-prebuilt/<gfx_arch>/`, the runtime may copy matching prebuilt `.so` kernels into the AITER package JIT directory before `exec`, reducing first-request JIT compilation latency.
+**AITER (GPU):** When the image includes `/workspace/aiter-jit-prebuilt/<gfx_arch>/`, the runtime may copy matching prebuilt `.so` kernels into the AITER package JIT directory before `exec`, reducing first-request JIT compilation latency. If the AITER package JIT directory is read-only or `AITER_JIT_DIR` is set, the runtime instead symlinks AITER's package modules and any prebuilt kernels into `AITER_JIT_DIR` (default: a private directory under the temp directory per upstream image and AITER version, reused across restarts). See `docker/aiter-jit-prebuilt/README.md`.
 
 ### 4.2 Execution Modes
 
@@ -392,7 +392,7 @@ For detailed implementation including pre-population strategies, volume mounting
 ## 7. Observability & Diagnostics
 
 * **Logging** – Structured logging with fine-grained control:
-  - `AIM_LOG_LEVEL_ROOT` (default: `WARNING`) - Controls root logger and third-party packages
+  - `AIM_LOG_LEVEL_ROOT` (default: `INFO`) - Controls root logger and third-party packages
   - `AIM_LOG_LEVEL` (default: `INFO`) - Controls `aim_runtime` package logger
   - Both accept: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
   - INFO level: GPU detection, precision selection, profile matching decisions
@@ -510,7 +510,7 @@ Recommended environment variables:
 | AIM_ALLOW_UNOPTIMIZED | When `true`, allow fallback to a compatible `unoptimized` profile only if the automatic pool is empty (default: `false`). |
 | AIM_SERVE_SUPERVISOR | Run the engine under AIM Runtime supervision (`true`, default) or restore unsupervised execution (`false`). Dynamic adapter profiles always use supervision. |
 | AIM_CACHE_PATH | Override default cache root. |
-| AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: WARNING). |
+| AIM_LOG_LEVEL_ROOT | Log level for root logger controlling third-party packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |
 | AIM_LOG_LEVEL | Log level for AIM runtime packages (DEBUG, INFO, WARNING, ERROR, CRITICAL, default: INFO). |
 | AIM_PORT | Port for accessing inference API (numeric value up to `65535`, default: `8000`) |
 

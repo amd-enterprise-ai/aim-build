@@ -17,6 +17,7 @@ describe; they are re-exported from ``aim_runtime.engines``.
 from __future__ import annotations
 
 import functools
+import importlib
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional
 
@@ -37,6 +38,31 @@ if TYPE_CHECKING:
     from aim_runtime.object_model import Profile
 
 logger = logging.getLogger(__name__)
+
+# Where vLLM defines ``make_arg_parser`` and ``FrontendArgs``, newest first:
+# 0.33.0 has them in ``common``, 0.29.0 to 0.32.x in ``launchers``, and 0.28.x
+# or older in ``openai`` (the epyc, radeon, cpu and vllm-omni bases).
+VLLM_CLI_ARGS_MODULES: tuple[str, ...] = (
+    "vllm.entrypoints.common.cli_args",
+    "vllm.entrypoints.launchers.cli_args",
+    "vllm.entrypoints.openai.cli_args",
+)
+
+
+def vllm_cli_args_module() -> Any:
+    """Import vLLM's CLI-args module from the first location that exists.
+
+    Only a missing candidate module moves on to the next one. Any other import
+    error (a broken transitive dependency) propagates, so callers still treat a
+    broken vLLM install as unavailable instead of trying an older layout.
+    """
+    for name in VLLM_CLI_ARGS_MODULES:
+        try:
+            return importlib.import_module(name)
+        except ModuleNotFoundError as exc:
+            if exc.name is None or not (exc.name == name or name.startswith(exc.name + ".")):
+                raise
+    raise ModuleNotFoundError(f"none of {', '.join(VLLM_CLI_ARGS_MODULES)} is importable")
 
 
 class VllmEngineArgsModel(EngineArgsModel):
@@ -75,7 +101,7 @@ class VllmEngineArgsModel(EngineArgsModel):
         validation.
         """
         try:
-            from vllm.entrypoints.openai.cli_args import make_arg_parser
+            make_arg_parser = vllm_cli_args_module().make_arg_parser
             from vllm.utils.argparse_utils import FlexibleArgumentParser
 
             def _raise_on_error(message: str) -> None:
@@ -382,7 +408,7 @@ class VllmEngine(BaseEngine):
 
         True only when ``AIM_ADAPTER_MODE=dynamic`` **and** the profile declares
         the full ``adapters`` token. A profile with ``adapters-scale-only`` has
-        no runtime add/remove support (ADR-0004), so it stays on the static path
+        no runtime add/remove support, so it stays on the static path
         even in dynamic mode. ``profile is None`` (no profile context, e.g. unit
         tests) defers to the configured mode alone.
         """
@@ -393,12 +419,12 @@ class VllmEngine(BaseEngine):
         return profile.metadata.adapter_token == AdapterToken.ADAPTERS
 
     def build_adapter_runtime(self, profile: "Profile | None") -> tuple[dict[str, Any], dict[str, str]]:
-        """Translate the AIM_ADAPTER_* contract into vLLM flags + env (ADR-0004).
+        """Translate the AIM_ADAPTER_* contract into vLLM flags + env.
 
         Static path (static mode, or a scale-only profile in dynamic mode):
         enable LoRA + caps **only when adapters are actually present** on disk,
         and pass them as ``--lora-modules name=path``; the filesystem resolver
-        stays off so vLLM rejects runtime load/unload (ADR static-mode refusal).
+        stays off so vLLM rejects runtime load/unload.
         When no adapters are mounted, ``--enable-lora`` is left off so the base
         model keeps its full performance — notably, ``--enable-lora`` forces
         vLLM off the AITER fused-MoE backend on ROCm (it is skipped for LoRA),

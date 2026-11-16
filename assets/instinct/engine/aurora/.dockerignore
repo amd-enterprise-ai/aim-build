@@ -1,0 +1,28 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# No weights or datasets in the engine image; they are downloaded at startup
+# into the cache directory. The checkpoint alone is 5 GB, so *.ckpt matters most.
+**/*.ckpt
+**/*.pt
+**/*.pth
+**/*.bin
+**/*.safetensors
+**/*.onnx
+**/*.gguf
+**/*.h5
+**/*.npz
+**/*.nc
+**/*.pickle
+**/*.pkl
+**/*.tar
+**/*.zip
+
+# Scratch and editor files. Without this, the host's __pycache__ is copied into
+# /workspace/model/src by `COPY src/`.
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/._*
+**/.DS_Store

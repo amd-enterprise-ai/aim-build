@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "biohub/esmc-300m"
+        tags:
+        - "protein-embeddings"
+        - "structural-biology"
+        - "language-model"
+        source: "https://huggingface.co/biohub/ESMC-300M"
+        variants:
+        - "biohub/ESMC-300M"
+        publisher: "Biohub"
+      hfToken:
+        required: false
+      release:
+        notes: "Licence: MIT, as stated by the Biohub repository. The Hugging Face model card lists the licence as mit and other, and does not define other. Use is additionally subject to the Biohub Acceptable Use Policy."
+      description:
+        full: "ESMC (ESM Cambrian) is a protein language model from Biohub (Chan Zuckerberg Biohub) trained on sequences from UniRef, MGnify and JGI. The 300M parameter variant (biohub/ESMC-300M) has 30 pre-LN transformer layers with rotary embeddings and SwiGLU activations, a 2048-token context window, and produces 960-dimensional per-residue representations; this AIM serves mean-pooled per-sequence embeddings and a masked-language-model scoring route. Embeddings are suitable for downstream tasks such as function annotation, variant-effect prediction and protein engineering. Released under the MIT license (the Biohub repository is MIT). The Hugging Face card lists the licence as mit and other; other is not defined on the card, and the card does not reference the Cambrian Open License; use is additionally subject to the Biohub Acceptable Use Policy referenced in the model card. The model weights are freely accessible on Hugging Face without gating."
+      title: "ESMC 300M"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Biohub ESMC 300M protein language model serving per-sequence embeddings."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

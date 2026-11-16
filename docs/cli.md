@@ -349,13 +349,22 @@ docker run --rm \
 
 ### Benchmark Configuration
 
-The config YAML defines suites as lists of `[ISL, OSL, concurrency, num_prompts]` tuples. Suite selection priority: `ACTIVE_SUITE` env var > `accelerator_count_suite_map` match > `active_config` fallback.
+The config YAML defines suites as lists of `[ISL, OSL, concurrency, num_prompts]` tuples. Suite selection priority: `ACTIVE_SUITE` env var > first matching `suite_selection` rule > deprecated `accelerator_count_suite_map` entry > `active_config` fallback.
 
 ```yaml
 active_config: "my_suite"
-accelerator_count_suite_map:
-  1: "tp1_suite"
-  2: "tp2_suite"
+suite_selection:
+  - suite: "epyc_quick"
+    match:
+      accelerator_type: "cpu"
+  - suite: "tp1_suite"
+    match:
+      accelerator_type: "gpu"
+      accelerator_count: 1
+  - suite: "tp2_suite"
+    match:
+      accelerator_type: "gpu"
+      accelerator_count: 2
 config_suites:
   my_suite: [[256,256,8,80], [1024,1024,128,256]]
 settings:
@@ -367,6 +376,10 @@ settings:
   metric_percentiles: "75,90,99"
   dataset_name: "random"
 ```
+
+Rules are evaluated in order. The packaged config selects `epyc_quick` for CPU and GPU suites by accelerator count; `epyc_quick` contains five points sampled from `epyc_full_sweep`, while `epyc_full_sweep` (24 points) stays opt-in through `ACTIVE_SUITE`.
+
+`suite_selection` replaces the older `accelerator_count_suite_map`, which mapped an accelerator count straight to a suite name. A config that still uses the old key keeps selecting the suite it maps to, and logs a deprecation warning; the key will be removed in a future release. Defining `suite_selection` takes precedence, so a config can be migrated without deleting the old key first.
 
 `num_warmups` sends that many warmup requests per configuration before measuring; `0` omits the flag, and anything that is not a non-negative integer is rejected. `trust_remote_code` left unset follows the profile's `trust-remote-code` engine arg so the benchmark client loads the tokenizer the way the served engine did; `true` or `false` overrides the profile, and must be written as an unquoted boolean — a string such as `"true"` is rejected rather than guessed at. Both are checked when the runner is constructed, so a malformed value fails before the service is probed rather than part-way through a sweep. The tokenizer mode is not a setting — it comes from the profile's `tokenizer-mode` engine arg, so a benchmark cannot tokenize differently from the engine it measures.
 

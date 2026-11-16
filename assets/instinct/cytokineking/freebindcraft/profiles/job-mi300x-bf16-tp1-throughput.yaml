@@ -1,0 +1,27 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# FreeBindCraft AIM: long-running job profile for a single MI300X GPU.
+# Long-running job container: no HTTP port, no serving engine. Runs FreeBindCraft in
+# --no-pyrosetta mode (OpenMM + sc-rs + FreeSASA) with the JAX ROCm backend.
+# env_vars is empty on purpose: a job image ships no aim-runtime, so profile env_vars are never applied
+# (JAX_PLATFORMS=rocm is baked into the Dockerfile ENV; the scheduler sets ROCR_VISIBLE_DEVICES).
+# The throughput metric here is accepted designs per GPU-hour over a fixed wall-clock budget (AIM_FBC_TIME_LIMIT);
+# time to first trajectory (incl. JAX compile) is reported separately as startup cost.
+# precision is bf16: ColabDesign at the pinned commit defaults to use_bfloat16: True and FreeBindCraft does not override it.
+
+aim_id: cytokineking/freebindcraft
+model_id: cytokineking/FreeBindCraft
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: job
+  job_type: long_running
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars: {}

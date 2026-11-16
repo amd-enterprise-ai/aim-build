@@ -1,0 +1,23 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Preview eager-mode profile for ProteinMPNN on MI355X.
+# ProteinMPNN is a lightweight graph neural network; no torch.compile /
+# TunableOp tuning is applied at this stage.
+
+aim_id: dauparas/proteinmpnn
+model_id: dauparas/proteinmpnn
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI355X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp32
+  primary: true
+  type: preview
+engine_args: {}
+env_vars:
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'

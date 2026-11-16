@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROFILE_BASE_PATH = "/workspace/aim-runtime/profiles"
 DEFAULT_CONFIG_PATH = "/workspace/aim-runtime/config"
 DEFAULT_CACHE_PATH = "/workspace/model-cache"
-# LoRA adapter contract (ADR-0004) defaults.
+# LoRA adapter contract defaults.
 DEFAULT_ADAPTER_SOURCE = "/workspace/cache/adapters/"
 DEFAULT_ADAPTER_REFRESH_INTERVAL = 30  # seconds
 MIN_ADAPTER_REFRESH_INTERVAL = 5
@@ -34,13 +34,13 @@ DEFAULT_ADAPTER_MAX_COUNT = 8
 DEFAULT_ADAPTER_MAX_CPU_COUNT = 16
 DEFAULT_ADAPTER_MAX_RANK = 32
 # Allowed LoRA ranks — mirrors vLLM's MaxLoRARanks (vllm/config/lora.py,
-# identical at v0.16.0 and v0.21.0). Intentionally wider than ADR-0004's stated
+# identical at v0.16.0 and v0.21.0). Intentionally wider than
 # {8,16,32,64} so the image never rejects a rank the engine would accept.
 ADAPTER_ALLOWED_RANKS = (1, 8, 16, 32, 64, 128, 256, 320, 512)
 
 
 class AdapterMode(StrEnum):
-    """How adapters are managed at runtime (ADR-0004)."""
+    """How adapters are managed at runtime."""
 
     STATIC = "static"
     DYNAMIC = "dynamic"
@@ -65,14 +65,14 @@ class AIMConfig:
     cache_path: str = DEFAULT_CACHE_PATH
     port: int = 8000
     engine_args_override: Optional[Dict[str, Any]] = None
-    # LoRA adapter contract (ADR-0004)
+    # LoRA adapter contract
     adapter_source: str = DEFAULT_ADAPTER_SOURCE
     adapter_mode: AdapterMode = AdapterMode.STATIC
     adapter_refresh_interval: int = DEFAULT_ADAPTER_REFRESH_INTERVAL
     adapter_max_count: int = DEFAULT_ADAPTER_MAX_COUNT
     adapter_max_cpu_count: int = DEFAULT_ADAPTER_MAX_CPU_COUNT
     adapter_max_rank: int = DEFAULT_ADAPTER_MAX_RANK
-    log_level_root: str = "WARNING"
+    log_level_root: str = "INFO"
     log_level: str = "INFO"
     allow_general_profile_fallback: bool = (
         True  # Whether to allow fallback to general profiles (from AIM_ALLOW_GENERAL_PROFILE_FALLBACK)
@@ -350,7 +350,7 @@ class AIMConfig:
             adapter_max_count=adapter_max_count,
             adapter_max_cpu_count=adapter_max_cpu_count,
             adapter_max_rank=cls._read_adapter_max_rank(),
-            log_level_root=os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING"),
+            log_level_root=os.environ.get("AIM_LOG_LEVEL_ROOT", "INFO"),
             log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
             allow_general_profile_fallback=cls._read_bool("AIM_ALLOW_GENERAL_PROFILE_FALLBACK", True),
             allow_unoptimized=cls._read_bool("AIM_ALLOW_UNOPTIMIZED", False),

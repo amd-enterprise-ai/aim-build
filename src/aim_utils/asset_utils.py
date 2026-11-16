@@ -21,6 +21,26 @@ logger = logging.getLogger(__name__)
 
 
 PROFILES_DIRNAME = "profiles"
+#: Grouping directory for model leaves (``assets/<acc>/model/<org>/<model>/``).
+MODEL_LEAF_DIRNAME = "model"
+#: Grouping directory for engine leaves (``assets/<acc>/engine/<engine>/``).
+#: Engine leaves are built as their own images, never as models or specialized bases.
+ENGINE_LEAF_DIRNAME = "engine"
+
+
+def resolve_model_assets_dir(assets_path: Union[str, Path], org: str, model_name: str) -> Path:
+    """Resolve a model leaf in either the legacy or grouped assets layout."""
+    assets_dir = Path(assets_path)
+    candidates = (
+        assets_dir / org / model_name,
+        assets_dir / MODEL_LEAF_DIRNAME / org / model_name,
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+
+    locations = ", ".join(str(path) for path in candidates)
+    raise FileNotFoundError(f"Model assets for '{org}/{model_name}' were not found. Checked: {locations}")
 
 
 def infer_accelerator_family_from_path(assets_path: Path) -> AcceleratorFamily:
@@ -213,6 +233,9 @@ class AssetManager(ABC):
     def _extend_descriptors_from_path(self, assets_path: Path) -> None:
         af = infer_accelerator_family_from_path(assets_path)
         self.built_in_model_specific.extend(self.__get_model_specific(assets_path, af, is_custom=False))
+        self.built_in_model_specific.extend(
+            self.__get_model_specific(assets_path / MODEL_LEAF_DIRNAME, af, is_custom=False)
+        )
         base_directory = assets_path / "base"
         self.built_in_general.append(
             AssetDescriptor(directory=base_directory, is_base=True, is_custom=False, accelerator_family=af)
@@ -271,6 +294,9 @@ class AssetManager(ABC):
                 continue
 
             if org_dir == assets_path / "base":
+                continue
+
+            if org_dir in (assets_path / MODEL_LEAF_DIRNAME, assets_path / ENGINE_LEAF_DIRNAME):
                 continue
 
             if org_dir == assets_path / "custom":

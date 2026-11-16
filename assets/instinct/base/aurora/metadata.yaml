@@ -1,0 +1,27 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Describes the base image itself, not any one checkpoint.
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "AIM base for weather-forecasting models served over HTTP via BentoML on Instinct."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"
+com:
+  amd:
+    aim:
+      title: "AIM Base — Aurora weather forecasting (BentoML)"
+      release:
+        notes: ""
+      description:
+        full: >
+          Adds the AIM runtime and the weather-forecasting harness to the Aurora
+          engine image. The harness drives validate, benchmark and evaluate
+          against the running BentoML service over HTTP, and covers every model
+          built on this base. A model image on top supplies only profiles,
+          environment variables and config.

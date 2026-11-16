@@ -12,6 +12,7 @@ from aim_common import (
     AcceleratorModel,
     AcceleratorType,
     CPUModel,
+    DownloadFilter,
     Engine,
     GPUModel,
     Metric,
@@ -24,6 +25,7 @@ __all__ = [
     "AcceleratorModel",
     "AcceleratorType",
     "CPUModel",
+    "DownloadFilter",
     "Engine",
     "GPUModel",
     "Metric",
@@ -64,6 +66,7 @@ class Profile:
     model_id: str  # The model identifier to use for inference
     engine_args: Optional[Dict[str, Any]] = None
     env_vars: Optional[Dict[str, str]] = None
+    download_filter: Optional[DownloadFilter] = None
 
     @property
     def profile_id(self) -> str:

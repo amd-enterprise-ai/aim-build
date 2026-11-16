@@ -1,0 +1,18 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: biohub/esmc-300m
+model_id: biohub/ESMC-300M
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: bf16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars: {}

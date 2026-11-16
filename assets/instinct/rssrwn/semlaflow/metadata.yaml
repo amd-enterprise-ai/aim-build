@@ -1,0 +1,35 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "rssrwn/semlaflow"
+        tags:
+        - "molecule-generation"
+        - "drug-discovery"
+        - "flow-matching"
+        - "requires-checkpoint"
+        - "checkpoint-source:non-huggingface"
+        source: "https://github.com/rssrwn/semla-flow"
+        variants:
+        - "rssrwn/semlaflow"
+        publisher: "AstraZeneca"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "SemlaFlow is a small-molecule generation model from AstraZeneca using equivariant attention-based message passing (Semla architecture) with flow matching and optimal transport. The model generates 3D molecular structures; this AIM returns the canonical SMILES of each generated molecule together with its 3D structure as a mol block with 3D coordinates. Trained on GEOM-Drugs and QM9 datasets. The upstream code is MIT licensed; the checkpoint and data are fetched by the user from the upstream links, which state no separate licence."
+      title: "SemlaFlow"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Small-molecule generation model using equivariant flow matching (SMILES and 3D mol-block output), served as a custom AIM image."
+      documentation: "https://rocm.blogs.amd.com/artificial-intelligence/semlaflow/README.html"
+      source: "https://github.com/amd-enterprise-ai/aim-build"

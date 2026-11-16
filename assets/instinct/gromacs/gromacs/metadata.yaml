@@ -1,0 +1,36 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "gromacs/gromacs"
+        tags:
+          - "hpc"
+          - "molecular-dynamics"
+          - "simulation"
+          - "rocm"
+          - "hip"
+          - "long-running"
+        source: "https://gitlab.com/gromacs/gromacs"
+        variants:
+          - "gromacs/gromacs"
+        publisher: "GROMACS Development Team / AMD"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "GROMACS is a high-performance molecular dynamics simulation package supporting GPU acceleration via AMD ROCm/HIP. This AIM wraps the GROMACS simulator as a long-running job container: provide a .tpr input file via AIM_INPUT_PATH, receive trajectory, energy, and log outputs in AIM_OUTPUT_PATH. Benchmark systems (adh_dodec, stmv, cellulose_nve) from AMD InfinityHub can be run with it once converted to a .tpr."
+      title: "GROMACS Molecular Dynamics Simulator"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "LGPL-2.1-or-later"
+      description: "GROMACS molecular dynamics simulation via long-running job container."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

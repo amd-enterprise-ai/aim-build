@@ -1,0 +1,33 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "molecularai/reinvent4"
+        tags:
+        - "drug-design"
+        - "molecular-generation"
+        - "cheminformatics"
+        source: "https://github.com/MolecularAI/REINVENT4"
+        variants:
+        - "molecularai/reinvent4"
+        publisher: "AstraZeneca (MolecularAI)"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "REINVENT 4 is a molecular design tool for de novo design, scaffold hopping, R-group replacement, linker design, molecule optimization, and other small molecule design tasks (upstream description). This AIM exposes only the de novo sampling run mode: it samples molecules from a trained prior, without reinforcement learning or scoring."
+      title: "REINVENT4"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "Apache-2.0"
+      description: "Molecular drug design tool running on AMD Instinct GPUs."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

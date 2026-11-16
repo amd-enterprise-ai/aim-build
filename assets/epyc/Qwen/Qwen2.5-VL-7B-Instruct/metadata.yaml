@@ -10,7 +10,7 @@ org:
       licenses: "apache-2.0, MIT"
       description: "7B parameter vision-language model optimized for CPU inference on AMD EPYC."
       documentation: ""
-      source: "https://github.com/silogen/aim-build"
+      source: "https://github.com/amd-enterprise-ai/aim-build"
 com:
   amd:
     aim:

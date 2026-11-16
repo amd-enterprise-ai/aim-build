@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Tests for AIM_ADAPTER_* configuration (LoRA contract, ADR-0004)."""
+"""Tests for AIM_ADAPTER_* configuration (LoRA contract)."""
 
 from __future__ import annotations
 

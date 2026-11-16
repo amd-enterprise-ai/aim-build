@@ -1,0 +1,10 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Everything the download and the conversion need. No model framework here:
+# building the input data does not need the framework that consumes it.
+numpy>=1.26
+xarray>=2024.1.0
+netCDF4>=1.6.5
+cdsapi>=0.7.0

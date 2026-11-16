@@ -7,13 +7,20 @@
 # Fallback configuration suite (one of the config_suites below)
 active_config: "default_opt"
 
-# Accelerator count to suite mapping - maps accelerator counts to specific benchmark suites
-# Used to automatically select appropriate benchmark configurations based on accelerator count
-accelerator_count_suite_map:
-  1: "AIM_IM2"
-  2: "AIM_IM1"
-  4: "AIM_IM1"
-  8: "AIM_IM1"
+# Accelerator suite selection rules, evaluated in order when ACTIVE_SUITE is unset.
+# CPU selects the EPYC suite; GPU selection depends on accelerator count.
+suite_selection:
+  - suite: "epyc_quick"
+    match:
+      accelerator_type: "cpu"
+  - suite: "AIM_IM2"
+    match:
+      accelerator_type: "gpu"
+      accelerator_count: 1
+  - suite: "AIM_IM1"
+    match:
+      accelerator_type: "gpu"
+      accelerator_count: [2, 4, 8]
 
 # Configuration suites - each is a list of [<input sequence length>, <output sequence length>, <concurrency>, <number of prompts>] lists
 # Names are auto-generated as: isl{ISL}_osl{OSL}_conc{concurrency}_np{num_prompts}
@@ -35,6 +42,16 @@ config_suites:
 
   # Long-context suite: ISL {65536, 131072, 262144} × OSL 512 × conc {1, 2, 4, 8, 16}
   long-context: [[65536,512,1,10], [65536,512,2,20], [65536,512,4,40], [65536,512,8,80], [65536,512,16,160], [131072,512,1,10], [131072,512,2,20], [131072,512,4,40], [131072,512,8,80], [131072,512,16,160], [262144,512,1,10], [262144,512,2,20], [262144,512,4,40], [262144,512,8,80], [262144,512,16,160]]
+
+  # Trigger benchmark page: ISL {1024, 8192, 32768} × OSL 1024.
+  # Concurrency is 1, 4, 8, 16, 32 on every ISL, plus 64 and 128 through ISL 8192, and 256 and 512 at ISL 1024.
+  1k-8k-32k: [[1024,1024,1,10], [1024,1024,4,40], [1024,1024,8,80], [1024,1024,16,160], [1024,1024,32,320], [1024,1024,64,640], [1024,1024,128,1280], [1024,1024,256,2560], [1024,1024,512,5120], [8192,1024,1,10], [8192,1024,4,40], [8192,1024,8,80], [8192,1024,16,160], [8192,1024,32,320], [8192,1024,64,640], [8192,1024,128,1280], [32768,1024,1,10], [32768,1024,4,40], [32768,1024,8,80], [32768,1024,16,160], [32768,1024,32,320]]
+
+  # EPYC default - five points sampled from epyc_full_sweep
+  epyc_quick: [[256,256,4,40], [128,1024,8,80], [128,1024,32,320], [1024,128,16,160], [1024,1024,1,10]]
+
+  # EPYC release gate - four shapes crossed with concurrency 1..32
+  epyc_full_sweep: [[256,256,1,10], [256,256,2,20], [256,256,4,40], [256,256,8,80], [256,256,16,160], [256,256,32,320], [1024,1024,1,10], [1024,1024,2,20], [1024,1024,4,40], [1024,1024,8,80], [1024,1024,16,160], [1024,1024,32,320], [128,1024,1,10], [128,1024,2,20], [128,1024,4,40], [128,1024,8,80], [128,1024,16,160], [128,1024,32,320], [1024,128,1,10], [1024,128,2,20], [1024,128,4,40], [1024,128,8,80], [1024,128,16,160], [1024,128,32,320]]
 
 # Global benchmark settings
 settings:

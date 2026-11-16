@@ -110,7 +110,7 @@ The following profiles are available for this model:
 |-------|-------------------|---------|------|---------|------|----|
 |vllm-mi300x-int4-tp1-latency|MI300X|int4|vllm|1|latency|preview|
 |vllm-mi300x-int4-tp1-throughput|MI300X|int4|vllm|1|throughput|unoptimized|
-|vllm-mi325x-int4-tp1-latency|MI325X|int4|vllm|1|latency|preview|
+|vllm-mi325x-int4-tp1-latency|MI325X|int4|vllm|1|latency|optimized|
 |vllm-mi325x-int4-tp1-throughput|MI325X|int4|vllm|1|throughput|unoptimized|
 |vllm-mi350p-int4-tp1-latency|MI350P|int4|vllm|1|latency|unoptimized|
 |vllm-mi350p-int4-tp1-throughput|MI350P|int4|vllm|1|throughput|unoptimized|

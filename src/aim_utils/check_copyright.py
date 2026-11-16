@@ -54,6 +54,7 @@ EXCLUDED_EXTENSIONS = {
     ".svg",
     ".tar",
     ".tmp",
+    ".tpr",
     ".tsv",
     ".webp",
     ".xml",

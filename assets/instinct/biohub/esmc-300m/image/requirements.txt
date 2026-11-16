@@ -1,0 +1,14 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+bentoml==1.4.39
+transformers==5.16.1
+
+# Imported directly by service.py (/health forwarder, request models, ASGI routes).
+# Versions are what `pip freeze` reports in the validation image: built from PR head
+# 5b6b48b9f on a Crusoe MI355X node (not a CI image; Layer 2 built locally). They match
+# the aim-runtime layer's repo-wide pins.
+httpx==0.28.1
+pydantic==2.13.5
+starlette==1.10.0

@@ -1,0 +1,56 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      title: "FreeBindCraft Protein Binder Design"
+      model:
+        canonicalName: "cytokineking/freebindcraft"
+        publisher: "cytokineking"
+        source: "https://github.com/cytokineking/FreeBindCraft"
+        tags:
+          - "protein-binder-design"
+          - "structure-based-design"
+          - "jax"
+          - "openmm"
+          - "rocm"
+          - "long-running"
+        variants:
+          - "cytokineking/FreeBindCraft"
+      hfToken:
+        required: false
+      release:
+        notes: >
+          FreeBindCraft is a fork of BindCraft that replaces PyRosetta (commercial
+          license) with OpenMM for relaxation, sc-rs for shape complementarity, and
+          FreeSASA for SASA computation. The image runs it in --no-pyrosetta mode,
+          which makes it fully open source. It uses JAX 0.8.2 with ROCm 7.2.2
+          wheels. The AlphaFold2 parameters are not in the image; mount them and set AIM_CACHE_PATH.
+          This is a long-running job container, not a
+          service: running the image with no arguments starts the design run, reads
+          target.pdb from AIM_INPUT_PATH, writes results to AIM_OUTPUT_PATH and exits.
+          A run can take minutes to many hours; bound it with the wall-clock and
+          trajectory settings described in the image README.
+      description:
+        full: >
+          FreeBindCraft designs miniprotein binders against target proteins using
+          AlphaFold2-based hallucination (ColabDesign) combined with ProteinMPNN
+          sequence design. In --no-pyrosetta mode, OpenMM performs structure
+          relaxation, the sc-rs binary computes shape complementarity, and
+          FreeSASA/Biopython compute solvent-accessible surface area. Given a target
+          PDB and optional hotspot residues, the pipeline iteratively hallucinates
+          binder backbones, sequences them with MPNN, predicts the complex with
+          AlphaFold2 multimer, filters by pLDDT/pTM/i_pTM/SC/dSASA thresholds, and
+          writes accepted and ranked PDB files, the per-design score CSVs and a
+          summary.json (trajectories, accepted designs, timings) to the output directory.
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "FreeBindCraft protein binder design (no-PyRosetta mode) on AMD Instinct GPUs."
+      documentation: "https://github.com/cytokineking/FreeBindCraft"
+      source: "https://github.com/cytokineking/FreeBindCraft"

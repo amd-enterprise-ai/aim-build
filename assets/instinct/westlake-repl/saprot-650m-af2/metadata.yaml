@@ -1,0 +1,34 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "westlake-repl/saprot-650m-af2"
+        tags:
+        - "protein-embeddings"
+        - "structural-biology"
+        - "structure-aware"
+        - "language-model"
+        source: "https://huggingface.co/westlake-repl/SaProt_650M_AF2"
+        variants:
+        - "westlake-repl/SaProt_650M_AF2"
+        publisher: "Westlake University"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "SaProt 650M AF2 is a structure-aware protein language model (ICLR 2024) from Westlake University, built on the ESM-2 650M architecture and pre-trained on AlphaFold2-predicted structures. Each residue is one structure-aware (SA) token that combines its amino acid with its Foldseek 3Di structure token, giving a vocabulary of 441 SA tokens plus 5 special tokens (446 in total). Input pairs an uppercase amino-acid letter with a lowercase 3Di letter for every residue (e.g. 'M#EvVpQpL#'), where '#' in the 3Di position marks a residue with no structure or a low-confidence AlphaFold2 prediction (pLDDT below 70). As the upstream model card notes, frozen SaProt embeddings require structural input: amino-acid-only input (every residue paired with '#') works only after fine-tuning. The model has a 1280-dimensional hidden state and is used for downstream tasks such as protein function and mutational effect prediction. Released under the MIT license; model weights are publicly accessible on Hugging Face without gating."
+      title: "SaProt 650M AF2"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Westlake University SaProt 650M AF2 structure-aware protein language model serving per-sequence embeddings."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

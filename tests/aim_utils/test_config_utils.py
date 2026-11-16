@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 from pydantic import ValidationError
@@ -27,6 +28,7 @@ from aim_utils.config_utils import (
     get_canonical_name,
     normalize_base_image_targets,
     resolve_ci_base_image_targets,
+    resolve_ci_engine_config,
 )
 from aim_utils.image_naming import ImageName
 
@@ -46,14 +48,13 @@ def temp_assets_dir(tmp_path):
     return assets_dir
 
 
-@pytest.fixture
-def sample_config_file(temp_assets_dir):
-    model_dir = temp_assets_dir / "org" / "model"
+def _write_sample_model_config(assets_dir: Path, *, grouped: bool = False) -> Path:
+    model_dir = assets_dir / ("model" if grouped else "") / "org" / "model"
     model_dir.mkdir(parents=True)
     config_file = model_dir / "config.yaml"
     config_file.write_text("""
 base_image:
-  registry_host: ghcr.io
+  registry_host: docker.io
   base_registry_namespace: test-namespace
   base_repository: test-repo
   base_tag: 1.0.0
@@ -62,6 +63,11 @@ templates:
   readme: docs/templates/README.md
 """)
     return config_file
+
+
+@pytest.fixture
+def sample_config_file(temp_assets_dir):
+    return _write_sample_model_config(temp_assets_dir)
 
 
 ACCELERATOR_CASES = [
@@ -273,7 +279,17 @@ class TestCliGet:
         )
 
         assert result.exit_code == 0
-        assert "ghcr.io" == result.output.strip()
+        assert "docker.io" == result.output.strip()
+
+    def test_get_command_supports_grouped_model_layout(self, runner, temp_assets_dir):
+        _write_sample_model_config(temp_assets_dir, grouped=True)
+
+        result = runner.invoke(
+            cli, ["get", "base_image.base_tag", "--canonical_name", "org/model", "--assets_path", str(temp_assets_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert result.output.strip() == "1.0.0"
 
     def test_get_command_missing_key(self, runner, temp_assets_dir, sample_config_file):
         result = runner.invoke(
@@ -292,7 +308,7 @@ class TestCliGetBaseImageRef:
 
         assert result.exit_code == 0
 
-        expected_result = "base_image_ref=ghcr.io/test-namespace/test-repo:1.0.0"
+        expected_result = "base_image_ref=docker.io/test-namespace/test-repo:1.0.0"
         github_output = os.getenv("GITHUB_OUTPUT")
 
         if github_output:
@@ -301,7 +317,28 @@ class TestCliGetBaseImageRef:
                 output_content = f.read().strip()
                 assert expected_result in output_content
         else:
-            assert "base_image_ref=ghcr.io/test-namespace/test-repo:1.0.0" == result.output.strip()
+            assert "base_image_ref=docker.io/test-namespace/test-repo:1.0.0" == result.output.strip()
+
+    def test_get_base_image_ref_supports_grouped_model_layout(self, runner, temp_assets_dir, monkeypatch):
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        _write_sample_model_config(temp_assets_dir, grouped=True)
+
+        result = runner.invoke(
+            cli, ["get-base-image-ref", "--canonical_name", "org/model", "--assets_path", str(temp_assets_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert result.output.strip() == "base_image_ref=docker.io/test-namespace/test-repo:1.0.0"
+
+    def test_resolve_model_assets_dir_command_supports_grouped_layout(self, runner, temp_assets_dir):
+        grouped_config = _write_sample_model_config(temp_assets_dir, grouped=True)
+
+        result = runner.invoke(
+            cli, ["resolve-model-assets-dir", "--canonical_name", "org/model", "--assets_path", str(temp_assets_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert result.output.strip() == str(grouped_config.parent)
 
     def test_get_base_image_ref_incomplete_config(self, runner, temp_assets_dir):
         model_dir = temp_assets_dir / "org3" / "model3"
@@ -1123,7 +1160,7 @@ class TestBaseImageConfigRegistryValidator:
         )
         assert config.registry_host == host
 
-    @pytest.mark.parametrize("host", ["evil.io", "", "quay.io", "localhost:5000"])
+    @pytest.mark.parametrize("host", ["evil.io", "", "quay.io", "localhost:5000", "ghcr.io"])
     def test_disallowed_registries_rejected(self, host):
         with pytest.raises(Exception, match="Invalid registry host"):
             BaseImageConfig(
@@ -1142,7 +1179,7 @@ class TestBaseImageConfigRepositoryValidator:
         with pytest.raises(Exception, match="Use the public name 'aim-base'"):
             BaseImageConfig(
                 registry_host="docker.io",
-                base_registry_namespace="silogenai",
+                base_registry_namespace="amdenterpriseai",
                 base_repository="aim-instinct-base",
                 base_tag="0.13",
             )
@@ -1151,7 +1188,7 @@ class TestBaseImageConfigRepositoryValidator:
     def test_public_base_names_accepted(self, base_repository):
         config = BaseImageConfig(
             registry_host="docker.io",
-            base_registry_namespace="silogenai",
+            base_registry_namespace="amdenterpriseai",
             base_repository=base_repository,
             base_tag="0.13",
         )
@@ -1173,7 +1210,7 @@ class TestBaseImageConfigRepositoryValidator:
         """
         config = BaseImageConfig(
             registry_host="docker.io",
-            base_registry_namespace="silogenai",
+            base_registry_namespace="amdenterpriseai",
             base_repository=base_repository,
             base_tag="0.13.0",
         )
@@ -1198,8 +1235,8 @@ class TestBaseImageConfigTagValidator:
     def test_aim_repo_valid_base_version(self, base_repository):
         """When base_repository starts with 'aim', base_tag must be a valid AIM base version."""
         config = BaseImageConfig(
-            registry_host="ghcr.io",
-            base_registry_namespace="silogen",
+            registry_host="docker.io",
+            base_registry_namespace="amdenterpriseai",
             base_repository=base_repository,
             base_tag="0.11",
         )
@@ -1213,8 +1250,8 @@ class TestBaseImageConfigTagValidator:
     @pytest.mark.parametrize("base_repository", ["aim-base", "aim-radeon-base", "aim-epyc-base", "aim-cpu-base"])
     def test_aim_repo_valid_base_version_with_suffix(self, tag, base_repository):
         config = BaseImageConfig(
-            registry_host="ghcr.io",
-            base_registry_namespace="silogen",
+            registry_host="docker.io",
+            base_registry_namespace="amdenterpriseai",
             base_repository=base_repository,
             base_tag=tag,
         )
@@ -1225,8 +1262,8 @@ class TestBaseImageConfigTagValidator:
     def test_aim_repo_invalid_base_version_rejected(self, tag, base_repository):
         with pytest.raises(Exception, match="Invalid version format"):
             BaseImageConfig(
-                registry_host="ghcr.io",
-                base_registry_namespace="silogen",
+                registry_host="docker.io",
+                base_registry_namespace="amdenterpriseai",
                 base_repository=base_repository,
                 base_tag=tag,
             )
@@ -1253,8 +1290,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK
         )
@@ -1278,7 +1315,7 @@ class TestValidateConfigCommand:
         config_file.write_text(
             "base_image:\n"
             "  registry_host: docker.io\n"
-            "  base_registry_namespace: silogenai\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-instinct-base\n"
             '  base_tag: "0.13"\n'
         )
@@ -1289,8 +1326,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             "  base_tag: BROKEN\n" + self._TEMPLATES_BLOCK
         )
@@ -1302,8 +1339,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
         )
@@ -1325,8 +1362,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1351,8 +1388,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1385,8 +1422,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1411,8 +1448,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1442,8 +1479,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1471,8 +1508,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n'
             "templates:\n"
@@ -1518,8 +1555,8 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK + "docs:\n  standalone: false\n"
         )
@@ -1531,10 +1568,183 @@ class TestValidateConfigCommand:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             "base_image:\n"
-            "  registry_host: ghcr.io\n"
-            "  base_registry_namespace: silogen\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: amdenterpriseai\n"
             "  base_repository: aim-base\n"
             '  base_tag: "0.11"\n' + self._TEMPLATES_BLOCK + "docs:\n  standalon: false\n"
         )
         result = runner.invoke(cli, ["validate", str(config_file)])
         assert result.exit_code != 0
+
+
+_UPSTREAM_PYTORCH = """base_image:
+  registry_host: docker.io
+  base_registry_namespace: rocm
+  base_repository: pytorch
+  base_tag: rocm7.2.4_ubuntu24.04_py3.12_pytorch_release_2.7.1
+"""
+
+
+def _write_engine_leaf(root: Path, engine_id: str = "aifs", *, dockerfile_key: bool = True, dockerfile: bool = True):
+    leaf = root / "assets" / "instinct" / "engine" / engine_id
+    leaf.mkdir(parents=True)
+    config = _UPSTREAM_PYTORCH
+    if dockerfile_key:
+        config += f"dockerfile: assets/instinct/engine/{engine_id}/Dockerfile\n"
+    (leaf / "config.yaml").write_text(config)
+    if dockerfile:
+        (leaf / "Dockerfile").write_text("ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\n")
+
+
+class TestResolveCiEngineConfig:
+    def test_builds_from_declared_dockerfile_with_its_directory_as_context(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        _write_engine_leaf(tmp_path)
+
+        config = resolve_ci_engine_config("instinct", "aifs")
+
+        assert config.repository == "aim-instinct-engine-aifs"
+        assert config.dockerfile == "assets/instinct/engine/aifs/Dockerfile"
+        assert config.context_path == "assets/instinct/engine/aifs"
+        assert config.base_image_ref == "docker.io/rocm/pytorch:rocm7.2.4_ubuntu24.04_py3.12_pytorch_release_2.7.1"
+
+    def test_dockerfile_under_image_dir_sets_the_context_to_image_dir(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        leaf = tmp_path / "assets" / "instinct" / "engine" / "monai-bentoml"
+        (leaf / "image").mkdir(parents=True)
+        (leaf / "image" / "Dockerfile").write_text("FROM rocm/pytorch\n")
+        (leaf / "config.yaml").write_text(
+            _UPSTREAM_PYTORCH + "dockerfile: assets/instinct/engine/monai-bentoml/image/Dockerfile\n"
+        )
+
+        config = resolve_ci_engine_config("instinct", "monai-bentoml")
+
+        assert config.context_path == "assets/instinct/engine/monai-bentoml/image"
+
+    def test_engine_without_config_fails(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "assets" / "instinct" / "engine" / "stormcast").mkdir(parents=True)
+
+        with pytest.raises(click.UsageError, match="has no config.yaml"):
+            resolve_ci_engine_config("instinct", "stormcast")
+
+    def test_engine_without_dockerfile_key_fails(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        _write_engine_leaf(tmp_path, dockerfile_key=False)
+
+        with pytest.raises(click.UsageError, match="must declare its Dockerfile"):
+            resolve_ci_engine_config("instinct", "aifs")
+
+    def test_declared_dockerfile_must_exist(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        _write_engine_leaf(tmp_path, dockerfile=False)
+
+        with pytest.raises(click.UsageError, match="does not exist"):
+            resolve_ci_engine_config("instinct", "aifs")
+
+    def test_cli_prints_the_config(self, runner, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        _write_engine_leaf(tmp_path)
+
+        result = runner.invoke(
+            cli, ["resolve-engine-build-config", "--accelerator-family", "instinct", "--engine-id", "aifs"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output)["repository"] == "aim-instinct-engine-aifs"
+
+
+class TestBaseLeafWithOwnDockerfile:
+    def _write_base_leaf(self, root: Path, target_id: str, extra: str = "") -> None:
+        leaf = root / "assets" / "instinct" / "base" / target_id
+        leaf.mkdir(parents=True)
+        (leaf / "config.yaml").write_text(
+            "base_image:\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: silogenai\n"
+            "  base_repository: aim-instinct-engine-aifs\n"
+            '  base_tag: "2026.24.0-pr1909-rc1"\n' + extra
+        )
+
+    def test_declared_dockerfile_is_used_and_skips_the_vllm_smoke_test(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"))
+        self._write_base_leaf(tmp_path, "aifs", "dockerfile: assets/instinct/base/aifs/Dockerfile\n")
+        (tmp_path / "assets" / "instinct" / "base" / "aifs" / "Dockerfile").write_text("FROM scratch\n")
+
+        targets = {t.target_id: t for t in resolve_ci_base_image_targets("instinct")}
+
+        assert targets["aifs"].dockerfile == "assets/instinct/base/aifs/Dockerfile"
+        assert targets["aifs"].model_service_validation_supported is False
+        assert targets["aifs"].upstream_image_ref == "docker.io/silogenai/aim-instinct-engine-aifs:2026.24.0-pr1909-rc1"
+        assert targets[LEGACY_VLLM_BASE_TARGET_ID].dockerfile == "docker/Dockerfile.aim-instinct-base"
+
+    def test_base_leaf_without_dockerfile_key_keeps_the_shared_dockerfile(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"))
+        self._write_base_leaf(tmp_path, "aifs")
+
+        targets = {t.target_id: t for t in resolve_ci_base_image_targets("instinct")}
+
+        assert targets["aifs"].dockerfile == "docker/Dockerfile.aim-instinct-base"
+
+    def _with_a_broken_aifs_leaf(self, tmp_path, monkeypatch) -> None:
+        """The default base plus a base leaf whose declared Dockerfile does not exist."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        write_base_config(tmp_path, "instinct", get_accelerator_case("instinct"))
+        self._write_base_leaf(tmp_path, "aifs", "dockerfile: assets/instinct/base/aifs/Dockerfile\n")
+
+    def test_a_missing_declared_dockerfile_does_not_stop_target_discovery(self, tmp_path, monkeypatch):
+        self._with_a_broken_aifs_leaf(tmp_path, monkeypatch)
+
+        targets = {t.target_id: t.dockerfile for t in resolve_ci_base_image_targets("instinct")}
+
+        assert targets == {
+            LEGACY_VLLM_BASE_TARGET_ID: "docker/Dockerfile.aim-instinct-base",
+            "aifs": "assets/instinct/base/aifs/Dockerfile",
+        }
+
+    def test_a_missing_declared_dockerfile_fails_only_that_target(self, runner, tmp_path, monkeypatch):
+        self._with_a_broken_aifs_leaf(tmp_path, monkeypatch)
+
+        broken = runner.invoke(
+            cli, ["resolve-build-config", "--accelerator-family", "instinct", "--base-target-id", "aifs"]
+        )
+        default = runner.invoke(cli, ["resolve-build-config", "--accelerator-family", "instinct"])
+
+        assert broken.exit_code != 0
+        assert "declares dockerfile 'assets/instinct/base/aifs/Dockerfile', which does not exist" in broken.output
+        assert default.exit_code == 0, default.output
+        assert json.loads(default.output)["base_target_id"] == LEGACY_VLLM_BASE_TARGET_ID
+
+
+class TestValidateDeclaredDockerfile:
+    """A declared dockerfile is repo-root-relative, so validate checks it against the repository."""
+
+    def _config(self, tmp_path: Path, dockerfile: str) -> Path:
+        config = tmp_path / "config.yaml"
+        config.write_text(
+            "base_image:\n"
+            "  registry_host: docker.io\n"
+            "  base_registry_namespace: rocm\n"
+            "  base_repository: pytorch\n"
+            "  base_tag: latest\n"
+            "templates:\n"
+            "  readme: docs/templates/README.md\n"
+            "  deployment: docs/templates/DEPLOYMENT.md\n"
+            f"dockerfile: {dockerfile}\n"
+        )
+        return config
+
+    def test_a_missing_declared_dockerfile_fails_validation(self, runner, tmp_path):
+        result = runner.invoke(cli, ["validate", str(self._config(tmp_path, "docker/Dockerfile.missing"))])
+
+        assert result.exit_code != 0
+        assert "declared dockerfile 'docker/Dockerfile.missing' does not exist" in result.output
+
+    def test_an_existing_declared_dockerfile_passes_validation(self, runner, tmp_path):
+        result = runner.invoke(cli, ["validate", str(self._config(tmp_path, "docker/Dockerfile.aim"))])
+
+        assert result.exit_code == 0, result.output

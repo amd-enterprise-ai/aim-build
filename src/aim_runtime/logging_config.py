@@ -12,23 +12,23 @@ import logging
 import sys
 
 
-def configure_logging(root_log_level: str = "WARNING", aim_log_level: str = "INFO") -> None:
+def configure_logging(root_log_level: str = "INFO", aim_log_level: str = "INFO") -> None:
     """
     Configure logging for the AIM runtime with separate controls for root and AIM loggers.
 
     Args:
         root_log_level: Log level for the root logger (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-                       Controls third-party and external package logging. Default: WARNING.
+                       Controls third-party and external package logging. Default: INFO.
         aim_log_level: Log level for aim_runtime package loggers (DEBUG, INFO, WARNING, ERROR, CRITICAL).
                       Controls AIM-specific logging. Default: INFO.
 
     Note:
         - Root logger controls all loggers by default, but aim_runtime loggers override this
         - For maximum verbosity, set both to DEBUG
-        - For production, use WARNING for root and INFO for aim_runtime (defaults)
+        - Both default to INFO
     """
     # Parse log level strings to logging constants
-    root_level = getattr(logging, root_log_level.upper(), logging.WARNING)
+    root_level = getattr(logging, root_log_level.upper(), logging.INFO)
     aim_level = getattr(logging, aim_log_level.upper(), logging.INFO)
 
     # Reset the global logging.disable() level so that third-party libraries

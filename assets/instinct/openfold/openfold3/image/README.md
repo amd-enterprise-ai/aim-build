@@ -87,13 +87,13 @@ command, and execs it.
 |---|---|---|
 | `AIM_ID` | `openfold/openfold3` | Selects this model's profile dir. |
 | `AIM_PROFILE_ID` | `bentoml-mi300x-fp16-tp<N>-latency`, N ∈ {1, 2, 4, 8} | Pins one OF3 profile explicitly, so selection cannot depend on detected hardware. All four share the same recipe and differ only in accelerator count. See "TorchInductor" below for what they compile. |
-| `AIM_ACCELERATOR_COUNT` | `1`, `2`, `4` or `8` | Must match the chosen profile's `accelerator_count`, and also fixes the worker count. The AIM accelerator detector reads sysfs and may report all physical GPUs on the host; this override constrains profile selection. |
+| `AIM_ACCELERATOR_COUNT` | `auto`, `1`, `2`, `4` or `8` | Constrains profile selection. The selected profile's `accelerator_count` is forwarded to BentoML and fixes the worker count. Set an integer when the detector may report more physical GPUs than the deployment should use. |
 | `AIM_PORT` | `8000` (default) | Port BentoML binds. |
 
 ### Concurrency
 
 OpenFold3 has no tensor parallelism, so the `tpN` profiles are **data
-parallel**: `AIM_ACCELERATOR_COUNT=N` runs N BentoML
+parallel**: a profile with `accelerator_count=N` runs N BentoML
 [workers](https://docs.bentoml.com/en/latest/build-with-bentoml/parallelize-requests.html)
 — separate processes, each with one accelerator pinned — and the deployment
 serves **up to** N predictions concurrently. A worker handles one request at a

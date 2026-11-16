@@ -1,0 +1,24 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Engine image: BentoML and the Aurora serving code on top of the public ROCm
+# PyTorch image.
+#
+# base_image is what this builds FROM, and mirrors the BASE_IMAGE default in the
+# Dockerfile.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: rocm
+  base_repository: pytorch
+  base_tag: rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1
+specialized: true
+
+dockerfile: assets/instinct/engine/aurora/Dockerfile
+
+templates:
+  readme: docs/templates/README.md
+  deployment: docs/templates/DEPLOYMENT.bentoml.md
+# The engine is not an AIM; only the model images built on it are documented.
+docs:
+  standalone: false

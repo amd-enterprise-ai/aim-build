@@ -73,6 +73,30 @@ def test_canonical_name_check_accepts_explicit_precommit_path(runner, asset_tree
     assert runner.invoke(cli, ["check-canonical-name", "--assets_path", str(asset_tree), str(metadata)]).exit_code == 0
 
 
+@pytest.mark.parametrize(("canonical_name", "exit_code"), [("ecmwf/aifs-single-2.0", 0), ("model/ecmwf", 1)])
+def test_canonical_name_of_a_grouped_model_leaf_omits_the_model_directory(
+    runner, asset_tree, canonical_name, exit_code
+):
+    leaf = asset_tree / "instinct" / "model" / "ecmwf" / "aifs-single-2.0"
+    leaf.mkdir(parents=True)
+    (leaf / "metadata.yaml").write_text(
+        f"com:\n  amd:\n    aim:\n      model:\n        canonicalName: {canonical_name}\n"
+    )
+    assert invoke(runner, "check-canonical-name", asset_tree).exit_code == exit_code
+
+
+def test_canonical_name_check_skips_engine_leaves(runner, asset_tree):
+    leaf = asset_tree / "instinct" / "engine" / "aifs"
+    leaf.mkdir(parents=True)
+    (leaf / "metadata.yaml").write_text("org:\n  opencontainers:\n    image:\n      vendor: AMD\n")
+    assert (
+        runner.invoke(
+            cli, ["check-canonical-name", "--assets_path", str(asset_tree), str(leaf / "metadata.yaml")]
+        ).exit_code
+        == 0
+    )
+
+
 def test_placeholder_check_skips_unlisted_extensions(runner, asset_tree):
     (asset_tree / "instinct" / "acme" / "widget" / "notes.rst").write_text("__AIM_ID__\n")
     assert invoke(runner, "check-placeholders", asset_tree).exit_code == 0

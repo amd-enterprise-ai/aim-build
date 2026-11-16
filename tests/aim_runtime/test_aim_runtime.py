@@ -6,15 +6,19 @@
 Tests for AIMRuntime class including dry-run functionality.
 """
 
+import hashlib
+import os
 import sys
+import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from aim_common import Engine, Precision, ProfileMetadata
+from aim_common import DownloadFilter, Engine, Precision, ProfileMetadata
 from aim_runtime.aim_runtime import AIMRuntime
 from aim_runtime.config import AIMConfig
+from aim_runtime.model_cache_resolver import write_download_completion_marker
 from aim_runtime.object_model import Profile, ProfileHandling
 from aim_runtime.profile_registry import ProfileRegistry
 from aim_utils.yaml_utils import dump_yaml
@@ -66,6 +70,7 @@ def mock_profile():
     profile.metadata.accelerator_model = None
     profile.env_vars = {}
     profile.engine_args = {}
+    profile.download_filter = None
     return profile
 
 
@@ -185,6 +190,60 @@ class TestAIMRuntimeDryRun:
         assert "exec python -m vllm.entrypoints.openai.api_server" in result
 
 
+class TestAIMRuntimeDownloadToCache:
+    def test_uses_selected_profile_download_filter(self, mock_config, mock_profile, tmp_path):
+        profile_path = tmp_path / "test_profile.yaml"
+        profile_path.write_text("model_id: org/model\n")
+        mock_profile.profile_handling.path = str(profile_path)
+        mock_profile.download_filter = DownloadFilter(exclude=["*.bin"])
+
+        with (
+            patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec,
+            patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps,
+            patch("aim_runtime.aim_runtime.CommandGenerator"),
+        ):
+            mock_lec.return_value.engine = None
+            runtime = AIMRuntime(mock_config)
+            runtime.profile_selector = mock_ps.return_value
+            runtime.profile_selector.find_profile.return_value = mock_profile
+            runtime.storage_registry = Mock()
+            runtime.storage_registry.estimate_storage.return_value = None
+            runtime.storage_registry.download.return_value = "/cache/org/model"
+
+            result = runtime.download_to_cache()
+
+        assert result == "/cache/org/model"
+        runtime.storage_registry.download.assert_called_once_with(
+            "hf://org/model",
+            mock_config.cache_path,
+            use_hf_cache=False,
+            download_filter=mock_profile.download_filter,
+        )
+
+    def test_explicit_model_id_does_not_use_profile_download_filter(self, mock_config):
+        with (
+            patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec,
+            patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps,
+            patch("aim_runtime.aim_runtime.CommandGenerator"),
+        ):
+            mock_lec.return_value.engine = None
+            runtime = AIMRuntime(mock_config)
+            runtime.profile_selector = mock_ps.return_value
+            runtime.storage_registry = Mock()
+            runtime.storage_registry.estimate_storage.return_value = None
+            runtime.storage_registry.download.return_value = "/cache/org/model"
+
+            runtime.download_to_cache(model_id="hf://org/model", use_hf_cache=True)
+
+        runtime.profile_selector.find_profile.assert_not_called()
+        runtime.storage_registry.download.assert_called_once_with(
+            "hf://org/model",
+            mock_config.cache_path,
+            use_hf_cache=True,
+            download_filter=None,
+        )
+
+
 class TestAIMRuntimeServe:
     """Test suite for AIMRuntime serve functionality."""
 
@@ -211,6 +270,49 @@ class TestAIMRuntimeServe:
                             mock_supervised.assert_called_once_with(
                                 ["python", "-m", "vllm.entrypoints.openai.api_server"], watcher=None
                             )
+
+    @pytest.mark.parametrize("cache_state", ["missing", "unmarked", "complete"])
+    def test_serve_downloads_filtered_model_only_when_not_cached(
+        self,
+        mock_config,
+        mock_profile,
+        tmp_path,
+        cache_state,
+    ):
+        mock_config.cache_path = str(tmp_path)
+        mock_profile.model_id = "org/model"
+        mock_profile.download_filter = DownloadFilter()
+        command_list = ["python", "-m", "vllm.entrypoints.openai.api_server"]
+        if cache_state != "missing":
+            local_path = tmp_path / "org" / "model"
+            local_path.mkdir(parents=True)
+            if cache_state == "complete":
+                write_download_completion_marker(str(local_path), mock_profile.download_filter)
+
+        with patch("aim_runtime.aim_runtime.load_engine_config") as mock_lec:
+            mock_lec.return_value.engine = None
+            with patch("aim_runtime.aim_runtime.ProfileSelector") as mock_ps:
+                with patch("aim_runtime.aim_runtime.CommandGenerator") as mock_cg:
+                    with patch("aim_runtime.aim_runtime.shutil.which", return_value="/usr/bin/python"):
+                        with patch.object(AIMRuntime, "_serve_supervised"):
+                            runtime = AIMRuntime(mock_config)
+                            runtime.profile_selector = mock_ps.return_value
+                            runtime.command_generator = mock_cg.return_value
+                            runtime.profile_selector.find_profile.return_value = mock_profile
+                            runtime.command_generator.generate_execution_params.return_value = (command_list, {})
+                            runtime.storage_registry = Mock()
+                            runtime.storage_registry.download.return_value = "/cache/org/model"
+
+                            runtime.serve()
+
+        if cache_state == "complete":
+            runtime.storage_registry.download.assert_not_called()
+        else:
+            runtime.storage_registry.download.assert_called_once_with(
+                "hf://org/model",
+                mock_config.cache_path,
+                download_filter=mock_profile.download_filter,
+            )
 
     def test_serve_uses_execv_when_supervisor_is_disabled(self, mock_config, mock_profile):
         mock_config.serve_supervisor = False
@@ -500,26 +602,25 @@ class TestAddStorageEstimates:
 class TestInstallAiterPrebuiltKernels:
     """Test suite for _install_aiter_prebuilt_kernels function."""
 
-    @staticmethod
-    def _inject_fake_aiter(monkeypatch, aiter_init_path):
-        """Pre-register a fake `aiter` module in sys.modules so the function-local
-        `import aiter` in _install_aiter_prebuilt_kernels picks up our mock.
+    @pytest.fixture(autouse=True)
+    def _isolated_environ(self):
+        """The function under test sets AITER_* env vars directly."""
+        with patch.dict(os.environ):
+            for var in ("AITER_JIT_DIR", "AITER_ROOT_DIR"):
+                os.environ.pop(var, None)
+            yield
 
-        Necessary because some upstream base images (e.g. vllm-openai-rocm v0.21+)
-        execute rocminfo at `aiter` import time, which fails on no-GPU CI runners.
-        Patching `aim_runtime.aim_runtime.aiter` does not help — the name is
-        imported inside the function body, not at module load time.
-        """
-        fake_aiter = MagicMock()
-        fake_aiter.__file__ = str(aiter_init_path)
-        monkeypatch.setitem(sys.modules, "aiter", fake_aiter)
+    @staticmethod
+    def _use_fake_aiter_package(monkeypatch, aiter_init_path):
+        """Make the empty package at aiter_init_path the one find_spec("aiter") resolves."""
+        monkeypatch.delitem(sys.modules, "aiter", raising=False)
+        monkeypatch.syspath_prepend(str(aiter_init_path.parent.parent))
 
     @staticmethod
     def _redirect_prebuilt_path(monkeypatch, target_dir):
         """Patch `Path` inside aim_runtime.aim_runtime so the hard-coded
         /workspace/aiter-jit-prebuilt/<arch> path resolves to a tmp dir,
-        while all other Path() calls (including Path(aiter.__file__)) pass
-        through to the real pathlib.Path unchanged.
+        while all other Path() calls pass through to the real pathlib.Path.
         """
         real_path = Path
 
@@ -544,7 +645,7 @@ class TestInstallAiterPrebuiltKernels:
         (prebuilt_dir / "kernel1.so").write_text("kernel-1-content")
         (prebuilt_dir / "kernel2.so").write_text("kernel-2-content")
 
-        self._inject_fake_aiter(monkeypatch, aiter_init)
+        self._use_fake_aiter_package(monkeypatch, aiter_init)
         self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
         monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: "gfx942")
 
@@ -552,47 +653,37 @@ class TestInstallAiterPrebuiltKernels:
 
         assert (aiter_jit_dir / "kernel1.so").read_text() == "kernel-1-content"
         assert (aiter_jit_dir / "kernel2.so").read_text() == "kernel-2-content"
+        assert "AITER_JIT_DIR" not in os.environ and "AITER_ROOT_DIR" not in os.environ
 
-    def test_returns_early_for_unknown_gpu(self):
-        """Test that function returns early when GPU arch cannot be resolved."""
+    def test_writable_jit_dir_without_prebuilt_kernels_is_untouched(self, tmp_path, monkeypatch):
+        """Unknown GPU arch on a writable install: nothing to install, AITER keeps its defaults."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
 
-        with patch("aim_runtime.aim_runtime.get_gfx_arch", return_value=None):
-            # Should return early without attempting any imports or file operations
-            _install_aiter_prebuilt_kernels("UNKNOWN_GPU")
-            # If it doesn't raise, test passes
+        aiter_jit_dir = tmp_path / "aiter" / "jit"
+        aiter_jit_dir.mkdir(parents=True)
+        aiter_init = tmp_path / "aiter" / "__init__.py"
+        aiter_init.touch()
+        self._use_fake_aiter_package(monkeypatch, aiter_init)
+        monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: None)
 
-    def test_returns_early_when_prebuilt_dir_missing(self):
-        """Test that function returns early when prebuilt directory doesn't exist."""
-        from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
+        _install_aiter_prebuilt_kernels("UNKNOWN_GPU")
 
-        with patch("aim_runtime.aim_runtime.get_gfx_arch", return_value="gfx942"):
-            with patch("aim_runtime.aim_runtime.Path") as mock_path:
-                mock_prebuilt_dir = Mock()
-                mock_prebuilt_dir.is_dir.return_value = False
-                mock_path.return_value = mock_prebuilt_dir
+        assert list(aiter_jit_dir.iterdir()) == []
+        assert "AITER_JIT_DIR" not in os.environ
 
-                _install_aiter_prebuilt_kernels("MI300X")
-                # Should return without importing aiter
-
-    def test_handles_aiter_import_error(self, tmp_path):
-        """Test that function handles ImportError gracefully when aiter is not installed."""
+    def test_skips_when_aiter_not_installed(self, tmp_path, monkeypatch):
+        """Without an AITER package, nothing is installed and no env vars are set."""
         from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
 
         prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
         prebuilt_dir.mkdir(parents=True)
+        self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
+        monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: "gfx942")
+        monkeypatch.setitem(sys.modules, "aiter", None)
 
-        with patch("aim_runtime.aim_runtime.get_gfx_arch", return_value="gfx942"):
-            with patch("aim_runtime.aim_runtime.Path") as mock_path:
-                mock_prebuilt = Mock()
-                mock_prebuilt.is_dir.return_value = True
-                mock_path.return_value = mock_prebuilt
+        _install_aiter_prebuilt_kernels("MI300X")
 
-                # Mock the import to raise ImportError
-                with patch.dict("sys.modules", {"aiter": None}):
-                    with patch("builtins.__import__", side_effect=ImportError("aiter not found")):
-                        _install_aiter_prebuilt_kernels("MI300X")
-                        # Should log debug message and return gracefully
+        assert "AITER_JIT_DIR" not in os.environ
 
     def test_skips_existing_kernels(self, tmp_path, monkeypatch):
         """Existing .so files in AITER's jit dir must NOT be overwritten,
@@ -611,7 +702,7 @@ class TestInstallAiterPrebuiltKernels:
         (prebuilt_dir / "kernel1.so").write_text("would-overwrite-but-skipped")
         (prebuilt_dir / "kernel2.so").write_text("freshly-installed")
 
-        self._inject_fake_aiter(monkeypatch, aiter_init)
+        self._use_fake_aiter_package(monkeypatch, aiter_init)
         self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
         monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: "gfx942")
 
@@ -619,6 +710,84 @@ class TestInstallAiterPrebuiltKernels:
 
         assert (aiter_jit_dir / "kernel1.so").read_text() == "preserved-content"
         assert (aiter_jit_dir / "kernel2.so").read_text() == "freshly-installed"
+
+    @pytest.mark.parametrize("gfx_arch", ["gfx942", None])
+    def test_read_only_jit_dir_redirects_to_temp_dir(self, tmp_path, monkeypatch, gfx_arch):
+        """A read-only package JIT dir is left untouched; package modules and pre-built
+        kernels (if any for the arch) are symlinked into the reused AITER_JIT_DIR,
+        package modules taking precedence and broken links being removed or replaced."""
+        from aim_runtime.aim_runtime import _install_aiter_prebuilt_kernels
+
+        aiter_jit_dir = tmp_path / "aiter" / "jit"
+        aiter_jit_dir.mkdir(parents=True)
+        aiter_init = tmp_path / "aiter" / "__init__.py"
+        aiter_init.touch()
+        (aiter_jit_dir / "kernel1.so").write_text("system-kernel1")
+
+        prebuilt_dir = tmp_path / "aiter-jit-prebuilt" / "gfx942"
+        prebuilt_dir.mkdir(parents=True)
+        (prebuilt_dir / "kernel1.so").write_text("prebuilt-kernel1")
+        (prebuilt_dir / "kernel2.so").write_text("prebuilt-kernel2")
+
+        self._use_fake_aiter_package(monkeypatch, aiter_init)
+        self._redirect_prebuilt_path(monkeypatch, prebuilt_dir)
+        monkeypatch.setattr("aim_runtime.aim_runtime.get_gfx_arch", lambda _: gfx_arch)
+        real_access = os.access
+        monkeypatch.setattr(os, "access", lambda p, m: Path(p) != aiter_jit_dir and real_access(p, m))
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+        monkeypatch.setenv("AIM_UPSTREAM_IMAGE_REF", "rocm/vllm:v1")
+        monkeypatch.setattr("aim_runtime.aim_runtime._aiter_version", lambda: "1.2")
+        build_id = hashlib.sha256(b"rocm/vllm:v1\n1.2").hexdigest()[:12]
+        target_dir = tmp_path / f"aiter-jit-{build_id}-{gfx_arch or 'none'}-{os.getuid()}"
+        target_dir.mkdir(mode=0o700)
+        (target_dir / "kernel1.so").symlink_to(tmp_path / "gone" / "kernel1.so")
+        (target_dir / "orphan.so").symlink_to(tmp_path / "gone" / "orphan.so")
+
+        _install_aiter_prebuilt_kernels("MI300X")
+
+        assert os.environ["AITER_JIT_DIR"] == str(target_dir)
+        assert os.environ["AITER_ROOT_DIR"] == str(target_dir / "root")
+        assert (target_dir / "kernel1.so").is_symlink()
+        assert (target_dir / "kernel1.so").read_text() == "system-kernel1"
+        if gfx_arch:
+            assert (target_dir / "kernel2.so").is_symlink()
+            assert (target_dir / "kernel2.so").read_text() == "prebuilt-kernel2"
+        else:
+            assert not (target_dir / "kernel2.so").exists()
+        assert not os.path.lexists(target_dir / "orphan.so")
+        assert sorted(f.name for f in aiter_jit_dir.iterdir()) == ["kernel1.so"]
+
+
+class TestPrivateTempDir:
+    @pytest.fixture(autouse=True)
+    def _tempdir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    def test_creates_and_reuses_private_directory(self, tmp_path):
+        from aim_runtime.aim_runtime import _private_temp_dir
+
+        assert _private_temp_dir("cache") == tmp_path / "cache"
+        assert (tmp_path / "cache").stat().st_mode & 0o777 == 0o700
+        assert _private_temp_dir("cache") == tmp_path / "cache"
+
+    @pytest.mark.parametrize("planted", ["symlink", "foreign_owner", "group_writable"])
+    def test_untrusted_directory_falls_back_to_fresh_dir(self, tmp_path, monkeypatch, planted):
+        from aim_runtime.aim_runtime import _private_temp_dir
+
+        (tmp_path / "elsewhere").mkdir()
+        if planted == "symlink":
+            (tmp_path / "cache").symlink_to(tmp_path / "elsewhere")
+        elif planted == "foreign_owner":
+            (tmp_path / "cache").mkdir()
+            monkeypatch.setattr(os, "getuid", lambda: os.stat(tmp_path).st_uid + 1)
+        else:
+            (tmp_path / "cache").mkdir()
+            (tmp_path / "cache").chmod(0o770)
+
+        result = _private_temp_dir("cache")
+
+        assert result.parent == tmp_path and result.name.startswith("cache-")
+        assert result.stat().st_mode & 0o777 == 0o700
 
 
 class TestAdapterWatcherReadiness:

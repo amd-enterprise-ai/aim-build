@@ -8,7 +8,12 @@ import os
 
 import pytest
 
-from aim_runtime.model_cache_resolver import ModelCacheResolver, ResolvedModelPath
+from aim_common import DownloadFilter
+from aim_runtime.model_cache_resolver import (
+    ModelCacheResolver,
+    ResolvedModelPath,
+    write_download_completion_marker,
+)
 
 
 @pytest.fixture
@@ -131,6 +136,38 @@ def test_check_local_dir_exists_false(cache_resolver):
     """Test check_local_dir_exists when directory doesn't exist."""
     model_id = "meta-llama/Llama-3.1-8B-Instruct"
     assert cache_resolver.check_local_dir_exists(model_id) is False
+
+
+@pytest.mark.parametrize("marker_filter", [None, DownloadFilter(exclude=["*.bin"])])
+def test_check_local_dir_exists_with_matching_filter(
+    cache_resolver,
+    temp_cache_dir,
+    marker_filter,
+):
+    model_id = "meta-llama/Llama-3.1-8B-Instruct"
+    local_path = os.path.join(temp_cache_dir, "meta-llama", "Llama-3.1-8B-Instruct")
+    os.makedirs(local_path, exist_ok=True)
+    write_download_completion_marker(local_path, marker_filter)
+
+    requested_filter = marker_filter or DownloadFilter()
+    assert cache_resolver.check_local_dir_exists(model_id, requested_filter) is True
+
+
+def test_check_local_dir_exists_rejects_unmarked_filtered_directory(cache_resolver, temp_cache_dir):
+    model_id = "meta-llama/Llama-3.1-8B-Instruct"
+    local_path = os.path.join(temp_cache_dir, "meta-llama", "Llama-3.1-8B-Instruct")
+    os.makedirs(local_path, exist_ok=True)
+
+    assert cache_resolver.check_local_dir_exists(model_id, DownloadFilter()) is False
+
+
+def test_check_local_dir_exists_rejects_different_filter(cache_resolver, temp_cache_dir):
+    model_id = "meta-llama/Llama-3.1-8B-Instruct"
+    local_path = os.path.join(temp_cache_dir, "meta-llama", "Llama-3.1-8B-Instruct")
+    os.makedirs(local_path, exist_ok=True)
+    write_download_completion_marker(local_path, DownloadFilter(exclude=["*.bin"]))
+
+    assert cache_resolver.check_local_dir_exists(model_id, DownloadFilter(include=["*.safetensors"])) is False
 
 
 def test_check_hf_cache_exists_true(cache_resolver, temp_cache_dir):

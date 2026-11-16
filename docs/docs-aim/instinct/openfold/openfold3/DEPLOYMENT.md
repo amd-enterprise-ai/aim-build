@@ -23,9 +23,8 @@ This AIM has an API of its own, shaped by what the model takes and returns. See
 
 ### 1.1 Running the container
 
-Pin the profile explicitly, so that the selection cannot depend on the hardware the runtime detects. Set
-`AIM_PROFILE_ID` to one of the profiles listed in the [README](README.md), and set `AIM_ACCELERATOR_COUNT` to the
-accelerator count of that profile.
+Set `AIM_PROFILE_ID` to one of the profiles listed in the [README](README.md). The runtime then uses that profile
+and does not select a profile from the detected hardware.
 
 ```bash
 mkdir -p /path/to/model-cache
@@ -33,16 +32,12 @@ mkdir -p /path/to/model-cache
 docker run \
   -e AIM_ID=openfold/openfold3 \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
-
-`AIM_ACCELERATOR_COUNT` must agree with the `accelerator_count` of the selected profile. Set an integer, not `auto`,
-because some AIMs read the value directly.
 
 ### 1.2 Customizing deployment with environment variables
 
@@ -52,7 +47,6 @@ Customize your deployment with optional environment variables:
 docker run \
   -e AIM_ID=openfold/openfold3 \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_CACHE_PATH=/workspace/model-cache \
   -e AIM_LOG_LEVEL=INFO \
   -e AIM_PORT=8080 \
@@ -62,6 +56,10 @@ docker run \
   -p 8080:8080 \
   amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
+
+Without `AIM_PROFILE_ID`, the runtime selects a profile from the detected hardware.
+`AIM_ACCELERATOR_COUNT` changes the accelerator count that the selection uses. The runtime does not use it when
+`AIM_PROFILE_ID` is set.
 
 ## 2. Model caching for production
 
@@ -77,7 +75,6 @@ If the cache must be at a different path, set `AIM_CACHE_PATH` and mount the vol
 docker run \
   -e AIM_ID=openfold/openfold3 \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_CACHE_PATH=/mnt/aim-cache \
   -v /path/to/model-cache:/mnt/aim-cache \
   --device=/dev/kfd --device=/dev/dri \
@@ -124,8 +121,6 @@ spec:
               value: "openfold/openfold3"
             - name: AIM_PROFILE_ID
               value: "bentoml-mi300x-fp16-tp1-latency"
-            - name: AIM_ACCELERATOR_COUNT
-              value: "1"
             - name: AIM_CACHE_PATH
               value: "/workspace/model-cache"
             - name: AIM_LOG_LEVEL_ROOT
@@ -153,6 +148,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 360
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
@@ -183,6 +185,10 @@ spec:
 The startup probe gives the start up to one hour: 360 checks at 10-second intervals. That covers a first start that
 downloads weights, as described in section 2. The pod stays out of the service endpoints until this probe succeeds,
 so no request reaches a model that is still loading. A later start reads the cache and succeeds much sooner.
+
+The readiness probe checks `/readyz` every 10 seconds. After three failed checks (30 seconds) Kubernetes takes the
+pod out of the service endpoints, so a worker that fails after a successful start stops receiving requests until it
+recovers. The liveness probe below is slower on purpose and only restarts the container.
 
 Kubernetes runs the liveness probe only after the startup probe succeeds. The liveness probe then accepts 30 failed
 checks, which is five minutes, before it restarts the container. This tolerates a model that does more work after the
@@ -510,7 +516,6 @@ without the `.yaml` extension. The [README](README.md) lists the available profi
 docker run \
   -e AIM_ID=openfold/openfold3 \
   -e AIM_PROFILE_ID=<PROFILE_ID> \
-  -e AIM_ACCELERATOR_COUNT=<ACCELERATOR_COUNT_OF_THAT_PROFILE> \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
@@ -518,8 +523,8 @@ docker run \
   amdenterpriseai/aim-instinct-model-openfold-openfold3:2026.14.0
 ```
 
-`AIM_ACCELERATOR_COUNT` must match the `accelerator_count` of the selected profile. If the two disagree, the
-container stops at startup with a profile selection error.
+Section 1.1 describes how the runtime uses `AIM_PROFILE_ID`. If the profile uses a different number of accelerators
+than the default profile, change the accelerator count under `resources` in the section 3.1 manifest to match.
 
 ## 6. Monitoring and troubleshooting
 
@@ -548,7 +553,6 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   -e AIM_ID=openfold/openfold3 \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
@@ -586,7 +590,15 @@ docker run \
 * **The container restarts after it answers on `/healthz`.** The liveness probe accepts five minutes of failed
   checks. If the model does more work after the health endpoint answers, and that work takes longer, raise
   `failureThreshold` on the liveness probe.
-* **The container stops with a profile selection error.** `AIM_PROFILE_ID` and `AIM_ACCELERATOR_COUNT` must agree.
+* **The container stops with a profile selection error.** The error message gives the cause.
+  * If `AIM_PROFILE_ID` is set, the ID matches no profile of this AIM. Compare it with the [README](README.md) or the
+    output of `list-profiles` (see section 6.4).
+  * If the error lists profile IDs, the matching profiles must be selected explicitly. Set `AIM_PROFILE_ID` to one of
+    them.
+  * If no profile is compatible, the error counts the profiles per reason, such as `accelerator_mismatch` or
+    `precision_mismatch`. Compare the `Detected Accelerator` and `Accelerator Count` lines in the log, and any
+    `AIM_PRECISION` or `AIM_METRIC` you set, with the profile table in the [README](README.md). Or set
+    `AIM_PROFILE_ID` to a profile from the README (see section 1.1).
 * **`/healthz` does not answer yet.** The service binds the port only after the model is loaded. Read the container
   logs to see how far startup got.
 

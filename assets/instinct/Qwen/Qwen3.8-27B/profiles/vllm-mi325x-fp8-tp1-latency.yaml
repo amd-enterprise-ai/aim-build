@@ -16,7 +16,7 @@ metadata:
   metric: latency
   precision: fp8
   primary: true
-  type: unoptimized
+  type: optimized
 engine_args:
   attention-backend: ROCM_AITER_FA
   dtype: auto

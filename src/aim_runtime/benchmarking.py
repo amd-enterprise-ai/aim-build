@@ -30,6 +30,7 @@ from aim_common.engine_args import (
     engine_flag_enabled,
     tokenizer_mode_from_engine_args,
 )
+from aim_runtime.benchmark_suites import select_benchmark_suite
 from aim_runtime.utils import read_yaml
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ METRIC_PATTERNS = {
     "total_generated_tokens": re.compile(r"Total generated tokens:\s*(\d+)"),
     "req_throughput": re.compile(r"Request throughput.*?:\s*([\d.]+)"),
     "output_tok_throughput": re.compile(r"Output token throughput.*?:\s*([\d.]+)"),
-    "total_tok_throughput": re.compile(r"Total Token throughput.*?:\s*([\d.]+)"),
+    "total_tok_throughput": re.compile(r"Total token throughput.*?:\s*([\d.]+)"),
     "mean_ttft": re.compile(r"Mean TTFT.*?:\s*([\d.]+)"),
     "median_ttft": re.compile(r"Median TTFT.*?:\s*([\d.]+)"),
     "p75_ttft": re.compile(r"P75 TTFT.*?:\s*([\d.]+)"),
@@ -120,6 +121,7 @@ class AIMBenchmark:
     ):
         self.timeout_seconds = timeout_seconds
         self.profile_id = os.getenv("AIM_PROFILE_ID") or os.getenv("PROFILE_ID")
+        self.accelerator_type = os.getenv("AIM_ACCELERATOR_TYPE", "gpu").lower()
         self.accelerator_count = None
         if self.profile_id:
             match = re.search(r"-tp(\d+)-", self.profile_id)
@@ -166,30 +168,37 @@ class AIMBenchmark:
         # Parse config_suites format
         # Allow environment variable to override active_config from YAML
         active_config = os.getenv("ACTIVE_SUITE")
-
-        # If active_config is empty or not provided, auto-select based on accelerator count from profile
-        if not active_config:
-            acc_count_suite_map = raw_config.get("accelerator_count_suite_map", {})
-
-            if self.accelerator_count and acc_count_suite_map:
-                active_config = acc_count_suite_map.get(self.accelerator_count)
-                if active_config:
-                    logger.info(
-                        "Auto-selected suite '%s' based on accelerator count %s",
-                        active_config,
-                        self.accelerator_count,
-                    )
-                else:
-                    logger.warning(
-                        "No suite mapping found for accelerator count %s, using default", self.accelerator_count
-                    )
-
-            # Fall back to active_config from YAML if auto-selection didn't work
-            if not active_config:
-                active_config = raw_config.get("active_config", "default_opt")
-                logger.info(f"Using default suite from config: '{active_config}'")
-        else:
+        if active_config:
             logger.info(f"Using explicitly provided suite: '{active_config}'")
+
+        # If active_config is empty or not provided, auto-select from the first
+        # matching accelerator rule.
+        if not active_config:
+            rules = raw_config.get("suite_selection")
+            active_config = select_benchmark_suite(
+                rules,
+                accelerator_type=self.accelerator_type,
+                accelerator_count=self.accelerator_count,
+            )
+            if active_config:
+                logger.info(
+                    "Auto-selected suite '%s' for accelerator type '%s' and count %s",
+                    active_config,
+                    self.accelerator_type,
+                    self.accelerator_count,
+                )
+            elif rules:
+                logger.warning(
+                    "No suite rule found for accelerator type '%s' and count %s, using default",
+                    self.accelerator_type,
+                    self.accelerator_count,
+                )
+            else:
+                active_config = self._select_legacy_count_suite(raw_config)
+
+        if not active_config:
+            active_config = raw_config.get("active_config", "default_opt")
+            logger.info(f"Using default suite from config: '{active_config}'")
 
         config_suites = raw_config.get("config_suites", {})
 
@@ -290,6 +299,32 @@ class AIMBenchmark:
 
         logger.info("Resolved engine args for benchmark flags from profile '%s'", profile.profile_id)
         return dict(profile.engine_args or {})
+
+    def _select_legacy_count_suite(self, raw_config: Dict[str, Any]) -> str | None:
+        """Select from ``accelerator_count_suite_map``, the schema that preceded ``suite_selection``.
+
+        A config file written against the released schema is still a supported input to
+        ``benchmark --config``, so honour its mapping rather than falling through to
+        ``active_config`` and silently measuring a different workload.
+        """
+        legacy_map = raw_config.get("accelerator_count_suite_map")
+        if not legacy_map:
+            return None
+
+        logger.warning(
+            "'accelerator_count_suite_map' is deprecated. Replace it with 'suite_selection' rules matching "
+            "'accelerator_count'; support for the old key will be removed in a future release."
+        )
+
+        if not self.accelerator_count:
+            return None
+
+        suite = legacy_map.get(self.accelerator_count)
+        if suite:
+            logger.info("Auto-selected suite '%s' based on accelerator count %s", suite, self.accelerator_count)
+        else:
+            logger.warning("No suite mapping found for accelerator count %s, using default", self.accelerator_count)
+        return suite
 
     def _parse_benchmark_output(self, output: str) -> Dict[str, Any]:
         """Parse vLLM benchmark output using regex patterns from Jenkins pipeline."""

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Adapter directory enumeration for the LoRA contract (ADR-0004).
+"""Adapter directory enumeration for the LoRA contract.
 
 Pure helpers (no engine deps) so they are easy to unit test. The mount layout
 at ``AIM_ADAPTER_SOURCE`` is::

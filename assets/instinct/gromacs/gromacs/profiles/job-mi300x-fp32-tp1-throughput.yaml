@@ -1,0 +1,27 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: gromacs/gromacs
+model_id: gromacs/gromacs
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: job
+  job_type: long_running
+  metric: throughput
+  precision: fp32
+  primary: true
+  type: preview
+engine_args:
+  nsteps: -2
+  nstlist: 200
+  ntmpi: 1
+env_vars:
+  AMD_DIRECT_DISPATCH: '1'
+  GMX_ENABLE_DIRECT_GPU_COMM: '1'
+  GMX_GPU_DISABLE_COMPATIBILITY_CHECK: '1'
+  OMPI_ALLOW_RUN_AS_ROOT: '1'
+  OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: '1'
+  ROC_ACTIVE_WAIT_TIMEOUT: '0'

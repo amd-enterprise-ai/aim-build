@@ -2,8 +2,13 @@
 #
 # SPDX-License-Identifier: MIT
 
-# Global exclude pattern applies to all hooks
+# Global exclude pattern applies to all hooks.
 exclude: \.patch$|^LICENSE
+
+# rocm_triangle/{evoformer,primitives}.py and LICENSE-APACHE-2.0 are vendored verbatim from OpenFold3
+# under Apache-2.0. The hooks that would change them (copyright-check, trailing-whitespace, black,
+# ruff-check) skip them, which keeps the byte-identity that makes the vendoring verifiable.
+# Re-lift from upstream rather than editing.
 
 repos:
 - repo: local
@@ -15,6 +20,7 @@ repos:
     language: python
     pass_filenames: true
     always_run: false
+    exclude: &openfold3_vendored ^assets/instinct/mit/boltz2/image/src/rocm_triangle/((evoformer|primitives)\.py|LICENSE-APACHE-2\.0)$
 
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v6.0.0
@@ -26,7 +32,7 @@ repos:
     exclude: "^docs/docs-aim/.*\\.md$|^docs/templates/.*$"
   - id: check-toml
   - id: trailing-whitespace
-    exclude: "^docs/docs-aim/.*\\.md$|^docs/templates/.*$"
+    exclude: "^docs/docs-aim/.*\\.md$|^docs/templates/.*$|^assets/instinct/mit/boltz2/image/src/rocm_triangle/((evoformer|primitives)\\.py|LICENSE-APACHE-2\\.0)$"
 
 - repo: https://github.com/pre-commit/mirrors-prettier
   rev: v4.0.0-alpha.8
@@ -34,6 +40,10 @@ repos:
   - id: prettier
     files: ^\.github/.*\.ya?ml$
     types: [ yaml ]
+    # Without a pin, pre-commit on a machine with no system Node.js lets nodeenv
+    # install the newest release in nodejs.org/dist/index.json, which can be a
+    # pre-release that nodeenv fails to parse (e.g. 27.0.0-alpha.0.0.0).
+    language_version: 26.13.0
 
 - repo: https://github.com/adrienverge/yamllint.git
   rev: v1.38.0
@@ -80,6 +90,7 @@ repos:
   - id: black
     language_version: python3.12
     args: [ "--config=pyproject.toml" ]
+    exclude: *openfold3_vendored
 
 - repo: https://github.com/astral-sh/ruff-pre-commit
   rev: a56c0b927e6465d37cae3e97d35d4d18ab2b96cd  # frozen: v0.16.9
@@ -89,14 +100,15 @@ repos:
     # unused imports and variables (F401, F841). Without it those are only
     # reported, leaving imports to be sorted by hand on every commit.
     args: [ "--fix", "--config=pyproject.toml" ]
+    exclude: *openfold3_vendored
 
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v2.3.1
   hooks:
   - id: mypy
     args: [ "--config-file=pyproject.toml" ]
-    # Keep in sync with [tool.mypy] exclude in pyproject.toml (same set of paths); see EAI-8215.
-    exclude: ^(tests/|docker/|assets/.+/image/(src|tests)/)
+    # Keep in sync with [tool.mypy] exclude in pyproject.toml (same set of paths)
+    exclude: ^(tests/|docker/|assets/.+/image/(src|tests)/|assets/[^/]+/engine/|assets/[^/]+/base/[^/]+/(src|tests)/)
     language_version: python3.12
     additional_dependencies:
     - types-PyYAML
@@ -107,8 +119,8 @@ repos:
   - id: pytest
     name: pytest
     # Harness unit tests live beside the harness they cover, in
-    # assets/<acc>/<org>/<model>/image/tests/, so they are discovered rather
-    # than listed. Keep in sync with the "Run unit tests" step in
+    # assets/<acc>/<org>/<model>/image/tests/ or base/<base>/tests/ or
+    # engine/<engine>/tests/, so they are discovered rather than listed. Keep in sync with the "Run unit tests" step in
     # .github/workflows/fast-feedback.yaml, which discovers the same directories.
     # Coverage reporting is skipped and tests are run in parallel here (CI still
     # collects coverage) since this hook only needs a pass/fail signal and
@@ -116,7 +128,7 @@ repos:
     # --dist loadscope keeps all tests in a module on one worker, so module-scoped
     # fixtures that claim exclusive resources (e.g. test_harness.py's echo_server,
     # which binds a fixed port) never race across workers.
-    entry: bash -c 'python3 -m pytest tests/ $(find assets -type d -path "*/image/tests") --no-cov -n auto --dist loadscope'
+    entry: bash -c 'python3 -m pytest tests/ $(find assets -type d \( -path "*/image/tests" -o -path "assets/*/base/*/tests" -o -path "assets/*/engine/*/tests" \)) --no-cov -n auto --dist loadscope'
     language: system
     # Skip only paths that can never affect test outcomes (docs, generated
     # reports, editor/tooling config); anything else still triggers a run so
@@ -198,7 +210,7 @@ repos:
     name: "Docs: regenerate README"
     description: >-
       Regenerate README docs for leaves affected by changed asset inputs or
-      shared templates (ADR-0007 Appendix B, Part A). Registry-free, fix-in-place.
+      shared templates. Registry-free, fix-in-place.
     entry: ci/scripts/docs/generate-readme-hook.sh
     language: script
     pass_filenames: true
@@ -218,7 +230,7 @@ repos:
     types: [ yaml ]
     pass_filenames: true
     always_run: false
-    files: ^assets/[^/]+/[^/]+/[^/]+/metadata\.yaml$
+    files: ^assets/[^/]+/([^/]+/[^/]+|model/[^/]+/[^/]+)/metadata\.yaml$
 
 - repo: local
   hooks:

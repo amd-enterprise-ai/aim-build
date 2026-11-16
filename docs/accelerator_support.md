@@ -51,66 +51,106 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <tbody>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">1</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-biohub-esmc-300m/tags">biohub/esmc-300m</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">2</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-bioptimus-h-optimus-0/tags">bioptimus/h-optimus-0</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">3</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-coherelabs-command-a-reasoning-08-2025/tags">CohereLabs/command-a-reasoning-08-2025</a></td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">2</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-r1/tags">deepseek-ai/DeepSeek-R1</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">3</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528/tags">deepseek-ai/DeepSeek-R1-0528</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">4</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1/tags">deepseek-ai/DeepSeek-V3.1</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-cytokineking-freebindcraft/tags">cytokineking/freebindcraft</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">5</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus/tags">deepseek-ai/DeepSeek-V3.1-Terminus</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-dauparas-proteinmpnn/tags">dauparas/proteinmpnn</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">6</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v4-flash-0731/tags">deepseek-ai/DeepSeek-V4-Flash-0731</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-r1/tags">deepseek-ai/DeepSeek-R1</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">7</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-r1-0528/tags">deepseek-ai/DeepSeek-R1-0528</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">8</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1/tags">deepseek-ai/DeepSeek-V3.1</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">9</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v3-1-terminus/tags">deepseek-ai/DeepSeek-V3.1-Terminus</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">10</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-deepseek-ai-deepseek-v4-flash-0731/tags">deepseek-ai/DeepSeek-V4-Flash-0731</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">11</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-facebookresearch-dinov2-vitl14-embedding/tags">facebookresearch/dinov2-vitl14-embedding</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
@@ -120,218 +160,248 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">8</td>
+<td style="border:1px solid #ccc;padding:10px">12</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-3-1b-it/tags">google/gemma-3-1b-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">9</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-3-27b-it/tags">google/gemma-3-27b-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">10</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-12b-it/tags">google/gemma-4-12B-it</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">11</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-26b-a4b-it/tags">google/gemma-4-26B-A4B-it</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-</tr>
-<tr>
-<td style="border:1px solid #ccc;padding:10px">12</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-31b-it/tags">google/gemma-4-31B-it</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">13</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-medgemma-27b-it/tags">google/medgemma-27b-it</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-3-27b-it/tags">google/gemma-3-27b-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">14</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-1-405b-instruct/tags">meta-llama/Llama-3.1-405B-Instruct</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-12b-it/tags">google/gemma-4-12B-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">15</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct/tags">meta-llama/Llama-3.1-8B-Instruct</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-26b-a4b-it/tags">google/gemma-4-26B-A4B-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">16</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-2-1b-instruct/tags">meta-llama/Llama-3.2-1B-Instruct</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-gemma-4-31b-it/tags">google/gemma-4-31B-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">17</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-2-3b-instruct/tags">meta-llama/Llama-3.2-3B-Instruct</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-google-medgemma-27b-it/tags">google/medgemma-27b-it</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">18</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct/tags">meta-llama/Llama-3.3-70B-Instruct</a></td>
-<td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-gromacs-gromacs/tags">gromacs/gromacs</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">19</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-models-muse-glimmer-30b/tags">meta-models/Muse-Glimmer-30B</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-1-405b-instruct/tags">meta-llama/Llama-3.1-405B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">20</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-minimaxai-minimax-m2-5/tags">MiniMaxAI/MiniMax-M2.5</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-1-8b-instruct/tags">meta-llama/Llama-3.1-8B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">21</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-minimaxai-minimax-m3/tags">MiniMaxAI/MiniMax-M3</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-2-1b-instruct/tags">meta-llama/Llama-3.2-1B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">22</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512/tags">mistralai/Ministral-3-14B-Instruct-2512</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-2-3b-instruct/tags">meta-llama/Llama-3.2-3B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">23</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-ministral-3-14b-reasoning-2512/tags">mistralai/Ministral-3-14B-Reasoning-2512</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-llama-llama-3-3-70b-instruct/tags">meta-llama/Llama-3.3-70B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">24</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-large-3-675b-instruct-2512/tags">mistralai/Mistral-Large-3-675B-Instruct-2512</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-meta-models-muse-glimmer-30b/tags">meta-models/Muse-Glimmer-30B</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">25</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-small-24b-instruct-2501/tags">mistralai/Mistral-Small-24B-Instruct-2501</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-minimaxai-minimax-m2-5/tags">MiniMaxAI/MiniMax-M2.5</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">26</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506/tags">mistralai/Mistral-Small-3.2-24B-Instruct-2506</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-minimaxai-minimax-m3/tags">MiniMaxAI/MiniMax-M3</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">27</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1/tags">mistralai/Mixtral-8x22B-Instruct-v0.1</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-ministral-3-14b-instruct-2512/tags">mistralai/Ministral-3-14B-Instruct-2512</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">28</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1/tags">mistralai/Mixtral-8x7B-Instruct-v0.1</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-ministral-3-14b-reasoning-2512/tags">mistralai/Ministral-3-14B-Reasoning-2512</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
-<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
 <td style="border:1px solid #ccc;padding:10px">29</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-target-monai-swinunetr-model-monai-swinunetr/tags">monai/swinunetr</a></td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-large-3-675b-instruct-2512/tags">mistralai/Mistral-Large-3-675B-Instruct-2512</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">30</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-small-24b-instruct-2501/tags">mistralai/Mistral-Small-24B-Instruct-2501</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">31</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mistral-small-3-2-24b-instruct-2506/tags">mistralai/Mistral-Small-3.2-24B-Instruct-2506</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">32</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mixtral-8x22b-instruct-v0-1/tags">mistralai/Mixtral-8x22B-Instruct-v0.1</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">33</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-mistralai-mixtral-8x7b-instruct-v0-1/tags">mistralai/Mixtral-8x7B-Instruct-v0.1</a></td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">34</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-mit-boltz2/tags">mit/boltz2</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">35</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-molecularai-reinvent4/tags">molecularai/reinvent4</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">36</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-monai-spleen-deepedit-annotation/tags">monai/spleen_deepedit_annotation</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
@@ -340,7 +410,27 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">30</td>
+<td style="border:1px solid #ccc;padding:10px">37</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-monai-swinunetr/tags">monai/swinunetr</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">38</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-monai-vista3d/tags">monai/vista3d</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">39</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-monai-wholebody-ct-segmentation/tags">monai/wholeBody_ct_segmentation</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
@@ -350,8 +440,8 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">31</td>
-<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-target-monai-wholebrainseg-large-unest-segmentation-model-monai-wholebrainseg-large-unest-segmentation/tags">monai/wholeBrainSeg_Large_UNEST_segmentation</a></td>
+<td style="border:1px solid #ccc;padding:10px">40</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-monai-wholebrainseg-large-unest-segmentation/tags">monai/wholeBrainSeg_Large_UNEST_segmentation</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
@@ -360,17 +450,17 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">32</td>
+<td style="border:1px solid #ccc;padding:10px">41</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-moonshotai-kimi-k3/tags">moonshotai/Kimi-K3</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">33</td>
+<td style="border:1px solid #ccc;padding:10px">42</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-openai-gpt-oss-120b/tags">openai/gpt-oss-120b</a></td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
@@ -380,17 +470,17 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">34</td>
+<td style="border:1px solid #ccc;padding:10px">43</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-openai-gpt-oss-20b/tags">openai/gpt-oss-20b</a></td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">35</td>
+<td style="border:1px solid #ccc;padding:10px">44</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-openfold-openfold3/tags">openfold/openfold3</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
@@ -400,67 +490,77 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">36</td>
+<td style="border:1px solid #ccc;padding:10px">45</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-235b-a22b/tags">Qwen/Qwen3-235B-A22B</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">37</td>
+<td style="border:1px solid #ccc;padding:10px">46</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-32b/tags">Qwen/Qwen3-32B</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 <td style="border:1px solid #ccc;padding:10px">preview</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">38</td>
+<td style="border:1px solid #ccc;padding:10px">47</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-coder-next/tags">Qwen/Qwen3-Coder-Next</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">39</td>
+<td style="border:1px solid #ccc;padding:10px">48</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-instruct/tags">Qwen/Qwen3-VL-235B-A22B-Instruct</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">40</td>
+<td style="border:1px solid #ccc;padding:10px">49</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-vl-235b-a22b-thinking/tags">Qwen/Qwen3-VL-235B-A22B-Thinking</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">41</td>
+<td style="border:1px solid #ccc;padding:10px">50</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-qwen-qwen3-8-27b/tags">Qwen/Qwen3.8-27B</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">unoptimized</td>
+<td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">42</td>
+<td style="border:1px solid #ccc;padding:10px">51</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-rssrwn-semlaflow/tags">rssrwn/semlaflow</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">52</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers/tags">Wan-AI/Wan2.2-T2V-A14B-Diffusers</a></td>
 <td style="border:1px solid #ccc;padding:10px">N/A</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
@@ -470,22 +570,32 @@ ROCm 7.0.2 is recommended. ROCm 7.2.x is currently not supported.
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">43</td>
+<td style="border:1px solid #ccc;padding:10px">53</td>
+<td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-instinct-model-westlake-repl-saprot-650m-af2/tags">westlake-repl/saprot-650m-af2</a></td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">preview</td>
+</tr>
+<tr>
+<td style="border:1px solid #ccc;padding:10px">54</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-zai-org-glm-4-7/tags">zai-org/GLM-4.7</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px">unoptimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 </tr>
 <tr>
-<td style="border:1px solid #ccc;padding:10px">44</td>
+<td style="border:1px solid #ccc;padding:10px">55</td>
 <td style="border:1px solid #ccc;padding:10px"><a href="https://hub.docker.com/r/amdenterpriseai/aim-zai-org-glm-5-2/tags">zai-org/GLM-5.2</a></td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
 <td style="border:1px solid #ccc;padding:10px;background-color:#409353">optimized</td>
-<td style="border:1px solid #ccc;padding:10px">N/A</td>
+<td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 <td style="border:1px solid #ccc;padding:10px">general</td>
 </tr>

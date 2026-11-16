@@ -229,7 +229,10 @@ class ProfileManager(AssetManager):
             if resolved_path.exists():
                 profile_paths.extend(get_yamls(resolved_path))
 
-        return profile_paths
+        # Descriptors for different engines can share the same "base" directory
+        # (engine is only used to check the directory exists), so the same profile
+        # path can be yielded once per engine. Dedup while preserving order.
+        return list(dict.fromkeys(profile_paths))
 
     def infer_accelerators(self) -> set[AcceleratorModel]:
         result: set[AcceleratorModel] = set()

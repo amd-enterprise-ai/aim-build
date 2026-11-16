@@ -1,0 +1,122 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Knob declaration the Tuner's knobs.resolve_spec() reads as its base spec.
+#
+# Only env vars that service.py / runner.py actually honour are listed — a knob
+# the AIM ignores is a phantom matrix axis.
+#
+# ---------------------------------------------------------------------------
+# Knobs deliberately NOT declared here
+# ---------------------------------------------------------------------------
+# BOLTZ2_OPTIMIZATIONS — on | off, default on, the AIM's one performance
+#   setting. Not swept: "off" is upstream Boltz unchanged and is only a
+#   fallback. "on" turns on, together:
+#   - the ROCm Triton attention kernel vendored from OpenFold3 0.4.1, and our own
+#     Inductor-compiled triangle multiply, both in image/src/rocm_triangle/;
+#   - TorchInductor on the Transition and token-transformer modules;
+#   - a start-up warm-up (predictions of 128 and 400 tokens, each with the
+#     empty MSA and a 3-row MSA, plus one triangle multiply call above 2048
+#     tokens) that does the compiles before the service accepts requests.
+#   The default is set in code. Do not set it in a profile: profile env_vars
+#   override `docker run -e` without a warning.
+#   cuEquivariance (boltz[cuda]) has no ROCm build and is always off.
+#
+# BOLTZ2_AFFINITY_COMPILE — on | off, default off. "on" also compiles the affinity
+#   model with TorchInductor; it acts only with BOLTZ2_MODE=affinity and
+#   BOLTZ2_OPTIMIZATIONS=on. Not swept. Do not set it in a profile: profile
+#   env_vars override `docker run -e` without a warning.
+#
+# BOLTZ2_NUM_WORKERS — fixed at 0 and NOT swept. ServiceConfig defaults it to 0 and
+#   the served profile sets BOLTZ2_NUM_WORKERS: '0'. The Field keeps its
+#   validation_alias, so the env var can still override it at runtime; the AIM
+#   only no longer asks the Tuner to. Two independent reasons:
+#
+#   1. HAZARD. /v1/inference is a plain `def` @bentoml.api handler. BentoML 1.4.35
+#      (the pin in image/pyproject.toml) runs a sync handler off the event loop
+#      with `anyio.to_thread.run_sync(...)` (src/_bentoml_impl/server/app.py), so
+#      the handler runs on an AnyIO worker thread, not the main thread. torch
+#      spawns DataLoader workers with the default multiprocessing context, which
+#      on Linux + CPython 3.12 is `fork`. Forking from a non-main thread of a
+#      multi-threaded process is the documented deadlock shape. There is no
+#      recovery: traffic.timeout cancels an asyncio task, which cannot kill an
+#      OS thread, and the freed capacity token lets the next request barge in
+#      (bentoml/BentoML#5642). torch creates no process only at exactly 0
+#      (_SingleProcessDataLoaderIter), so 1 forks as much as 4.
+#
+#   2. VALUE. boltz 2.2.1's Boltz2InferenceDataModule.predict_dataloader builds a
+#      batch_size=1 DataLoader over a dataset whose length is the manifest record
+#      count, and runner.py submits exactly one input per request. One item means
+#      extra workers have nothing to overlap and only pay fork + IPC.
+#
+#   Upstream `boltz predict` defaults to num_workers=2. That deviation is
+#   declared in tests/references/boltz_cli_defaults.json and asserted by the
+#   recipe-parity unit tier.
+schema_version: 1
+knobs:
+  # In-flight requests accepted per worker before answering 429. One runs and the
+  # rest wait, so this sizes the queue. A request carries its own deadline, so a
+  # longer queue is safe.
+  - name: max_concurrency
+    env: "{PREFIX}_MAX_CONCURRENCY"
+    type: enum
+    candidates: ["1", "3", "6"]
+    default: "3"
+ranking:
+  rank_by: p50_ms
+  direction: min
+
+# Accuracy gate. The Tuner ranks on p50_ms; this is the guard that stops it
+# from buying latency with output quality.
+#
+# `metric` is the only key aim-tuner's knobs.spec_from_dict() reads today; the
+# thresholds below are declarative for now and are ALSO enforced in-image by
+# harness.py (PLDDT_MEAN_FLOOR / PLDDT_PER_CASE_FLOOR), which is what actually
+# fails a bad run.
+#
+# The floors apply to one configuration, harness.ACCURACY_GATE_RECIPE: the
+# serving defaults with one departure, use_msa_server=true. The serving defaults
+# stay equal to upstream `boltz predict`, asserted by the recipe-parity tier
+# against image/tests/references/boltz_cli_defaults.json.
+#
+# The shipped benchmark set (image/examples/benchmark_sequences/, selected by
+# default) matches no gate recipe. harness.evaluate() therefore reports its
+# accuracy under ungraded_* metric keys and marks structure_accuracy /
+# confidence_regression SKIPPED, naming the mismatching fields. That is an
+# abstention, not a pass: do not read a green evaluate of the shipped set as
+# "accuracy was checked".
+#
+# A separate case set at the gate recipe is baked into the image:
+# image/examples/benchmark_sequences_accuracy/ at /workspace/model/benchmarks-accuracy.
+# It is reached only when BOTH BOLTZ2_BENCHMARK_DIR and
+# BOLTZ2_BENCHMARK_SET=accuracy-gate are exported (no profile exports either). It
+# has the same six RCSB targets and staged reference structures as the default
+# set. See the accuracy_gate_set block of image/tests/references/benchmark_recipe.json
+# and image/tests/unit/test_accuracy_gate_fixtures.py.
+accuracy:
+  metric: complex_plddt
+  direction: max
+  # Mean floor 0.90 is the "very high"/"confident" pLDDT band boundary.
+  min_mean: 0.90
+  # Per-case floor 0.70 is the "confident"/"low" band boundary; it catches one
+  # target collapsing while the mean stays afloat.
+  min_per_case: 0.70
+  # eval_set describes the configuration the floors grade, not a directory.
+  # eval_set_baked_in_image and gate_applies_to_shipped_benchmark_set are about the
+  # shipped/default benchmark set; test_service_contract.py checks them against
+  # the fixtures.
+  eval_set: >-
+    The six RCSB targets 7qsj/8are/8c4d/8cpk/8eil/8gpp run at the ACCURACY GATE
+    RECIPE (harness.ACCURACY_GATE_RECIPE = the serving defaults plus
+    use_msa_server=true, i.e. recycling_steps 3, sampling_steps 200,
+    diffusion_samples 1, step_scale unset, output_format mmcif). NO case set
+    matching this recipe is currently baked into the SHIPPED/DEFAULT set at
+    image/examples/benchmark_sequences/: those files are the timing recipe and
+    are deliberately not gradeable. Selecting the default set (nothing exported)
+    therefore still abstains and reports ungraded_* metrics.
+  eval_set_baked_in_image: false
+  gate_applies_to_shipped_benchmark_set: false
+  accuracy_gate_eval_set_baked_in_image: true
+  accuracy_gate_eval_set_selector: "BOLTZ2_BENCHMARK_DIR=/workspace/model/benchmarks-accuracy, BOLTZ2_BENCHMARK_SET=accuracy-gate"
+  measurement_configuration: use_msa_server=true, recycling_steps=3, sampling_steps=200, diffusion_samples=1, step_scale unset (boltz resolves 1.5 for boltz2), output_format=mmcif, precision bf16-mixed

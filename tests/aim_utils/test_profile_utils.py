@@ -35,6 +35,30 @@ def profile_data_file(test_root: Path) -> Path:
     return test_root / "aim_utils" / "profile_data.xlsx"
 
 
+class TestProfileManagerGetYamls:
+    """Tests for ProfileManager.get_yamls()."""
+
+    def test_dedups_general_profiles_shared_across_engines(self, tmp_path: Path):
+        """A base "general" profiles directory is discovered once per configured engine
+        descriptor that resolves to the same base/profiles directory. Without dedup this
+        duplicates every general profile count: get_yamls() must return each path once.
+        """
+        base_dir = tmp_path / "base"
+        profiles_dir = base_dir / "profiles"
+        profiles_dir.mkdir(parents=True)
+        (profiles_dir / "p1.yaml").write_text("engine: vllm\n")
+
+        duplicate_descriptor = MagicMock(directory=base_dir)
+        with patch.object(
+            ProfileManager,
+            "get_descriptors",
+            return_value=[duplicate_descriptor, duplicate_descriptor],
+        ):
+            manager = ProfileManager.for_path(tmp_path, skip_model_specific=True)
+
+            assert manager.get_yamls() == [profiles_dir / "p1.yaml"]
+
+
 class TestProfileTypeEvaluator:
     """Test suite for ProfileTypeEvaluator class."""
 

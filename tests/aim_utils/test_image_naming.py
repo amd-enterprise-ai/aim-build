@@ -12,6 +12,7 @@ from aim_utils.image_naming import (
     LEGACY_VLLM_BASE_TARGET_ID,
     ImageName,
     get_base_image_name,
+    get_engine_image_name,
     get_image_name,
     get_image_ref_label,
     get_model_image_name,
@@ -107,7 +108,7 @@ class TestModelImageNaming:
         assert name.has_alias is False
 
     def test_model_dedicated_base_openfold_example(self):
-        """The EAI-7027 example: openfold3 model-dedicated base gets a simplified name."""
+        """Example: openfold3 model-dedicated base gets a simplified name."""
         name = get_model_image_name(
             AcceleratorFamily.INSTINCT.value,
             canonical_name_sanitized="openfold-openfold3",
@@ -620,3 +621,30 @@ class TestPredecessorModelImageName:
         assert current == "aim-instinct-model-openfold-openfold3"
         assert predecessor != current
         assert parse_image_name(predecessor).canonical_name_sanitized == "openfold-openfold3"
+
+
+class TestEngineImageName:
+    def test_engine_image_name_has_no_public_alias(self):
+        assert get_engine_image_name("instinct", "aifs") == ImageName(
+            canonical="aim-instinct-engine-aifs", public="aim-instinct-engine-aifs"
+        )
+
+    @pytest.mark.parametrize("engine_id", ["", "bad engine", "AIFS"])
+    def test_rejects_invalid_engine_id(self, engine_id):
+        with pytest.raises(ValueError, match="Invalid engine_id"):
+            get_engine_image_name("instinct", engine_id)
+
+    def test_rejects_unknown_accelerator(self):
+        with pytest.raises(ValueError, match="Unknown accelerator"):
+            get_engine_image_name("tpu", "aifs")
+
+    @pytest.mark.parametrize("engine_id", ["aifs", "pangu-weather", "aurora"])
+    def test_engine_image_is_not_parsed_as_a_model(self, engine_id):
+        repository = get_engine_image_name("instinct", engine_id).canonical
+        with pytest.raises(ValueError, match="is an engine image, not an AIM image"):
+            parse_image_name(repository)
+
+    def test_base_built_on_an_engine_still_parses_as_a_named_base(self):
+        parsed = parse_image_name("aim-instinct-aifs-base")
+        assert parsed.is_base
+        assert parsed.base_target_id == "aifs"

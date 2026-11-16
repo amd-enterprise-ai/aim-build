@@ -41,6 +41,14 @@ class Engine(StrEnum):
     BENTOML = "bentoml"
     VLLM = "vllm"
     VLLM_OMNI = "vllm_omni"
+    JOB = "job"  # Long-running job container (no HTTP server)
+
+
+class JobType(StrEnum):
+    """Container kind, declared per profile (a missing value means ``service``)."""
+
+    LONG_RUNNING = "long_running"  # HPC job container: no HTTP serving engine
+    SERVICE = "service"  # inference server (the default)
 
 
 class Metric(StrEnum):
@@ -61,7 +69,7 @@ class ProfileType(StrEnum):
 
 
 class AdapterToken(StrEnum):
-    """Per-profile LoRA adapter capability tokens (ADR-0004).
+    """Per-profile LoRA adapter capability tokens.
 
     A profile may declare at most one of these in ``metadata.features``:
 
@@ -349,6 +357,9 @@ class ProfileMetadata(BaseModel):
     # Must be a slug (lowercase letter, then lowercase/digits/hyphens). Pydantic
     # only applies the pattern when a value is provided, so None passes through.
     variant: Optional[str] = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
+    # Defaults to "service" so existing profiles that
+    # omit the field keep working; "long_running" marks an HPC job container.
+    job_type: JobType = JobType.SERVICE
 
     @model_validator(mode="before")
     @classmethod
@@ -388,7 +399,7 @@ class ProfileMetadata(BaseModel):
     @field_validator("features", mode="after")
     @classmethod
     def _validate_features(cls, v: List[AdapterToken]) -> List[AdapterToken]:
-        """Enforce the adapter-token contract (ADR-0004).
+        """Enforce the adapter-token contract.
 
         At most one adapter token may be declared — ``adapters`` and
         ``adapters-scale-only`` are mutually exclusive.
@@ -500,6 +511,9 @@ class ProfileMetadata(BaseModel):
         # Omit empty features for the same reason (exclude_none does not drop []).
         if not output.get("features"):
             output.pop("features", None)
+        # The default job_type ("service") is implied; keep legacy round-trips minimal.
+        if output.get("job_type") == JobType.SERVICE.value:
+            output.pop("job_type", None)
         return output
 
     @classmethod
@@ -516,11 +530,31 @@ class ProfileData(BaseModel):
     engine_args: Dict[str, Any]
 
 
+class DownloadFilter(BaseModel):
+    """Hugging Face file filters declared by a model profile."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    include: List[str] = Field(default_factory=list)
+    exclude: List[str] = Field(default_factory=list)
+
+    @field_validator("include", "exclude")
+    @classmethod
+    def _validate_patterns(cls, patterns: List[str]) -> List[str]:
+        for pattern in patterns:
+            if not pattern:
+                raise ValueError("download filter patterns must not be empty")
+            if "," in pattern or any(character.isspace() for character in pattern):
+                raise ValueError("download filter patterns must not contain commas or whitespace")
+        return patterns
+
+
 class ModelProfileData(ProfileData):
     """Pydantic model for model-specific AIM profile YAML files."""
 
     aim_id: str
     model_id: str
+    download_filter: Optional[DownloadFilter] = None
 
 
 @dataclass(frozen=True)

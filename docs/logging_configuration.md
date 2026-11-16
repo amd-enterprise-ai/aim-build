@@ -8,16 +8,16 @@ SPDX-License-Identifier: MIT
 
 AIM provides fine-grained logging control with separate log levels for AIM runtime and third-party packages with help of environment variables:
 
-- **`AIM_LOG_LEVEL_ROOT`** (default: `WARNING`): Controls the root logger level, affecting third-party packages and external libraries. This helps reduce noise from dependency logging.
+- **`AIM_LOG_LEVEL_ROOT`** (default: `INFO`): Controls the root logger level, affecting third-party packages and external libraries.
 
-- **`AIM_LOG_LEVEL`** (default: `INFO`): Controls the `aim_runtime` package logger level. This allows you to see AIM operational messages while keeping third-party logs quiet.
+- **`AIM_LOG_LEVEL`** (default: `INFO`): Controls the `aim_runtime` package logger level.
 
 Both variables accept standard Python logging levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
 
 **Usage Examples:**
 
 ```bash
-# Production (default): Show AIM info but suppress third-party warnings
+# Quieter third-party logs: Show AIM info but suppress third-party info
 docker run \
   -e AIM_LOG_LEVEL_ROOT=WARNING \
   -e AIM_LOG_LEVEL=INFO \

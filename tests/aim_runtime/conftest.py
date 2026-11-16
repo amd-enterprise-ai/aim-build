@@ -9,6 +9,7 @@ from aim_runtime.engines import VllmEngineArgsModel, VllmOmniEngineArgsModel
 _NATIVE_VLLM_TEST_NODEIDS = (
     "TestVllmOmniEngineArgsModelNative",
     "TestVllmParserIntegration",
+    "TestVllmParserAvailable",
     "TestValidateVllmEnvVars::test_known_vllm_vars_pass",
     "TestValidateVllmEnvVars::test_unrecognized_vllm_vars_raise",
     "TestValidateVllmEnvVars::test_error_message_includes_source_and_var_names",

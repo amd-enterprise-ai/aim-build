@@ -15,7 +15,7 @@ metadata:
   - adapters
   metric: throughput
   precision: bf16
-  type: optimized
+  type: preview
 engine_args:
   attention-backend: ROCM_AITER_FA
   dtype: auto

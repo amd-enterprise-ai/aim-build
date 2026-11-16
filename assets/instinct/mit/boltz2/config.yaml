@@ -8,8 +8,8 @@ base_image:
   registry_host: docker.io
   base_registry_namespace: silogenai
   base_repository: aim-instinct-mit-boltz2-base
-  base_tag: "0.12-rc1"
+  base_tag: "2026.24.0"
 specialized: true
 templates:
-  deployment: docs/templates/DEPLOYMENT.md
+  deployment: docs/templates/DEPLOYMENT.bentoml.md
   readme: docs/templates/README.md

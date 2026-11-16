@@ -1,0 +1,27 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Versions pinned to the validated build of
+# docker.io/silogenai/aim-instinct-microsoft-aurora-v1-0p25deg-pretrained-large-base.
+# Refresh with: docker run --rm --entrypoint pip <image>:<tag> freeze
+
+# Serving engine; the rocm/pytorch base does not ship it. Must stay >= 1.4.8,
+# where bentoml.use_arguments() was added.
+bentoml==1.4.39
+# anyio and pydantic must match the AIM runtime's pins, which the base installs last.
+anyio==4.16.0
+# service.py imports pydantic directly for the request model.
+pydantic==2.14.2
+
+# Provides aurora.AuroraPretrained and the aurora-0.25-pretrained.ckpt loader.
+# torch, torchvision and triton are left out on purpose: microsoft-aurora leaves
+# `torch` unpinned, so pip treats the base image's ROCm torch as satisfying it
+# and does not install a CUDA wheel. `timm` does pull `torchvision`, so the
+# Dockerfile checks that the +rocm build tags survived the install.
+microsoft-aurora==2.0.1
+
+# NetCDF I/O. Pulled in by microsoft-aurora as well, but pinned here because
+# data_utils.py uses them directly.
+xarray==2026.7.0
+netcdf4==1.7.4

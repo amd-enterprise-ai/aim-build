@@ -17,11 +17,10 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from aim_runtime.harness import CheckScope, ModelHarness
+from aim_runtime.harness import CheckScope, HarnessConfig, ModelHarness
 from aim_runtime.harness import discovery as harness_discovery
 
 OF3_HARNESS_PATH = Path(__file__).resolve().parents[2] / "assets/instinct/openfold/openfold3/image/src/harness.py"
@@ -226,28 +225,38 @@ def test_post_predict_success_path_unaffected(of3_harness_module):
 # ---------------------------------------------------------------------------
 
 
+def _profile(*, accelerator_count=1) -> dict:
+    return {"metadata": {"accelerator_count": accelerator_count}}
+
+
 def test_expected_in_flight_prefers_the_explicit_override(of3_harness_module, monkeypatch):
     monkeypatch.setenv("OPENFOLD3_MAX_CONCURRENCY", "5")
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "8")
+    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
 
-    assert of3_harness_module._expected_in_flight() == 5
+    assert of3_harness_module._expected_in_flight(_profile(accelerator_count=8)) == 5
 
 
-def test_expected_in_flight_scales_with_accelerators(of3_harness_module, monkeypatch):
-    """Mirrors the service: three in flight per worker, one worker per accelerator."""
+def test_expected_in_flight_scales_with_the_profile(of3_harness_module, monkeypatch):
+    """Three in flight per worker. The count is the profile's, not AIM_ACCELERATOR_COUNT."""
     monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "4")
+    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
 
-    assert of3_harness_module._expected_in_flight() == 12
+    assert of3_harness_module._expected_in_flight(_profile(accelerator_count=4)) == 12
+    assert of3_harness_module._expected_in_flight(_profile(accelerator_count=2)) == 6
 
 
-@pytest.mark.parametrize("bogus", ["", "auto", "0", "-1"])
-def test_expected_in_flight_falls_back_to_single_accelerator(of3_harness_module, monkeypatch, bogus):
-    """An unusable count must not yield 0, which would expect every request shed."""
-    monkeypatch.setenv("OPENFOLD3_MAX_CONCURRENCY", bogus)
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", bogus)
+@pytest.mark.parametrize("unset", ["", "0"])
+def test_expected_in_flight_derives_when_the_override_is_unset(of3_harness_module, monkeypatch, unset):
+    """0 means "derive from accelerator_count" in the service too."""
+    monkeypatch.setenv("OPENFOLD3_MAX_CONCURRENCY", unset)
 
-    assert of3_harness_module._expected_in_flight() == 3
+    assert of3_harness_module._expected_in_flight(_profile(accelerator_count=2)) == 6
+
+
+def test_expected_in_flight_without_a_resolved_profile(of3_harness_module, monkeypatch):
+    monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
+
+    assert of3_harness_module._expected_in_flight({}) == 3
 
 
 class _SheddingHandler(BaseHTTPRequestHandler):
@@ -299,19 +308,20 @@ def _run_threaded_predict_server(handler_cls) -> tuple[ThreadingHTTPServer, str]
     return server, f"http://127.0.0.1:{port}"
 
 
-def _shed_check(module, url, **cfg):
+def _shed_check(module, url, *, accelerator_count: int = 1, **cfg):
     harness = module.OpenFold3Harness()
-    config = SimpleNamespace(
-        resolve_service_url=lambda: url,
+    config = HarnessConfig(
+        profile=_profile(accelerator_count=accelerator_count),
+        service_url=url,
         timeout_seconds=10,
-        get=lambda key, default=None: cfg.get(key, default),
+        extra=cfg,
     )
     return harness._overload_shed_check(url, config)
 
 
 def test_overload_check_passes_when_the_excess_is_shed(of3_harness_module, monkeypatch):
     monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
+    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "8")
 
     class Handler(_SheddingHandler):
         in_flight = 3
@@ -331,10 +341,58 @@ def test_overload_check_passes_when_the_excess_is_shed(of3_harness_module, monke
     assert "7 shed" in result.detail
 
 
+def test_overload_check_passes_when_workers_fill_unevenly(of3_harness_module, monkeypatch):
+    """With several workers, some refuse while others still have free slots.
+
+    The tp4 run on PR #1831 saw this: 10 requests against a limit of 12 gave
+    8 accepted and 2 shed. Fewer than the limit accepted is not a failure.
+    """
+    monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
+
+    class Handler(_SheddingHandler):
+        in_flight = 8
+        hold_s = 2.0
+        _lock = threading.Lock()
+        _active = 0
+
+    server, url = _run_threaded_predict_server(Handler)
+    try:
+        result = _shed_check(of3_harness_module, url, accelerator_count=4, overload_requests=13)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert result.success is True, result.detail
+    assert "8 accepted" in result.detail
+    assert "5 shed" in result.detail
+
+
+@pytest.mark.parametrize("accelerator_count", [1, 4, 8])
+def test_default_burst_exceeds_the_limit(of3_harness_module, monkeypatch, accelerator_count):
+    """A fixed burst of 10 sits below the 12 and 24 limits of tp4 and tp8, so it could never shed."""
+    monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
+    limit = accelerator_count * of3_harness_module.DEFAULT_CONCURRENCY_PER_WORKER
+    total = limit + of3_harness_module.OVERLOAD_EXCESS_REQUESTS
+    admitted = iter(range(total))
+    lock = threading.Lock()
+
+    def fake_status(*_args, **_kwargs):
+        with lock:
+            return 200 if next(admitted) < limit else 429
+
+    monkeypatch.setattr(of3_harness_module, "_post_predict_status", fake_status)
+
+    result = _shed_check(of3_harness_module, "http://unused", accelerator_count=accelerator_count)
+
+    assert result.success is True, result.detail
+    assert f"{total} simultaneous: {limit} accepted" in result.detail
+    assert f"{total - limit} shed" in result.detail
+
+
 def test_overload_check_fails_when_nothing_is_shed(of3_harness_module, monkeypatch):
     """The regression this guards: every request accepted and queued instead of refused."""
     monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
+    monkeypatch.delenv("AIM_ACCELERATOR_COUNT", raising=False)
 
     class Handler(_SheddingHandler):
         in_flight = 100
@@ -357,7 +415,7 @@ def test_overload_check_fails_when_nothing_is_shed(of3_harness_module, monkeypat
 def test_overload_check_reports_unexpected_status_codes(of3_harness_module, monkeypatch):
     """A 500 must not be silently counted as shedding just because it is not a 200."""
     monkeypatch.delenv("OPENFOLD3_MAX_CONCURRENCY", raising=False)
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
+    monkeypatch.delenv("AIM_ACCELERATOR_COUNT", raising=False)
 
     server, _thread, url = _run_predict_server(_predict_handler(500, b'{"error": true}'))
     try:
@@ -373,7 +431,7 @@ def test_overload_check_reports_unexpected_status_codes(of3_harness_module, monk
 def test_overload_check_refuses_a_burst_that_cannot_exceed_the_limit(of3_harness_module, monkeypatch):
     """Fewer requests than the limit can never shed, so the check would pass vacuously."""
     monkeypatch.setenv("OPENFOLD3_MAX_CONCURRENCY", "10")
-    monkeypatch.setenv("AIM_ACCELERATOR_COUNT", "1")
+    monkeypatch.delenv("AIM_ACCELERATOR_COUNT", raising=False)
 
     result = _shed_check(of3_harness_module, "http://127.0.0.1:1", overload_requests=4)
 

@@ -1,0 +1,8 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Installed with --no-deps into /opt/anemoi/ens (AIFS_VARIANT=ens), the pins of
+# ecmwf/aifs-ens-2.0. Their dependencies come from requirements.txt.
+anemoi-models==0.11.2
+anemoi-graphs==0.8.1

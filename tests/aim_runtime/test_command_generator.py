@@ -674,6 +674,16 @@ def test_build_forwarded_args(bentoml_command_generator: CommandGenerator) -> No
     ]
 
 
+def test_bentoml_command_forwards_profile_accelerator_count(
+    bentoml_command_generator: CommandGenerator,
+    model_profile: Profile,
+) -> None:
+    command = bentoml_command_generator._build_command_list(model_profile)
+
+    expected = f"accelerator_count={model_profile.metadata.accelerator_count}"
+    assert command[command.index(expected) - 1] == "--arg"
+
+
 @pytest.mark.parametrize(
     "engine_config_name,aim_config_name,expect_model_flag",
     [

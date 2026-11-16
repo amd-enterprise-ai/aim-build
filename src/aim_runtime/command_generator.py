@@ -243,6 +243,10 @@ class CommandGenerator:
             # Merge (user values win)
             engine_args.update(self.config.engine_args_override)
 
+        if self.engine.ARGS_MODEL and "accelerator_count" in self.engine.ARGS_MODEL.model_fields:
+            engine_args["accelerator_count"] = profile.metadata.accelerator_count
+
+        if self.config.engine_args_override:
             # Validate merged arguments
             try:
                 # Validate profile structure (metadata, env_vars, aim_id, model_id)

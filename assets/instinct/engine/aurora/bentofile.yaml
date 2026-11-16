@@ -1,0 +1,7 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# BentoML entrypoint. The Dockerfile copies src/ to /workspace/model/src/ and
+# sets the working dir to /workspace/model, so the service resolves as src.service.
+service: "src.service:AuroraLargeService"

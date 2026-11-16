@@ -1,0 +1,31 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+com:
+  amd:
+    aim:
+      model:
+        canonicalName: "dauparas/proteinmpnn"
+        tags:
+        - "protein-sequence-design"
+        source: "https://github.com/dauparas/ProteinMPNN"
+        variants:
+        - "dauparas/proteinmpnn"
+        publisher: "Baker Lab (David Baker)"
+      hfToken:
+        required: false
+      release:
+        notes: ""
+      description:
+        full: "ProteinMPNN is a graph neural network model for protein sequence design. Given a protein backbone structure (PDB), it designs amino acid sequences that are likely to fold into that structure, producing diverse candidate sequences with associated scores."
+      title: "ProteinMPNN"
+org:
+  opencontainers:
+    image:
+      vendor: "AMD"
+      authors: ""
+      licenses: "MIT"
+      description: "Protein sequence design model."
+      documentation: ""
+      source: "https://github.com/amd-enterprise-ai/aim-build"

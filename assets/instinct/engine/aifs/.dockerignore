@@ -1,0 +1,31 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# No weights or host-side datasets in the build context; the input data is
+# downloaded inside the build, and the checkpoint at startup.
+**/*.ckpt
+**/*.pt
+**/*.pth
+**/*.bin
+**/*.safetensors
+**/*.onnx
+**/*.h5
+**/*.npz
+**/*.nc
+**/*.grib
+**/*.grib2
+**/*.pickle
+**/*.pkl
+**/*.tar
+**/*.zip
+
+# Tests are mounted at smoke time, not baked.
+tests/
+pytest.ini
+
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/._*
+**/.DS_Store

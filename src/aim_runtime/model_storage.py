@@ -7,6 +7,10 @@ Model Storage Backend Management
 
 This module provides abstraction for different model storage backends (e.g., HuggingFace Hub)
 and functionality to estimate storage requirements for model downloads.
+
+`huggingface-hub` is an accelerator-family dependency rather than a core one, because the
+supported base images pin incompatible versions of it. It is therefore imported lazily at
+its use sites so that the CLI remains importable without it.
 """
 
 import logging
@@ -14,9 +18,30 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from huggingface_hub import HfApi, snapshot_download
+from aim_common import DownloadFilter
+
+from .model_cache_resolver import write_download_completion_marker
 
 logger = logging.getLogger(__name__)
+
+HF_HUB_MODULE = "huggingface_hub"
+
+HF_HUB_INSTALL_HINT = (
+    "huggingface-hub is not installed. It ships with the accelerator-family extras, "
+    'so install the one matching your target, e.g. pip install "aim-build[instinct]" '
+    "(or epyc, radeon, cpu)."
+)
+
+
+def _is_missing_hf_hub(error: ImportError) -> bool:
+    """Check whether an ImportError was caused by huggingface_hub itself being absent.
+
+    Only a ``ModuleNotFoundError`` means the package is absent. A plain ``ImportError``
+    for a symbol ("cannot import name X from huggingface_hub") also carries
+    ``name == "huggingface_hub"``, but means an installed, incompatible version — that
+    must surface rather than be reported as a missing optional dependency.
+    """
+    return isinstance(error, ModuleNotFoundError) and error.name == HF_HUB_MODULE
 
 
 class ModelStorageBackend(ABC):
@@ -129,10 +154,13 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
             logger.debug(f"Using cached API result for model: {model_id}")
             return self._cache[model_id]
 
-        # Check if HuggingFace Hub is available
-        if HfApi is None:
-            logger.debug("huggingface_hub library not available, cannot use API estimation")
-            return None
+        try:
+            from huggingface_hub import HfApi
+        except ImportError as e:
+            if _is_missing_hf_hub(e):
+                logger.debug("huggingface_hub library not available, cannot use API estimation")
+                return None
+            raise
 
         try:
             logger.debug(f"Querying HuggingFace Hub API for model: {model_id}")
@@ -185,7 +213,13 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
         api_result = self._estimate_from_api(model_id)
         return api_result
 
-    def download(self, model_id: str, cache_dir: str = None, use_hf_cache: bool = False) -> str:
+    def download(
+        self,
+        model_id: str,
+        cache_dir: str = None,
+        use_hf_cache: bool = False,
+        download_filter: Optional[DownloadFilter] = None,
+    ) -> str:
         """
         Download a model from HuggingFace Hub using snapshot_download.
 
@@ -199,14 +233,30 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                       (determined by HF_HOME or platform defaults).
             use_hf_cache: If True, uses HuggingFace's cache structure (cache_dir parameter).
                          If False (default), downloads directly to local directory (local_dir parameter).
+            download_filter: Optional profile filter mapped to HuggingFace allow/ignore patterns.
 
         Returns:
             Path to the downloaded model directory
 
         Raises:
-            RuntimeError: If download fails
+            RuntimeError: If download fails, or if huggingface-hub is not installed
         """
         model_id = self._extract_model_id(model_id)
+
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError as e:
+            if _is_missing_hf_hub(e):
+                error_msg = f"Failed to download model {model_id}: {HF_HUB_INSTALL_HINT}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+            raise
+
+        allow_patterns = None
+        ignore_patterns = None
+        if download_filter is not None:
+            allow_patterns = download_filter.include or None
+            ignore_patterns = download_filter.exclude or None
 
         if use_hf_cache:
             logger.info(f"Downloading model {model_id} using HuggingFace cache structure")
@@ -217,6 +267,7 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
             if cache_dir:
                 logger.info(f"Local directory: {cache_dir}")
 
+        local_dir_path = None
         try:
             # Use snapshot_download to download the entire model repository
             # This function handles retries, partial downloads, and caching automatically
@@ -227,8 +278,8 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                     cache_dir=cache_dir,
                     token=self._hf_token,
                     resume_download=True,
-                    allow_patterns=None,
-                    ignore_patterns=None,
+                    allow_patterns=allow_patterns,
+                    ignore_patterns=ignore_patterns,
                 )
             else:
                 # Use local_dir parameter to download directly to the target directory
@@ -243,9 +294,11 @@ class HuggingFaceStorageBackend(ModelStorageBackend):
                     local_dir=local_dir_path,
                     token=self._hf_token,
                     resume_download=True,
-                    allow_patterns=None,
-                    ignore_patterns=None,
+                    allow_patterns=allow_patterns,
+                    ignore_patterns=ignore_patterns,
                 )
+                if local_dir_path is not None and download_filter is not None:
+                    write_download_completion_marker(local_dir_path, download_filter)
 
             logger.info(f"Successfully downloaded model to: {downloaded_path}")
             return downloaded_path
@@ -324,7 +377,13 @@ class StorageBackendRegistry:
 
         return backend.estimate_storage(model_id)
 
-    def download(self, model_source: str, cache_dir: str = None, use_hf_cache: bool = False) -> str:
+    def download(
+        self,
+        model_source: str,
+        cache_dir: str = None,
+        use_hf_cache: bool = False,
+        download_filter: Optional[DownloadFilter] = None,
+    ) -> str:
         """
         Download a model using the appropriate backend.
 
@@ -334,6 +393,7 @@ class StorageBackendRegistry:
                       For HuggingFace backend: If None, uses HF's default cache (HF_HOME).
             use_hf_cache: For HuggingFace backend, whether to use HF's cache structure (True)
                          or download directly to local directory (False, default).
+            download_filter: Optional profile filter for HuggingFace downloads.
 
         Returns:
             Path to the downloaded model
@@ -355,7 +415,12 @@ class StorageBackendRegistry:
 
         # HuggingFace backend supports both cache_dir and local_dir modes
         if isinstance(backend, HuggingFaceStorageBackend):
-            return backend.download(model_id, cache_dir=cache_dir, use_hf_cache=use_hf_cache)
+            return backend.download(
+                model_id,
+                cache_dir=cache_dir,
+                use_hf_cache=use_hf_cache,
+                download_filter=download_filter,
+            )
         else:
             # Other backends (fallback)
             if cache_dir is None:

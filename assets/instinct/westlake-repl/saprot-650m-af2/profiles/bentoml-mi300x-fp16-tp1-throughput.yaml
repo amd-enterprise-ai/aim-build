@@ -1,0 +1,18 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: westlake-repl/saprot-650m-af2
+model_id: westlake-repl/SaProt_650M_AF2
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: throughput
+  precision: fp16
+  primary: true
+  type: preview
+engine_args: {}
+env_vars: {}

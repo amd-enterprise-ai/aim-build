@@ -15,21 +15,25 @@ metadata:
   - adapters
   metric: latency
   precision: fp8
-  primary: false
+  primary: true
   type: optimized
 engine_args:
-  attention-backend: ROCM_AITER_FA
+  attention-backend: ROCM_AITER_UNIFIED_ATTN
   compilation-config:
     pass_config:
       fuse_norm_quant: false
   dtype: auto
   enable-auto-tool-choice: null
   kv-cache-dtype: fp8
+  mamba-ssm-cache-dtype: bfloat16
   max-model-len: -1
   max-num-batched-tokens: 8192
   max-num-seqs: 512
   quantization: fp8_per_channel
   reasoning-parser: qwen3
+  speculative-config:
+    method: mtp
+    num_speculative_tokens: 3
   tensor-parallel-size: 1
   tool-call-parser: qwen3_coder
 env_vars:

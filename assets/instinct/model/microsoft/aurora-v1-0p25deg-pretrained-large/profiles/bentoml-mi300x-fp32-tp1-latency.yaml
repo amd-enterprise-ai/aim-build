@@ -1,0 +1,22 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+aim_id: microsoft/aurora-v1-0p25deg-pretrained-large
+model_id: microsoft/aurora-v1-0p25deg-pretrained-large
+metadata:
+  accelerator_count: 1
+  accelerator_model: MI300X
+  accelerator_type: gpu
+  engine: bentoml
+  job_type: service
+  metric: latency
+  precision: fp32
+  primary: true
+  type: optimized
+env_vars:
+  AURORALG_AUTOCAST: '0'
+  AURORALG_COMPILE: '1'
+  TORCH_ALLOW_TF32_CUBLAS_OVERRIDE: '0'
+  TORCH_BLAS_PREFER_HIPBLASLT: '1'
+engine_args: {}

@@ -75,9 +75,7 @@ class ServiceConfig(BaseSettings):
 
     When ``aim-runtime serve`` launches ``bentoml serve``, it exports each
     entry in the active profile's ``env_vars`` block into the subprocess
-    environment.  ``BaseSettings`` reads those variables at service startup,
-    so swapping the active profile (``AIM_PROFILE_ID``) is sufficient to
-    reconfigure the service without touching this file.
+    environment. ``BaseSettings`` reads those variables at service startup.
 
     Each field declares its env var name explicitly via ``validation_alias``.
     ``cache`` reads the canonical ``AIM_CACHE_PATH`` so the checkpoint lands
@@ -86,25 +84,14 @@ class ServiceConfig(BaseSettings):
     aim-runtime resolves it in-memory without re-exporting, so the subprocess
     usually sees it unset, hence the default.
 
-    ``accelerator_count`` reuses ``AIM_ACCELERATOR_COUNT`` — the canonical
-    aim-runtime env var that the operator already has to set so profile
-    selection matches ``metadata.accelerator_count`` (see
-    ``aim_runtime.config._read_accelerator_count``).  Reusing it avoids an
-    OF3-only duplicate env var that would need to be kept in lockstep with
-    the operator-supplied one.  It also fixes the number of data-parallel
+    ``accelerator_count`` is supplied through BentoML's typed ``--arg`` value
+    from the selected profile metadata. It fixes the number of data-parallel
     workers, so a profile can never request more workers than accelerators.
-
-    Note: aim-runtime accepts ``AIM_ACCELERATOR_COUNT=auto`` and resolves it
-    via accelerator detection, but the resolved int is kept in-memory only
-    and never re-exported.  The bentoml subprocess therefore sees the literal
-    operator-supplied string.  This service does not support ``auto`` — the
-    operator must pin an integer (typed as ``int`` here so pydantic raises
-    a clear ValidationError at startup if ``auto`` leaks through).
     """
 
     model_config = SettingsConfigDict()
 
-    accelerator_count: int = Field(default=1, validation_alias="AIM_ACCELERATOR_COUNT")
+    accelerator_count: int
     num_workers: int = Field(default=0, validation_alias="OPENFOLD3_NUM_WORKERS")
     accelerator: str = Field(default="gpu", validation_alias="OPENFOLD3_ACCELERATOR")
     cache: Path = Field(
@@ -157,8 +144,6 @@ class ServiceConfig(BaseSettings):
         return self.max_concurrency or max_concurrency_for(self.accelerator_count)
 
 
-CONFIG = ServiceConfig()
-
 # Scope key carrying the request's arrival time. Read back in predict() to
 # measure the budget from arrival rather than from when a thread picked the
 # request up.
@@ -186,19 +171,20 @@ class ArrivalStampMiddleware:
 class BentoArgs(BaseModel):
     """Template arguments AIM forwards via ``bentoml serve --arg``.
 
-    ``aim-runtime`` resolves ``AIM_PORT`` and injects it as ``--arg port=…``
-    (an unconditional system override in ``CommandGenerator``), so this is the
-    only source of the bound port.  ``--arg`` is generic template data that
-    BentoML does not act on by itself, hence the ``http={"port": …}`` below.
+    ``aim-runtime`` forwards the profile's ``engine_args`` as ``--arg`` values.
+    ``--arg`` is generic template data that BentoML does not act on by itself,
+    hence the ``http={"port": …}`` below.
 
     Deliberately no default: a bare ``bentoml serve`` is not a supported entry
     point, and a second default here could silently drift from ``AIM_PORT``.
     """
 
     port: int
+    accelerator_count: int
 
 
 args = bentoml.use_arguments(BentoArgs)
+CONFIG = ServiceConfig(accelerator_count=args.accelerator_count)
 
 
 @bentoml.service(

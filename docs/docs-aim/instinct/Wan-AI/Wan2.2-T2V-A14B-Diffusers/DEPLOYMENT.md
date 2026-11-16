@@ -25,7 +25,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 `--ipc=host` gives the container the host's shared memory. Profiles that run on more than one accelerator exchange data
@@ -44,7 +44,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8080:8080 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 ## 2. Model caching for production
@@ -60,7 +60,7 @@ mkdir -p /path/to/model-cache
 # Download model using the download-to-cache command
 docker run --rm \
   -v /path/to/model-cache:/workspace/model-cache \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0 \
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1 \
   download-to-cache --model-id Wan-AI/Wan2.2-T2V-A14B-Diffusers
 ```
 
@@ -72,7 +72,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 ## 3. Kubernetes deployment
@@ -103,7 +103,7 @@ spec:
     spec:
       containers:
         - name: minimal-aim-deployment
-          image: amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+          image: amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
           imagePullPolicy: Always
           env:
             - name: AIM_PRECISION
@@ -400,7 +400,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 `usp` sets how many accelerators share the latent sequence (Unified Sequence Parallelism) and
@@ -419,7 +419,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 ## 6. Monitoring and troubleshooting
@@ -430,7 +430,7 @@ A general help command is available as follows:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0 \
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1 \
   --help
 ```
 
@@ -438,7 +438,7 @@ A help command for specific subcommands is also available:
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0 \
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1 \
   <subcommand> --help
 ```
 
@@ -450,7 +450,7 @@ docker run \
   --device=/dev/kfd --device=/dev/dri \
   --ipc=host \
   -p 8000:8000 \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1
 ```
 
 ### 6.3 Checking profile selection results
@@ -462,7 +462,7 @@ docker run \
   -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_PRECISION=fp16 \
   -e AIM_ACCELERATOR_MODEL=MI300X \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0 \
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1 \
   dry-run
 ```
 
@@ -470,7 +470,7 @@ docker run \
 
 ```bash
 docker run \
-  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.0 \
+  amdenterpriseai/aim-instinct-model-wan-ai-wan2-2-t2v-a14b-diffusers:2026.9.1 \
   list-profiles
 ```
 

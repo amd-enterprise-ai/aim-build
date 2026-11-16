@@ -18,6 +18,7 @@ from aim_utils.asset_utils import (
     infer_accelerator_family_from_path,
     infer_accelerator_family_from_repo,
     infer_engine_from_profiles,
+    resolve_model_assets_dir,
 )
 from aim_utils.metadata_utils import MetadataManager
 
@@ -98,6 +99,23 @@ class TestAssetManagerFactoryMethods:
         manager = MetadataManager.for_root()
         descriptors = manager.get_descriptors()
         assert isinstance(descriptors, list)
+
+
+class TestAssetLeaves:
+    """The model/<org>/<model>/ leaves are models; engine/ and model/ are not orgs."""
+
+    def test_grouped_model_leaves_are_models_and_engine_leaves_are_not(self, tmp_path: Path):
+        acc_dir = tmp_path / "assets" / "instinct"
+        (acc_dir / "legacy-org" / "legacy-model").mkdir(parents=True)
+        (acc_dir / "model" / "ecmwf" / "aifs-single-2.0").mkdir(parents=True)
+        (acc_dir / "engine" / "aifs" / "src").mkdir(parents=True)
+
+        descriptors = MetadataManager.for_path(acc_dir).get_descriptors(skip_base=True, skip_custom=True)
+
+        assert sorted((d.org, d.model_name, d.directory) for d in descriptors) == [
+            ("ecmwf", "aifs-single-2.0", acc_dir / "model" / "ecmwf" / "aifs-single-2.0"),
+            ("legacy-org", "legacy-model", acc_dir / "legacy-org" / "legacy-model"),
+        ]
 
 
 class TestGetDescriptorsWithCanonicalName:
@@ -522,3 +540,21 @@ class TestModelSpecificDescriptorEngine:
         descriptors = DefaultAssetManager.for_path(tmp_path / "instinct").get_descriptors(skip_base=True)
 
         assert [d.engine for d in descriptors] == [Engine.VLLM]
+
+
+class TestResolveModelAssetsDir:
+    def test_resolves_legacy_layout(self, tmp_path):
+        expected = tmp_path / "org" / "model-name"
+        expected.mkdir(parents=True)
+
+        assert resolve_model_assets_dir(tmp_path, "org", "model-name") == expected
+
+    def test_resolves_grouped_layout(self, tmp_path):
+        expected = tmp_path / "model" / "org" / "model-name"
+        expected.mkdir(parents=True)
+
+        assert resolve_model_assets_dir(tmp_path, "org", "model-name") == expected
+
+    def test_missing_model_lists_both_locations(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="were not found"):
+            resolve_model_assets_dir(tmp_path, "org", "model-name")

@@ -1066,7 +1066,7 @@ def test_find_profile_variant_tie_error_includes_aim_id(
 
 
 def test_precision_priority_covers_every_precision() -> None:
-    """Every Precision member must be ranked, or it silently sorts last (EAI-7807)."""
+    """Every Precision member must be ranked, or it silently sorts last."""
     unranked = [p for p in Precision if p not in PRECISION_PRIORITY]
     assert unranked == []
 

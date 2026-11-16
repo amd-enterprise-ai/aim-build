@@ -8,14 +8,22 @@ Tests for the ``vllm bench serve`` command aim_runtime.benchmarking builds.
 The external benchmark backend is the reference invocation, so these cover the
 flags that keep the harness measuring the same thing: warmup requests, the
 tokenizer mode the served engine was started with, and trust-remote-code.
+
+They also cover which suite a run lands on, and the packaged suites themselves,
+since a mis-selected suite reports plausible numbers for the wrong workload.
 """
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import yaml
 
+from aim_runtime import benchmarking
 from aim_runtime.benchmarking import AIMBenchmark
+from aim_runtime.utils import read_yaml
+
+PACKAGED_CONFIG_PATH = Path(benchmarking.__file__).parent / "benchmark-config.yaml"
 
 BENCH_CONFIG = {
     "name": "isl256_osl256_conc8_np80",
@@ -26,10 +34,58 @@ BENCH_CONFIG = {
 }
 
 
+# A real table from vllm 0.22.1+cpu, taken verbatim from an EPYC_9965 run of the
+# isl256_osl256_conc4_np40 point with --metric-percentiles 75,90,99.
+SERVING_BENCHMARK_RESULT = """\
+============ Serving Benchmark Result ============
+Successful requests:                     40
+Benchmark duration (s):                  63.78
+Total input tokens:                      10240
+Total generated tokens:                  10240
+Request throughput (req/s):              0.63
+Output token throughput (tok/s):         160.55
+Peak output token throughput (tok/s):    192.00
+Peak concurrent requests:                4.00
+Total token throughput (tok/s):          321.14
+---------------Time to First Token----------------
+Mean TTFT (ms):                          115.83
+Median TTFT (ms):                        117.23
+P75 TTFT (ms):                           119.79
+P90 TTFT (ms):                           138.66
+P99 TTFT (ms):                           189.30
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          24.54
+Median TPOT (ms):                        24.56
+P75 TPOT (ms):                           24.63
+P90 TPOT (ms):                           24.69
+P99 TPOT (ms):                           24.75
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           24.54
+Median ITL (ms):                         24.34
+P75 ITL (ms):                            24.58
+P90 ITL (ms):                            24.77
+P99 ITL (ms):                            25.27
+----------------End-to-end Latency----------------
+Mean E2EL (ms):                          6374.33
+Median E2EL (ms):                        6378.09
+P75 E2EL (ms):                           6394.74
+P90 E2EL (ms):                           6399.11
+P99 E2EL (ms):                           6445.32
+==================================================
+"""
+
+
 @pytest.fixture(autouse=True)
-def _no_ambient_extra_args(monkeypatch):
-    """A stale value in the ambient environment would leak into every command."""
-    monkeypatch.delenv("VLLM_BENCH_EXTRA_ARGS", raising=False)
+def _no_ambient_benchmark_env(monkeypatch):
+    """A stale value in the ambient environment would leak into every command.
+
+    ``ACTIVE_SUITE`` and the accelerator variables matter as much as the extra
+    args: they decide which suite a run lands on, so a developer who exported one
+    to reproduce a sweep would otherwise see the selection tests pass or fail on
+    their shell rather than on the code.
+    """
+    for name in ("VLLM_BENCH_EXTRA_ARGS", "ACTIVE_SUITE", "AIM_ACCELERATOR_TYPE", "AIM_PROFILE_ID", "PROFILE_ID"):
+        monkeypatch.delenv(name, raising=False)
 
 
 def build_command(settings=None, engine_args=None, extra_args=None):
@@ -235,3 +291,257 @@ class TestEngineArgsResolution:
     def test_unresolvable_profile_yields_no_flags(self):
         with patch("aim_runtime.config.AIMConfig.from_environment", side_effect=RuntimeError("no profile")):
             assert AIMBenchmark._resolve_profile_engine_args() == {}
+
+
+class TestSuiteSelection:
+    """Which suite a run lands on: ACTIVE_SUITE > first matching rule > active_config."""
+
+    # Each suite is identified by the ISL of its single configuration, so a test can
+    # name the suite it expects instead of asserting on a generated config name.
+    SUITE_MARKERS = {"fallback": 1, "by_type": 2, "by_count": 3, "explicit": 4}
+
+    @classmethod
+    def _config_file(cls, tmp_path):
+        config_path = tmp_path / "benchmark-config.yaml"
+        config_path.write_text(
+            yaml.safe_dump(
+                {
+                    "active_config": "fallback",
+                    "suite_selection": [
+                        {"suite": "by_type", "match": {"accelerator_type": "cpu"}},
+                        {
+                            "suite": "by_count",
+                            "match": {"accelerator_type": "gpu", "accelerator_count": [1, 2]},
+                        },
+                    ],
+                    "config_suites": {name: [[isl, 256, 8, 80]] for name, isl in cls.SUITE_MARKERS.items()},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return str(config_path)
+
+    @classmethod
+    def _selected_suite(cls, tmp_path, **env):
+        """The name of the suite AIMBenchmark picks under ``env``."""
+        with patch.dict("os.environ", env):
+            benchmark = AIMBenchmark(service_url="http://localhost:8000", config_file=cls._config_file(tmp_path))
+
+        isl = benchmark.config["benchmark_configs"][0]["input_seq_len"]
+        return {marker: name for name, marker in cls.SUITE_MARKERS.items()}[isl]
+
+    def test_a_type_rule_selects_a_suite(self, tmp_path):
+        assert self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="cpu") == "by_type"
+
+    def test_the_cpu_rule_wins_over_the_gpu_count_rule(self, tmp_path):
+        """An EPYC image reports one accelerator, so it must not select the GPU TP1 suite."""
+        selected = self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="cpu", AIM_PROFILE_ID="epyc-zen5-tp1-bf16")
+
+        assert selected == "by_type"
+
+    def test_active_suite_outranks_the_rules(self, tmp_path):
+        selected = self._selected_suite(tmp_path, ACTIVE_SUITE="explicit", AIM_ACCELERATOR_TYPE="cpu")
+
+        assert selected == "explicit"
+
+    def test_the_type_is_matched_case_insensitively(self, tmp_path):
+        """``AIM_ACCELERATOR_TYPE`` is lowercased everywhere else it is read."""
+        assert self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="CPU") == "by_type"
+
+    def test_a_gpu_count_rule_selects_a_suite(self, tmp_path):
+        selected = self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="gpu", AIM_PROFILE_ID="mi300x-tp1-fp8")
+
+        assert selected == "by_count"
+
+    def test_a_gpu_count_list_selects_a_suite(self, tmp_path):
+        selected = self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="gpu", AIM_PROFILE_ID="mi300x-tp2-fp8")
+
+        assert selected == "by_count"
+
+    def test_an_unset_type_uses_the_gpu_count_rule(self, tmp_path):
+        """The default GPU path keeps selecting by accelerator count."""
+        assert self._selected_suite(tmp_path, AIM_PROFILE_ID="mi300x-tp1-fp8") == "by_count"
+
+    def test_no_match_anywhere_falls_back_to_active_config(self, tmp_path):
+        assert self._selected_suite(tmp_path, AIM_ACCELERATOR_TYPE="gpu") == "fallback"
+
+
+class TestPackagedSuites:
+    """The shipped benchmark-config.yaml, whose suites are hand-written tuples."""
+
+    @pytest.fixture(scope="class")
+    def packaged_config(self):
+        return read_yaml(PACKAGED_CONFIG_PATH)
+
+    @pytest.fixture(scope="class")
+    def epyc_suites(self, packaged_config):
+        return {name: suite for name, suite in packaged_config["config_suites"].items() if name.startswith("epyc_")}
+
+    def test_the_expected_epyc_suites_ship(self, epyc_suites):
+        assert sorted(epyc_suites) == ["epyc_full_sweep", "epyc_quick"]
+
+    def test_every_epyc_entry_is_a_positive_four_tuple(self, epyc_suites):
+        malformed = [
+            (name, entry)
+            for name, suite in epyc_suites.items()
+            for entry in suite
+            if len(entry) != 4 or not all(isinstance(v, int) and v > 0 for v in entry)
+        ]
+        assert malformed == []
+
+    def test_every_epyc_entry_runs_ten_prompts_per_concurrent_request(self, epyc_suites):
+        """A sweep point that does not scale its prompt count measures a different window."""
+        mismatched = [
+            (name, entry) for name, suite in epyc_suites.items() for entry in suite if entry[3] != 10 * entry[2]
+        ]
+        assert mismatched == []
+
+    def test_cpu_rule_selects_an_epyc_suite(self, packaged_config):
+        assert any(
+            rule["suite"].startswith("epyc_") and rule["match"] == {"accelerator_type": "cpu"}
+            for rule in packaged_config["suite_selection"]
+        )
+
+    def test_epyc_quick_is_a_subset_of_full_sweep(self, epyc_suites):
+        """epyc_quick is sampled from epyc_full_sweep; drifting off that basis breaks the docs."""
+        quick = {tuple(entry) for entry in epyc_suites["epyc_quick"]}
+        full_sweep = {tuple(entry) for entry in epyc_suites["epyc_full_sweep"]}
+        assert quick <= full_sweep
+
+    def test_every_rule_references_an_existing_suite(self, packaged_config):
+        suites = packaged_config["config_suites"]
+
+        assert [rule["suite"] for rule in packaged_config["suite_selection"] if rule["suite"] not in suites] == []
+
+    def test_the_1k_8k_32k_suite_matches_the_trigger_grid(self, packaged_config):
+        """The trigger benchmark page is an irregular grid, so a dropped concurrency is a different workload."""
+        assert packaged_config["config_suites"]["1k-8k-32k"] == [
+            [1024, 1024, 1, 10],
+            [1024, 1024, 4, 40],
+            [1024, 1024, 8, 80],
+            [1024, 1024, 16, 160],
+            [1024, 1024, 32, 320],
+            [1024, 1024, 64, 640],
+            [1024, 1024, 128, 1280],
+            [1024, 1024, 256, 2560],
+            [1024, 1024, 512, 5120],
+            [8192, 1024, 1, 10],
+            [8192, 1024, 4, 40],
+            [8192, 1024, 8, 80],
+            [8192, 1024, 16, 160],
+            [8192, 1024, 32, 320],
+            [8192, 1024, 64, 640],
+            [8192, 1024, 128, 1280],
+            [32768, 1024, 1, 10],
+            [32768, 1024, 4, 40],
+            [32768, 1024, 8, 80],
+            [32768, 1024, 16, 160],
+            [32768, 1024, 32, 320],
+        ]
+
+
+class TestLegacyCountSuiteMap:
+    """``accelerator_count_suite_map``, the schema that preceded ``suite_selection``.
+
+    A config file written against the released schema is a supported input to
+    ``benchmark --config``, and upgrading the runtime must not quietly swap the
+    workload such a file asks for.
+    """
+
+    SUITE_MARKERS = {"fallback": 1, "mapped_tp2": 2, "by_rule": 3, "explicit": 4}
+
+    @classmethod
+    def _config_file(cls, tmp_path, *, with_rules=False):
+        config = {
+            "active_config": "fallback",
+            "accelerator_count_suite_map": {2: "mapped_tp2"},
+            "config_suites": {name: [[isl, 256, 8, 80]] for name, isl in cls.SUITE_MARKERS.items()},
+        }
+        if with_rules:
+            config["suite_selection"] = [{"suite": "by_rule", "match": {"accelerator_count": 2}}]
+
+        config_path = tmp_path / "legacy-config.yaml"
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+        return str(config_path)
+
+    @classmethod
+    def _selected_suite(cls, tmp_path, *, with_rules=False, **env):
+        with patch.dict("os.environ", env):
+            benchmark = AIMBenchmark(
+                service_url="http://localhost:8000",
+                config_file=cls._config_file(tmp_path, with_rules=with_rules),
+            )
+
+        isl = benchmark.config["benchmark_configs"][0]["input_seq_len"]
+        return {marker: name for name, marker in cls.SUITE_MARKERS.items()}[isl]
+
+    def test_the_mapped_suite_is_still_selected(self, tmp_path):
+        """Without this, a two-GPU run silently measures active_config instead."""
+        selected = self._selected_suite(tmp_path, AIM_PROFILE_ID="vllm-mi300x-fp8-tp2-throughput")
+
+        assert selected == "mapped_tp2"
+
+    def test_the_new_rules_outrank_the_legacy_map(self, tmp_path):
+        selected = self._selected_suite(tmp_path, with_rules=True, AIM_PROFILE_ID="vllm-mi300x-fp8-tp2-throughput")
+
+        assert selected == "by_rule"
+
+    def test_active_suite_outranks_the_legacy_map(self, tmp_path):
+        selected = self._selected_suite(
+            tmp_path, ACTIVE_SUITE="explicit", AIM_PROFILE_ID="vllm-mi300x-fp8-tp2-throughput"
+        )
+
+        assert selected == "explicit"
+
+    def test_an_unmapped_count_falls_back_to_active_config(self, tmp_path):
+        selected = self._selected_suite(tmp_path, AIM_PROFILE_ID="vllm-mi300x-fp8-tp8-throughput")
+
+        assert selected == "fallback"
+
+    def test_a_run_without_a_profile_falls_back_to_active_config(self, tmp_path):
+        """No profile id means no accelerator count to look the suite up by."""
+        assert self._selected_suite(tmp_path) == "fallback"
+
+    def test_the_legacy_key_is_reported_as_deprecated(self, tmp_path, caplog):
+        with caplog.at_level("WARNING", logger="aim_runtime.benchmarking"):
+            self._selected_suite(tmp_path, AIM_PROFILE_ID="vllm-mi300x-fp8-tp2-throughput")
+
+        assert "accelerator_count_suite_map' is deprecated" in caplog.text
+
+    def test_a_config_using_the_new_rules_is_not_warned_about(self, tmp_path, caplog):
+        config = {
+            "active_config": "fallback",
+            "suite_selection": [{"suite": "by_rule", "match": {"accelerator_count": 2}}],
+            "config_suites": {name: [[isl, 256, 8, 80]] for name, isl in self.SUITE_MARKERS.items()},
+        }
+        config_path = tmp_path / "modern-config.yaml"
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+        with caplog.at_level("WARNING", logger="aim_runtime.benchmarking"):
+            with patch.dict("os.environ", {"AIM_PROFILE_ID": "vllm-mi300x-fp8-tp2-throughput"}):
+                AIMBenchmark(service_url="http://localhost:8000", config_file=str(config_path))
+
+        assert "deprecated" not in caplog.text
+
+
+class TestMetricParsing:
+    """The regexes that lift metrics out of the ``vllm bench serve`` result table.
+
+    The table is the only place these numbers exist: the subprocess runs with
+    ``capture_output``, so a pattern that does not match silently writes an empty
+    column rather than failing the run.
+    """
+
+    def test_the_throughput_metrics_parse(self):
+        """``Total token throughput`` is lower-case in the table it is read from."""
+        parsed = AIMBenchmark._parse_benchmark_output(AIMBenchmark.__new__(AIMBenchmark), SERVING_BENCHMARK_RESULT)
+
+        assert parsed["req_throughput"] == "0.63"
+        assert parsed["output_tok_throughput"] == "160.55"
+        assert parsed["total_tok_throughput"] == "321.14"
+
+    def test_every_metric_parses(self):
+        """A pattern that matches nothing leaves its column blank in the CSV."""
+        parsed = AIMBenchmark._parse_benchmark_output(AIMBenchmark.__new__(AIMBenchmark), SERVING_BENCHMARK_RESULT)
+
+        assert [key for key, value in parsed.items() if value is None] == []

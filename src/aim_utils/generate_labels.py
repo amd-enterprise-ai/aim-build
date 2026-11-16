@@ -13,7 +13,7 @@ Usage:
 
 Environment variables:
     LABELS_SERVER_URL      - Source control server URL (e.g. https://github.com)
-    LABELS_REPOSITORY      - Repository path (e.g. silogen/aim-build)
+    LABELS_REPOSITORY      - Repository path (e.g. owner/repo)
     LABELS_VERSION_NUMBER  - Image version string
     LABELS_IS_BASE         - "true" for base images, "false" for model images
     LABELS_ORG             - Model organization (required when IS_BASE=false)

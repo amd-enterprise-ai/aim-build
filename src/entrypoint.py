@@ -30,7 +30,7 @@ from aim_runtime.utils import dump_yaml
 if TYPE_CHECKING:
     from aim_runtime.harness import HarnessConfig, ModelHarness
 
-root_log_level = os.environ.get("AIM_LOG_LEVEL_ROOT", "WARNING")
+root_log_level = os.environ.get("AIM_LOG_LEVEL_ROOT", "INFO")
 configure_logging(
     root_log_level=root_log_level,
     aim_log_level=os.environ.get("AIM_LOG_LEVEL", "INFO"),
@@ -527,7 +527,7 @@ def benchmark(service_url, timeout_seconds, config_file, output_dir, startup_tim
     """
     try:
         configure_logging(
-            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
+            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "INFO"),
             aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
         )
 
@@ -781,7 +781,7 @@ def list_checks(profile, output_format):
 def _configure_harness_logging() -> None:
     """Apply the env-driven log levels shared by all harness commands."""
     configure_logging(
-        root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
+        root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "INFO"),
         aim_log_level=os.getenv("AIM_LOG_LEVEL", "INFO"),
     )
 
@@ -943,7 +943,7 @@ def detect_hardware(accelerator_type, format, verbose):
         # Suppress info/warning logs unless --verbose to keep output clean for piping
         default_aim_level = "INFO" if verbose else "ERROR"
         configure_logging(
-            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "WARNING"),
+            root_log_level=os.getenv("AIM_LOG_LEVEL_ROOT", "INFO"),
             aim_log_level=os.getenv("AIM_LOG_LEVEL", default_aim_level),
         )
 

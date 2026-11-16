@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Tests for adapter enumeration + vLLM static-mode synthesis (ADR-0004)."""
+"""Tests for adapter enumeration + vLLM static-mode synthesis."""
 
 from __future__ import annotations
 

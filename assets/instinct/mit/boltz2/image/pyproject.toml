@@ -1,0 +1,26 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boltz2-aim"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+description = "AIM serving wrapper for Boltz-2"
+dependencies = [
+    # Versions pinned to the validated Boltz-2 image.
+    "bentoml==1.4.35",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.16.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["service", "runner", "harness", "config", "compilation", "warmup", "resident_strategy", "request_budget"]
+# rocm_triangle vendors OpenFold3's Triton triangle kernels; runner.py imports it
+# by package name, so it has to be installed alongside the flat modules.
+packages = ["rocm_triangle"]

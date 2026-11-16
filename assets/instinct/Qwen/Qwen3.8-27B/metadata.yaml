@@ -29,7 +29,6 @@ com:
         variants:
         - "Qwen/Qwen3.8-27B"
         - "Qwen/Qwen3.8-27B-FP8"
-        - "amd/Qwen3.8-27B-Quark-AWQ-MXFP4"
       hfToken:
         required: false
       release:

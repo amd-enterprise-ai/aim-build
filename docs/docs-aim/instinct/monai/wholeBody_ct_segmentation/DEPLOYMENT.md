@@ -23,9 +23,8 @@ This AIM has an API of its own, shaped by what the model takes and returns. See
 
 ### 1.1 Running the container
 
-Pin the profile explicitly, so that the selection cannot depend on the hardware the runtime detects. Set
-`AIM_PROFILE_ID` to one of the profiles listed in the [README](README.md), and set `AIM_ACCELERATOR_COUNT` to the
-accelerator count of that profile.
+Set `AIM_PROFILE_ID` to one of the profiles listed in the [README](README.md). The runtime then uses that profile
+and does not select a profile from the detected hardware.
 
 ```bash
 mkdir -p /path/to/model-cache
@@ -33,16 +32,12 @@ mkdir -p /path/to/model-cache
 docker run \
   -e AIM_ID=monai/wholeBody_ct_segmentation \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
   -p 8000:8000 \
   amdenterpriseai/aim-instinct-model-monai-wholebody-ct-segmentation:2026.14.0-preview
 ```
-
-`AIM_ACCELERATOR_COUNT` must agree with the `accelerator_count` of the selected profile. Set an integer, not `auto`,
-because some AIMs read the value directly.
 
 ### 1.2 Customizing deployment with environment variables
 
@@ -52,7 +47,6 @@ Customize your deployment with optional environment variables:
 docker run \
   -e AIM_ID=monai/wholeBody_ct_segmentation \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_CACHE_PATH=/workspace/model-cache \
   -e AIM_LOG_LEVEL=INFO \
   -e AIM_PORT=8080 \
@@ -62,6 +56,10 @@ docker run \
   -p 8080:8080 \
   amdenterpriseai/aim-instinct-model-monai-wholebody-ct-segmentation:2026.14.0-preview
 ```
+
+Without `AIM_PROFILE_ID`, the runtime selects a profile from the detected hardware.
+`AIM_ACCELERATOR_COUNT` changes the accelerator count that the selection uses. The runtime does not use it when
+`AIM_PROFILE_ID` is set.
 
 ## 2. Model caching for production
 
@@ -77,7 +75,6 @@ If the cache must be at a different path, set `AIM_CACHE_PATH` and mount the vol
 docker run \
   -e AIM_ID=monai/wholeBody_ct_segmentation \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -e AIM_CACHE_PATH=/mnt/aim-cache \
   -v /path/to/model-cache:/mnt/aim-cache \
   --device=/dev/kfd --device=/dev/dri \
@@ -124,8 +121,6 @@ spec:
               value: "monai/wholeBody_ct_segmentation"
             - name: AIM_PROFILE_ID
               value: "bentoml-mi300x-fp16-tp1-latency"
-            - name: AIM_ACCELERATOR_COUNT
-              value: "1"
             - name: AIM_CACHE_PATH
               value: "/workspace/model-cache"
             - name: AIM_LOG_LEVEL_ROOT
@@ -153,6 +148,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 360
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
@@ -183,6 +185,10 @@ spec:
 The startup probe gives the start up to one hour: 360 checks at 10-second intervals. That covers a first start that
 downloads weights, as described in section 2. The pod stays out of the service endpoints until this probe succeeds,
 so no request reaches a model that is still loading. A later start reads the cache and succeeds much sooner.
+
+The readiness probe checks `/readyz` every 10 seconds. After three failed checks (30 seconds) Kubernetes takes the
+pod out of the service endpoints, so a worker that fails after a successful start stops receiving requests until it
+recovers. The liveness probe below is slower on purpose and only restarts the container.
 
 Kubernetes runs the liveness probe only after the startup probe succeeds. The liveness probe then accepts 30 failed
 checks, which is five minutes, before it restarts the container. This tolerates a model that does more work after the
@@ -290,10 +296,29 @@ section 4.4.
 ### 4.4 Example request
 
 The service reads and writes the paths in the request inside the container, so the volumes must be reachable there.
-Add `-v /path/to/ct-data:/workspace/data` to the `docker run` command of section 1.1, or mount the same directory in
-the Kubernetes deployment of section 3. The examples below use `/workspace/data` for input and `/workspace/output` for
-output, which are the defaults. `AIM_INPUT_PATH` and `AIM_OUTPUT_PATH` change them; a path outside those roots is
-rejected. The file name is a placeholder. Any NIfTI CT volume works; the examples use a case from the
+Add `-v /path/to/ct-data:/workspace/data` for the input and `-v /path/to/output:/workspace/output` for the masks to the
+`docker run` command of section 1.1. Without the output mount, the masks stay in the container and are lost when it is
+removed. In the Kubernetes deployment of section 3, add both volumes to the existing `volumeMounts` and `volumes`
+lists, and create the two claims like the cache claim in `pvc.yaml`:
+
+```yaml
+volumeMounts:
+  - name: input-data
+    mountPath: /workspace/data
+  - name: output-data
+    mountPath: /workspace/output
+volumes:
+  - name: input-data
+    persistentVolumeClaim:
+      claimName: minimal-aim-input-data
+  - name: output-data
+    persistentVolumeClaim:
+      claimName: minimal-aim-output-data
+```
+
+The examples below use `/workspace/data` for input and `/workspace/output` for output, which are the defaults.
+`AIM_INPUT_PATH` and `AIM_OUTPUT_PATH` change them; a path outside those roots is rejected. The file name is a
+placeholder. Any NIfTI CT volume works; the examples use a case from the
 [TotalSegmentator small subset](https://zenodo.org/record/10047263) (CC-BY-4.0), a subset of the
 [dataset](https://zenodo.org/record/6802614) the bundle was trained on.
 
@@ -334,21 +359,24 @@ print(response.json()["output"]["output_path"])
   },
   "metadata": {
     "device": "cuda:0",
-    "used_amp": false,
+    "used_amp": true,
     "parameters": {},
     "optimizations": {
-      "compile": false,
-      "compile_mode": null,
-      "dynamic": null,
-      "autocast": false,
-      "gpu_transforms": false
+      "compile": true,
+      "compile_mode": "max-autotune",
+      "dynamic": false,
+      "autocast": true,
+      "gpu_transforms": true,
+      "highres": true
     }
   }
 }
 ```
 
 The mask is written to `<output_dir>/<stem>/<stem>_trans.nii.gz`, where `<stem>` is the input filename without its
-extensions. Read the file from the mounted directory.
+extensions. Read the file from the volume mounted at `/workspace/output`, as described in section 4.4. A later request
+for the same input writes this same path and overwrites the earlier mask. To keep both, give each request its own
+`output_dir` under `/workspace/output`.
 
 `/v1/models` answers with the served model and the 105-entry label map (background plus 104 TotalSegmentator
 structures), for example:
@@ -368,7 +396,8 @@ structures), for example:
         "3": "kidney_left",
         "...": "...",
         "104": "urinary_bladder"
-      }
+      },
+      "highres": true
     }
   ]
 }
@@ -386,11 +415,18 @@ Other modalities, such as MRI, give meaningless output.
 which gives finer masks at a higher memory cost. Set `WHOLEBODY_CT_HIGHRES=false` to switch to the low-resolution
 variant (`model_lowres.pt`, 3.0 mm isotropic), which fits tighter GPU budgets.
 
+**The service always listens on port 8000.** The image sets `BENTOML_PORT=8000`, and the service does not read
+`AIM_PORT`, so the `AIM_PORT=8080` example in section 1.2 does not work for this AIM: nothing listens on port 8080.
+Leave `AIM_PORT` unset and map the host port you want to 8000, for example `-p 8080:8000`. In Kubernetes, keep
+`containerPort` and `targetPort` at 8000, as in section 3.
+
 **Requests are served one at a time.** The service holds a lock around inference, so a second request waits for the
 first to finish. The profile uses one accelerator.
 
 **The request timeout is 1800 seconds.** Set a client timeout that is not shorter, or the client stops before the
-service replies. `WHOLEBODY_CT_TIMEOUT_SECONDS` changes it.
+service replies. `WHOLEBODY_CT_TIMEOUT_SECONDS` changes it. When compile is on, as in the
+`bentoml-mi300x-fp16-tp1-latency` profile (see section 4.7), the network compiles on the first request and not at
+startup. That request takes much longer than later ones, so a client timeout sized for later requests can stop it.
 
 **The weights are fetched at startup when absent.** They are downloaded from `MONAI/wholeBody_ct_segmentation` on
 Hugging Face and kept in `$AIM_CACHE_PATH`. Mount a persistent volume there, as described in section 2, or they are
@@ -398,9 +434,13 @@ downloaded again on every start. No Hugging Face token is required.
 
 ### 4.7 Optimization environment variables
 
-These are off by default. Switch them on to increase the startup time and decrease the inference time.
+A profile can set these variables in its `env_vars`. A value that the profile sets overrides the code default below
+and any `-e`. The `bentoml-mi300x-fp16-tp1-latency` profile sets `WHOLEBODY_CT_COMPILE`, `WHOLEBODY_CT_AUTOCAST` and
+`WHOLEBODY_CT_GPU_TRANSFORMS` to `true`, which increases the startup time and decreases the inference time. The
+example response in section 4.5 comes from that profile. To see what another profile sets, run the `dry-run` command
+of section 6.3 with `AIM_PROFILE_ID` set, and read its `env_vars`.
 
-| Variable | Default | Effect |
+| Variable | Code default | Effect |
 |---|---|---|
 | `WHOLEBODY_CT_HIGHRES` | `true` | Use the 1.5 mm high-resolution variant. Set to `false` for the 3.0 mm low-resolution variant. |
 | `WHOLEBODY_CT_COMPILE` | `false` | Compile the network with `torch.compile`. |
@@ -410,6 +450,10 @@ These are off by default. Switch them on to increase the startup time and decrea
 | `WHOLEBODY_CT_GPU_TRANSFORMS` | `false` | Run the preprocessing transforms on the accelerator. |
 | `WHOLEBODY_CT_TIMEOUT_SECONDS` | `1800` | Whole-request cap. |
 | `WHOLEBODY_CT_LOG_LEVEL` | `INFO` | Log level of the service. |
+
+A variable that the profile does not set can be changed with `-e`, as in section 1.2. To change a variable that the
+profile sets, write a custom profile with the changed `env_vars`, mount its directory at
+`/workspace/aim-runtime/profiles/custom`, and set `AIM_PROFILE_ID` to its filename without the `.yaml` extension.
 
 ## 5. Advanced deployment scenarios
 
@@ -422,7 +466,6 @@ without the `.yaml` extension. The [README](README.md) lists the available profi
 docker run \
   -e AIM_ID=monai/wholeBody_ct_segmentation \
   -e AIM_PROFILE_ID=<PROFILE_ID> \
-  -e AIM_ACCELERATOR_COUNT=<ACCELERATOR_COUNT_OF_THAT_PROFILE> \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
@@ -430,8 +473,8 @@ docker run \
   amdenterpriseai/aim-instinct-model-monai-wholebody-ct-segmentation:2026.14.0-preview
 ```
 
-`AIM_ACCELERATOR_COUNT` must match the `accelerator_count` of the selected profile. If the two disagree, the
-container stops at startup with a profile selection error.
+Section 1.1 describes how the runtime uses `AIM_PROFILE_ID`. If the profile uses a different number of accelerators
+than the default profile, change the accelerator count under `resources` in the section 3.1 manifest to match.
 
 ## 6. Monitoring and troubleshooting
 
@@ -460,7 +503,6 @@ docker run \
   -e AIM_LOG_LEVEL=DEBUG \
   -e AIM_ID=monai/wholeBody_ct_segmentation \
   -e AIM_PROFILE_ID=bentoml-mi300x-fp16-tp1-latency \
-  -e AIM_ACCELERATOR_COUNT=1 \
   -v /path/to/model-cache:/workspace/model-cache \
   --device=/dev/kfd --device=/dev/dri \
   --group-add video --ipc=host \
@@ -498,7 +540,15 @@ docker run \
 * **The container restarts after it answers on `/healthz`.** The liveness probe accepts five minutes of failed
   checks. If the model does more work after the health endpoint answers, and that work takes longer, raise
   `failureThreshold` on the liveness probe.
-* **The container stops with a profile selection error.** `AIM_PROFILE_ID` and `AIM_ACCELERATOR_COUNT` must agree.
+* **The container stops with a profile selection error.** The error message gives the cause.
+  * If `AIM_PROFILE_ID` is set, the ID matches no profile of this AIM. Compare it with the [README](README.md) or the
+    output of `list-profiles` (see section 6.4).
+  * If the error lists profile IDs, the matching profiles must be selected explicitly. Set `AIM_PROFILE_ID` to one of
+    them.
+  * If no profile is compatible, the error counts the profiles per reason, such as `accelerator_mismatch` or
+    `precision_mismatch`. Compare the `Detected Accelerator` and `Accelerator Count` lines in the log, and any
+    `AIM_PRECISION` or `AIM_METRIC` you set, with the profile table in the [README](README.md). Or set
+    `AIM_PROFILE_ID` to a profile from the README (see section 1.1).
 * **`/healthz` does not answer yet.** The service binds the port only after the model is loaded. Read the container
   logs to see how far startup got.
 

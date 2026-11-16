@@ -1,0 +1,19 @@
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+#
+# SPDX-License-Identifier: MIT
+
+# Vendor fallback: no specialized aim-base exists for FreeBindCraft. The
+# Layer-1 image (image/Dockerfile) builds directly on the ROCm vendor base
+# that matches the JAX ROCm 7.2.2 wheels it installs. Long-running job image:
+# no aim-runtime, no HTTP server. specialized stays false on purpose: this image
+# does not extend an aim-base layer (as with the GROMACS job AIM), so the
+# specialized flag and image/Dockerfile are changed together or not at all.
+base_image:
+  registry_host: docker.io
+  base_registry_namespace: rocm
+  base_repository: dev-ubuntu-22.04
+  base_tag: "7.2.2"
+specialized: false
+templates:
+  deployment: docs/templates/DEPLOYMENT.job.md
+  readme: docs/templates/README.md

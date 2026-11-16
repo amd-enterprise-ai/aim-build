@@ -7,7 +7,7 @@
 Subclasses :class:`VllmEngine`; uses the vLLM-Omni argument model. By
 inheriting :meth:`VllmEngine.apply_engine_defaults`, Omni profiles now also
 receive ``served-model-name`` — a deliberate change from the previous
-exact-``Engine.VLLM`` check, which excluded Omni. See EAI-5778 PR notes.
+exact-``Engine.VLLM`` check, which excluded Omni.
 
 The vLLM-Omni argument-validation model (:class:`VllmOmniEngineArgsModel`)
 lives here too, next to the engine it describes; it is re-exported from
